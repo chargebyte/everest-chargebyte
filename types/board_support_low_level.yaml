@@ -1,0 +1,30 @@
+description: Low-level board support types
+types:
+  CP:
+    description: Control pilot states according to IEC61851
+    type: string
+    enum:
+      - A
+      - B
+      - C
+      - D
+      - E
+      - F
+      - Invalid
+  ErrorReason:
+    description: Signal the different errors that can happen in HW
+    type: string
+    enum:
+      - NoError
+      - ContactorError
+      - DiodeFault
+      - RCDError
+      - ProximityError
+  ProximityError:
+    description: Signal the different errors regarding the Proximity Pilot signal
+    type: string
+    enum:
+      - NoError
+      - ChangedDuringCharging
+      - Invalid
+      - NoCableConnected
