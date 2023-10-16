@@ -30,12 +30,6 @@ active_modules:
       evse_manager:
       - module_id: connector_1
         implementation_id: evse
-  evse_hardware_manager:
-    module: EvseHardwareManager
-    connections:
-      low_level_hardware:
-      - module_id: cb_tarragon_driver
-        implementation_id: low_level
   cb_tarragon_driver:
     module: CbTarragonDriver
     connections: {}
@@ -70,8 +64,8 @@ active_modules:
       three_phases: true
     connections:
       bsp:
-        - module_id: evse_hardware_manager
-          implementation_id: board_support
+        - module_id: cb_tarragon_driver
+          implementation_id: low_level
       slac:
         - module_id: EvseSlac0
           implementation_id: main
