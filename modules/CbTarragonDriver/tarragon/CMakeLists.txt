@@ -7,6 +7,7 @@ target_sources(tarragon
         "CbTarragonPWM.cpp"
         "CbTarragonCP.cpp"
         "CbTarragonCPADC.cpp"
+        "CbTarragonPP.cpp"
 )
 
 get_target_property(EVEREST_GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
