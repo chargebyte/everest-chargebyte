@@ -1,13 +1,4 @@
 active_modules:
-  EvseSlac0:
-    module: EvseSlac
-    config_implementation:
-      main:
-        device: eth1
-        evse_id: CHARGEBYTE_SAYS_HELLO
-        nid: chargebyte!
-        number_of_sounds: 10
-    connections: {}
   api:
     module: API
     connections:
@@ -57,7 +48,6 @@ active_modules:
       max_current_import_A: 16
       payment_enable_contract: false
       payment_enable_eim: true
-      rcd_enabled: true
       session_logging: false
       session_logging_path: /tmp/everest-logs
       session_logging_xml: false
@@ -65,10 +55,7 @@ active_modules:
     connections:
       bsp:
         - module_id: cb_tarragon_driver
-          implementation_id: low_level
-      slac:
-        - module_id: EvseSlac0
-          implementation_id: main
+          implementation_id: evse_board_support
   grid_connection_point:
     module: EnergyNode
     config_module:
