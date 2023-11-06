@@ -14,6 +14,11 @@
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
+
+#include <atomic>
+#include <CbTarragonCP.hpp>
+#include <CbTarragonPWM.hpp>
+
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -30,6 +35,7 @@ public:
 
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
+     ~evse_board_supportImpl();
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
 
 protected:
@@ -59,6 +65,44 @@ private:
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
     // insert your private definitions here
+
+    /// @brief Hardware Capabilities
+    types::evse_board_support::HardwareCapabilities hw_capabilities;
+
+    /// @brief Helper to signal thread termination wish
+    std::atomic_bool termination_requested;
+
+    /// @brief Control Pilot observation
+    CbTarragonCP cp_controller;
+
+    /// @brief Control Pilot generation
+    CbTarragonPWM pwm_controller;
+
+    /// @brief Mutex to enable/disable CP observation thread. Usually hold by the observation
+    ///        worker thread but can be requested via `disable_cp_observation` method.
+    std::mutex cp_observation_lock;
+
+    /// @brief Helper to track whether the CP observation is running
+    bool cp_observation_enabled;
+
+    /// @brief Tracks the last published CP state.
+    std::atomic<types::board_support_common::BspEvent> cp_current_state;
+
+    /// @brief CP observation thread handle
+    std::thread cp_observation_thread;
+
+    /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
+    bool cp_state_changed(struct cp_state_signal_side& signal_side);
+
+    /// @brief Disable/suspend the CP observation thread.
+    void disable_cp_observation(void);
+
+    /// @brief Enable/resume the CP observation thread.
+    void enable_cp_observation(void);
+
+    /// @brief Main function of the CP observation thread
+    void cp_observation_worker(void);
+
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
