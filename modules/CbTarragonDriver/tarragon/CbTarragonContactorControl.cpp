@@ -48,6 +48,9 @@ CbTarragonContactorControl::CbTarragonContactorControl(const std::string &relay_
     if (this->actual_state != ContactorState::CONTACTOR_OPEN)
         EVLOG_error << "Contactor is not in OPEN state during initialization";
 
+    this->new_target_state_ts = std::chrono::steady_clock::now();
+    this->is_new_target_state_set = false;
+
     // TODO: phase switching and 3-phase operation is still yet to be implemented.
     //       For now, we force 1-phase operation
     this->actual_phase_count = 1;
@@ -89,6 +92,7 @@ void CbTarragonContactorControl::set_target_state(ContactorState target_state) {
 
     // capture the timestamp of the new actuator target state
     this->new_target_state_ts = std::chrono::steady_clock::now();
+    this->is_new_target_state_set = true;
 
     // FIXME: phase switching and 3-phase operation is still yet to be implemented.
     //        For now, we only control one relay as we are forcing the phase count to be 1
@@ -145,6 +149,18 @@ int CbTarragonContactorControl::get_max_phase_count(void) {
 
 void CbTarragonContactorControl::set_max_phase_count(int new_max_phase_count) {
     this->max_phase_count = new_max_phase_count;
+}
+
+std::chrono::time_point<std::chrono::steady_clock> CbTarragonContactorControl::get_new_target_state_ts(void) {
+    return this->new_target_state_ts;
+}
+
+bool CbTarragonContactorControl::get_is_new_target_state_set(void) {
+    return this->is_new_target_state_set;
+}
+
+void CbTarragonContactorControl::reset_is_new_target_state_set(void) {
+    this->is_new_target_state_set = false;
 }
 
 void CbTarragonContactorControl::start_phase_switching_while_charging(int phase_target) {

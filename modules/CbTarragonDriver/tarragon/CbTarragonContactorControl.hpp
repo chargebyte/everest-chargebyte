@@ -89,6 +89,16 @@ public:
     ///                           (1 = 1-phase, 3 = 3-phase).
     void set_max_phase_count(int new_max_phase_count);
 
+    /// @brief Return the timestamp at which a new state was set to the actuator
+    std::chrono::time_point<std::chrono::steady_clock> get_new_target_state_ts(void);
+
+    /// @brief Return the status of the flag marking the start of observation
+    ///        of the timestamp at which a new state was set to the actuator.
+    bool get_is_new_target_state_set(void);
+
+    /// @brief Reset the flag is_new_target_state_set.
+    void reset_is_new_target_state_set(void);
+
     /// @brief Determine if phase switching should start.
     /// @param phase_target The number of phases to switch to (1 = 1-phase, 3 = 3-phase).
     void start_phase_switching_while_charging(int phase_target);
@@ -140,4 +150,8 @@ private:
 
     /// @brief Timestamp at which a new state was set to the actuator.
     std::chrono::time_point<std::chrono::steady_clock> new_target_state_ts;
+
+    /// @brief Flag to mark the start of observation of the timestamp
+    ///        at which a new state was set to the actuator.
+    bool is_new_target_state_set;
 };
