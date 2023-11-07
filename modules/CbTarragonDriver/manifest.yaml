@@ -1,10 +1,5 @@
 description: Hardware abstraction layer for chargebyte's HW Tarragon
 config:
-  contactor_1_relay:
-    description: >-
-      This is the name of the platform specific relay to use as primary contactor.
-    type: string
-    default: R1/S1
   contactor_1_feedback_type:
     description: >-
       Defines the logic behind the feedback
@@ -17,12 +12,6 @@ config:
       - no
       - nc
     default: none
-  contactor_2_relay:
-    description: >-
-      This is the name of the platform specific relay to use as secondary contactor,
-      e.g. for switching between 3-phase and 1-phase charging.
-    type: string
-    default: R2/S2
   contactor_2_feedback_type:
     description: >-
       Defines the logic behind the feedback
@@ -36,47 +25,34 @@ config:
       - nc
     default: none
   relay_1_name:
-    description: Name of the relay and it's feedback as labeled on hardware
+    description: Name of the first the relay and its feedback as labeled on hardware
     type: string
     default: R1/S1
   relay_1_actuator_gpio_line_name:
-    description: The GPIO line name which switches the relay on/off
+    description: The GPIO line name which switches the first relay on/off
     type: string
     default: RELAY_1_ENABLE
-  relay_1_actuator_active_low:
-    description: Defines whether the actuator_gpio has inverted logic or not
-    type: boolean
-    default: false
   relay_1_feedback_gpio_line_name:
     description:  >-
       The GPIO line name to which the feedback/sense signal is connected to
     type: string
     default: RELAY_1_SENSE
-  relay_1_feedback_active_low:
-    description: Defines whether the feedback_gpio has inverted logic or not
-    type: boolean
-    default: false
   relay_2_name:
-    description: Name of the relay and it's feedback as labeled on hardware
+    description:  >-
+      Name of the second relay and its feedback as labeled on hardware. This relay is
+      normally used for 3-phase operation. If this relay should be used for other
+      purposes other than 3-phase operation, set the name to "none".
     type: string
     default: R2/S2
   relay_2_actuator_gpio_line_name:
-    description: The GPIO line name which switches the relay on/off
+    description: The GPIO line name which switches the second relay on/off
     type: string
     default: RELAY_2_ENABLE
-  relay_2_actuator_active_low:
-    description: Defines whether the actuator_gpio has inverted logic or not
-    type: boolean
-    default: false
   relay_2_feedback_gpio_line_name:
     description:  >-
       The GPIO line name to which the feedback/sense signal is connected to
     type: string
     default: RELAY_2_SENSE
-  relay_2_feedback_active_low:
-    description: Defines whether the feedback_gpio has inverted logic or not
-    type: boolean
-    default: false
   cp_rst_neg_peak_gpio_line_name:
     description: The GPIO line name of reset pin for negative peak ADC
     type: string
