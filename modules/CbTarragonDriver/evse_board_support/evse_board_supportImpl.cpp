@@ -3,6 +3,8 @@
 
 #include "evse_board_supportImpl.hpp"
 
+using namespace std::chrono_literals;
+
 namespace module {
 namespace evse_board_support {
 
@@ -46,6 +48,24 @@ void evse_board_supportImpl::init() {
     // Proximity Pilot state observation
     this->pp_controller = CbTarragonPP(this->mod->config.pp_adc_device,
                                        this->mod->config.pp_adc_channel);
+
+    // Relay and contactor handling
+    this->contactor_controller = CbTarragonContactorControl(this->mod->config.relay_1_name,
+                                                            this->mod->config.relay_1_actuator_gpio_line_name,
+                                                            this->mod->config.relay_1_feedback_gpio_line_name,
+                                                            this->mod->config.contactor_1_feedback_type,
+                                                            this->mod->config.relay_2_name,
+                                                            this->mod->config.relay_2_actuator_gpio_line_name,
+                                                            this->mod->config.relay_2_feedback_gpio_line_name,
+                                                            this->mod->config.contactor_2_feedback_type);
+
+    // set the contactor handling related flags and timeout
+    this->contactor_feedback_timeout = 200ms;
+    this->allow_power_on = false;
+    this->last_allow_power_on = false;
+
+    // start contactor handling thread
+    this->contactor_handling_thread = std::thread(&evse_board_supportImpl::contactor_handling_worker, this);
 }
 
 void evse_board_supportImpl::ready() {
@@ -66,6 +86,13 @@ evse_board_supportImpl::~evse_board_supportImpl() {
     // if thread exists and is active wait until it is terminated
     if (this->pp_observation_thread.joinable())
         this->pp_observation_thread.join();
+
+    // set the contactor to a safe state
+    this->contactor_controller.set_target_state(ContactorState::CONTACTOR_OPEN);
+
+    // If thread is active wait until it is terminated
+    if (this->contactor_handling_thread.joinable())
+        this->contactor_handling_thread.join();
 }
 
 void evse_board_supportImpl::handle_setup(bool& three_phases, bool& has_ventilation, std::string& country_code) {
@@ -111,7 +138,7 @@ void evse_board_supportImpl::handle_pwm_F() {
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
-    // your code for cmd allow_power_on goes here
+    this->allow_power_on = value.allow_power_on ? true : false;
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
@@ -354,6 +381,109 @@ void evse_board_supportImpl::cp_observation_worker(void) {
 
     EVLOG_info << "Control Pilot Observation Thread terminated";
 }
+
+void evse_board_supportImpl::contactor_handling_worker(void) {
+    static bool is_switch_on_allowed_lock{false};
+
+    EVLOG_info << "Contactor Handling Thread started";
+
+    while (!this->termination_requested) {
+        ContactorState contactor_state{ContactorState::CONTACTOR_OPEN};
+
+        // set the new contactor target state
+        if (this->last_allow_power_on != this->allow_power_on) {
+            this->last_allow_power_on = this->allow_power_on;
+
+            EVLOG_info << (this->allow_power_on ? "Closing" : "Opening") << " contactor";
+
+            this->contactor_controller.set_target_state(this->allow_power_on ? ContactorState::CONTACTOR_CLOSED :
+                                                                               ContactorState::CONTACTOR_OPEN);
+
+        } else if ((this->contactor_controller.get_delay_contactor_close() == false) &&
+                  (((this->mod->config.contactor_1_feedback_type == "none") && (this->mod->config.contactor_2_feedback_type == "none")) ||
+                  ((this->mod->config.contactor_1_feedback_type == "none") && (this->contactor_controller.get_target_phase_count() == 1)))) {
+            // if there is no new target states to set, we should monitor the contactor feedback through edge events.
+            // If no new edge events for contactor feedback are expected because the relays have no feedback
+            // connected to them, and we are not intentionally delaying switching on, we should simulate the
+            // actual state and send the corresponding events to the higher layer. Note that his should only happen if:
+            // - Either both contactors have no feedback, because if at least one of them has feedback, the waiting
+            //   mechanism for edge events should take place
+            // - OR if we are in single phase operation and the first contactor has no feedback
+
+            // in case a new target state is set, we need to update the actual state by simply setting
+            // it to be equal to the required target state
+            if (this->contactor_controller.is_error_state()) {
+                this->contactor_controller.set_actual_state(this->contactor_controller.get_state(StateType::TARGET_STATE));
+
+                // publish PowerOn or PowerOff event
+                types::board_support_common::Event tmp_event = (this->contactor_controller.get_state(StateType::TARGET_STATE) == ContactorState::CONTACTOR_CLOSED) ?
+                                                               types::board_support_common::Event::PowerOn :
+                                                               types::board_support_common::Event::PowerOff;
+                types::board_support_common::BspEvent tmp {tmp_event};
+                this->publish_event(tmp);
+            }
+
+            // intentional sleep because no feedback monitoring is needed
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+        } else if (this->contactor_controller.wait_for_events(std::chrono::milliseconds(20)) == true) {
+            // otherwise wait for edge events to happen on one or both contactors
+
+            // Read if the new event is a contactor closed or opened event
+            contactor_state = this->contactor_controller.read_events() ? ContactorState::CONTACTOR_CLOSED :
+                                                                         ContactorState::CONTACTOR_OPEN;
+
+            // if it is a new event, set the actual state
+            if (contactor_state == this->contactor_controller.get_state(StateType::TARGET_STATE) &&
+                contactor_state != this->contactor_controller.get_state(StateType::ACTUAL_STATE)) {
+                // if the received state is equal to the expected state, set the actual state
+                this->contactor_controller.set_actual_state(contactor_state);
+
+                // publish PowerOn or PowerOff event
+                types::board_support_common::Event tmp_event = (contactor_state == ContactorState::CONTACTOR_CLOSED) ?
+                                                               types::board_support_common::Event::PowerOn :
+                                                               types::board_support_common::Event::PowerOff;
+                types::board_support_common::BspEvent tmp {tmp_event};
+                this->publish_event(tmp);
+            }
+
+        } else {
+            // if we are actually waiting for a new state but it has not been detected yet
+            if (this->contactor_controller.is_error_state()) {
+
+                // if no contactor feedback has been detected but we are intentionally delaying switching on
+                // the contactor to prevent wearout. Contactor is only allowed to be switched on once every 10 seconds
+                if ((is_switch_on_allowed_lock != this->contactor_controller.is_switch_on_allowed()) &&
+                    (this->contactor_controller.is_switch_on_allowed() == true) &&
+                    (this->contactor_controller.get_delay_contactor_close() == true) &&
+                    (this->contactor_controller.get_state(StateType::TARGET_STATE) == ContactorState::CONTACTOR_CLOSED)) {
+                    // set the target state again to switch on the contactor
+                    this->contactor_controller.set_target_state(ContactorState::CONTACTOR_CLOSED);
+
+                    this->contactor_controller.reset_delay_contactor_close();
+                }
+
+                else if ((this->contactor_controller.get_delay_contactor_close() == false) &&
+                         (this->contactor_controller.get_is_new_target_state_set() == true) &&
+                         (std::chrono::steady_clock::now() - this->contactor_controller.get_new_target_state_ts() > this->contactor_feedback_timeout)) {
+                    // if no new events for contactor feedback have been detected for 200ms after a new target state was set
+
+                    // publish a 'contactor fault' event to the upper layer
+                    types::board_support_common::BspEvent tmp {types::board_support_common::Event::MREC_17_EVSEContactorFault};
+                    this->publish_event(tmp);
+
+                    // reset the flag that marked the start of counting the contactor_feedback_timeout
+                    this->contactor_controller.reset_is_new_target_state_set();
+                }
+
+                is_switch_on_allowed_lock = this->contactor_controller.is_switch_on_allowed();
+            }
+        }
+    }
+
+    EVLOG_info << "Contactor Handling Thread terminated";
+}
+
 
 } // namespace evse_board_support
 } // namespace module

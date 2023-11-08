@@ -16,9 +16,11 @@
 // insert your custom include headers here
 
 #include <atomic>
+#include <chrono>
 #include <CbTarragonCP.hpp>
 #include <CbTarragonPWM.hpp>
 #include <CbTarragonPP.hpp>
+#include <CbTarragonContactorControl.hpp>
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
@@ -79,6 +81,9 @@ private:
     /// @brief Control Pilot generation
     CbTarragonPWM pwm_controller;
 
+    /// @brief Relay and contactor control
+    CbTarragonContactorControl contactor_controller;
+
     /// @brief Mutex to enable/disable CP observation thread. Usually hold by the observation
     ///        worker thread but can be requested via `disable_cp_observation` method.
     std::mutex cp_observation_lock;
@@ -107,6 +112,20 @@ private:
     /// @brief PP observation thread handle
     std::thread pp_observation_thread;
 
+    /// @brief Duration to wait for contactor feedback before issuing a contactor fault.
+    ///        A value of 200ms should suffice for both contactors.
+    std::chrono::milliseconds contactor_feedback_timeout;
+
+    /// @brief Signal from upper layers to determine if relays can be switched on
+    ///        (`true`: Switch on allowed, `false`: Switch off)
+    bool allow_power_on;
+
+    /// @brief Previous value of flag `allow_power_on`;
+    bool last_allow_power_on;
+
+    /// @brief Contactor handling thread handle
+    std::thread contactor_handling_thread;
+
     /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
     bool cp_state_changed(struct cp_state_signal_side& signal_side);
 
@@ -121,6 +140,10 @@ private:
 
     /// @brief Main function of the PP observation thread
     void pp_observation_worker(void);
+    /// @brief Main function of the contactor handling thread. This is responsible for both setting
+    ///        the target state of the relay actuator and waiting for the contactor feedback
+    //         to be recieved.
+    void contactor_handling_worker(void);
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
