@@ -99,6 +99,20 @@ public:
     /// @brief Reset the flag is_new_target_state_set.
     void reset_is_new_target_state_set(void);
 
+    /// @brief Return the timestamp at which last actual state change from closed to
+    ///        open has occurred.
+    std::chrono::time_point<std::chrono::steady_clock> get_last_actual_state_open_ts(void);
+
+    /// @brief Determine if switching on is allowed or not to prevent relay wear.
+    /// @Return `true` if switch on allowed, `false` otherwise.
+    bool is_switch_on_allowed(void);
+
+    /// @brief Return the value of the flag delay_contactor_close.
+    bool get_delay_contactor_close(void);
+
+    /// @brief Reset the flag delay_contactor_close.
+    void reset_delay_contactor_close(void);
+
     /// @brief Determine if phase switching should start.
     /// @param phase_target The number of phases to switch to (1 = 1-phase, 3 = 3-phase).
     void start_phase_switching_while_charging(int phase_target);
@@ -154,4 +168,10 @@ private:
     /// @brief Flag to mark the start of observation of the timestamp
     ///        at which a new state was set to the actuator.
     bool is_new_target_state_set;
+
+    /// @brief Timestamp of the last actual state change from closed to open.
+    std::chrono::time_point<std::chrono::steady_clock> last_actual_state_open_ts;
+
+    /// @brief Flag to determine if closing the contactor should be delayed.
+    bool delay_contactor_close;
 };

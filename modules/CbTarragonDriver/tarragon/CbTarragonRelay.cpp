@@ -4,6 +4,8 @@
 #include <gpiodUtils.hpp>
 #include "CbTarragonRelay.hpp"
 
+using namespace std::chrono_literals;
+
 CbTarragonRelay::CbTarragonRelay(void) {}
 
 CbTarragonRelay::CbTarragonRelay(const std::string &relay_name,
@@ -25,6 +27,10 @@ CbTarragonRelay::CbTarragonRelay(const std::string &relay_name,
 
     this->feedback_type = this->get_feedback_type(feedback_type);
 
+    this->delay_contactor_close = false;
+    this->last_contactor_open_ts = std::chrono::steady_clock::now();
+    this->contactor_close_interval = 10s;
+
     // initialize the buffer to be of a capacity '1' so that we read a single event
     this->feedback_event_buffer = gpiod::edge_event_buffer(1);
 
@@ -43,6 +49,29 @@ CbTarragonRelay::CbTarragonRelay(const std::string &relay_name,
                                                                                            .set_edge_detection(gpiod::line::edge::BOTH)
                                                                                            .set_active_low(feedback_active_low)));
     }
+}
+
+void CbTarragonRelay::set_last_contactor_open_ts(std::chrono::time_point<std::chrono::steady_clock> timestamp) {
+    this->last_contactor_open_ts = timestamp;
+}
+
+void CbTarragonRelay::set_delay_contactor_close(bool value) {
+    this->delay_contactor_close = value;
+}
+
+bool CbTarragonRelay::can_close_contactor(void) {
+    if (this->delay_contactor_close == false)
+        return true;
+
+    if (std::chrono::steady_clock::now() - this-> last_contactor_open_ts < this->contactor_close_interval)
+        return false;
+
+    this->delay_contactor_close = false;
+    return true;
+}
+
+std::chrono::seconds CbTarragonRelay::get_contactor_close_interval(void) {
+    return this->contactor_close_interval;
 }
 
 void CbTarragonRelay::set_actuator_state(bool new_state_on) {

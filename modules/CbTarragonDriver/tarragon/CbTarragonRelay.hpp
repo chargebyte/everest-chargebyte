@@ -27,6 +27,20 @@ public:
                     const std::string &feedback_type,
                     const std::string &feedback_gpio_line_name);
 
+    /// @brief Set the timestamp of the last contactor state change from closed to open
+    void set_last_contactor_open_ts(std::chrono::time_point<std::chrono::steady_clock> timestamp);
+
+    /// @brief Set the flag `delay_contactor_close`.
+    void set_delay_contactor_close(bool value);
+
+    /// @brief Check if the contactor could be closed immediately i.e. switching the relay on, or
+    ///        if this operation should be delayed to prevent internal relay wear.
+    /// @return `true` if it can be closed, `false` if delayed
+    bool can_close_contactor(void);
+
+    // @brief Return the value of contactor_close_interval.
+    std::chrono::seconds get_contactor_close_interval(void);
+
     /// @brief Switch the relay on/off.
     /// @param new_state_on The target state (0 = off, 1 = on).
     void set_actuator_state(bool new_state_on);
@@ -71,4 +85,18 @@ private:
 
     /// @brief The GPIO handle of the used feedback (RELAY_1_SENSE or RELAY_2_SENSE).
     std::unique_ptr<gpiod::line_request> feedback;
+
+    /// @brief The timestamp which records the moment when the contactor's state transitioned
+    ///        from closed to open.
+    std::chrono::time_point<std::chrono::steady_clock> last_contactor_open_ts;
+
+    /// @brief The time in seconds which represents a minimum duration between contactor
+    ///        closings to prevent internal relay wear. The worst considered contactor type
+    //         can withstand a maximum of 6 cycles (open and close actions) per
+    ///        minute i.e., 10 seconds between 2 contactor closings.
+    std::chrono::seconds contactor_close_interval;
+
+    /// @brief A flag that is set to `true` when it is needed to delay closing of the contactor
+    ///        to prevent the internal relay wear.
+    bool delay_contactor_close;
 };
