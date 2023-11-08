@@ -42,6 +42,10 @@ void evse_board_supportImpl::init() {
 
     // start cp-observation-worker thread
     this->cp_observation_thread = std::thread(&evse_board_supportImpl::cp_observation_worker, this);
+
+    // Proximity Pilot state observation
+    this->pp_controller = CbTarragonPP(this->mod->config.pp_adc_device,
+                                       this->mod->config.pp_adc_channel);
 }
 
 void evse_board_supportImpl::ready() {
@@ -58,6 +62,10 @@ evse_board_supportImpl::~evse_board_supportImpl() {
     // if thread is active wait until it is terminated
     if (this->cp_observation_thread.joinable())
         this->cp_observation_thread.join();
+
+    // if thread exists and is active wait until it is terminated
+    if (this->pp_observation_thread.joinable())
+        this->pp_observation_thread.join();
 }
 
 void evse_board_supportImpl::handle_setup(bool& three_phases, bool& has_ventilation, std::string& country_code) {
@@ -115,8 +123,98 @@ void evse_board_supportImpl::handle_evse_replug(int& value) {
 }
 
 types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
-    // your code for cmd ac_read_pp_ampacity goes here
-    return {};
+    // acquire lock to guard against possible background changes done by the observation thread
+    std::lock_guard<std::mutex> lock(this->pp_observation_lock);
+
+    // pre-init to None
+    this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
+
+    // start PP observation worker thread if not yet done
+    // we stop and wait at the lock by us
+    if (!this->pp_observation_thread.joinable())
+        this->pp_observation_thread = std::thread(&evse_board_supportImpl::pp_observation_worker, this);
+
+    try {
+        // read current ampacity from hardware
+        int voltage = 0;
+        this->pp_ampacity.ampacity = this->pp_controller.get_ampacity(voltage);
+
+        EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity <<
+                  " (U_PP: " << voltage << " mV)";
+
+        // reset possible set flag since we successfully read a valid value
+        this->pp_fault_reported = false;
+    }
+    catch (std::underflow_error& e) {
+        EVLOG_error << e.what();
+
+        // publish a ProximityFault
+        types::board_support_common::BspEvent tmp{types::board_support_common::Event::MREC_23_ProximityFault};
+        this->publish_event(tmp);
+
+        // remember that we just reported the fault
+        this->pp_fault_reported = true;
+    }
+
+    return this->pp_ampacity;
+}
+
+void evse_board_supportImpl::pp_observation_worker(void) {
+
+    EVLOG_info << "Proximity Pilot Observation Thread started";
+
+    while (!this->termination_requested) {
+        // acquire lock, wait for it eventually
+        this->pp_observation_lock.lock();
+
+        try {
+            // saved previous value
+            types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
+
+            // read new/actual ampacity from hardware
+            int voltage = 0;
+            this->pp_ampacity.ampacity = this->pp_controller.get_ampacity(voltage);
+
+            // reset possible set flag since we successfully read a valid value
+            this->pp_fault_reported = false;
+
+            if (this->pp_ampacity.ampacity != prev_value) {
+
+                if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None) {
+                    EVLOG_info << "PP noticed plug removal from socket (U_PP: " << voltage << " mV)";
+                } else {
+                    EVLOG_info << "PP ampacity change from " << prev_value << " to " << this->pp_ampacity.ampacity <<
+                                  " (U_PP: " << voltage << " mV)";
+                }
+
+                // publish new value, upper layer should decide how to handle the change
+                this->publish_pp_ampacity(this->pp_ampacity);
+            }
+        }
+        catch (std::underflow_error& e) {
+            if (!this->pp_fault_reported) {
+                EVLOG_error << e.what();
+
+                // publish a ProximityFault
+                types::board_support_common::BspEvent tmp{types::board_support_common::Event::MREC_23_ProximityFault};
+                this->publish_event(tmp);
+
+                this->pp_fault_reported = true;
+            }
+        }
+
+        this->pp_observation_lock.unlock();
+
+        // break before sleeping in case of already requested termination
+        if (this->termination_requested)
+            break;
+
+        // let's sleep for a "randomly" selected time: 500ms should be a good trade-off between
+        // CPU usage and fast recognition of any kind of trouble with the PP line
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
+    EVLOG_info << "Proximity Pilot Observation Thread terminated";
 }
 
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {

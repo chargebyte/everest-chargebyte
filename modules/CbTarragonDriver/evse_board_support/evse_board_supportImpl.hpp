@@ -18,6 +18,7 @@
 #include <atomic>
 #include <CbTarragonCP.hpp>
 #include <CbTarragonPWM.hpp>
+#include <CbTarragonPP.hpp>
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
@@ -91,6 +92,21 @@ private:
     /// @brief CP observation thread handle
     std::thread cp_observation_thread;
 
+    /// @brief Proximity Pilot observation
+    CbTarragonPP pp_controller;
+
+    /// @brief Last published/detected ampacity
+    types::board_support_common::ProximityPilot pp_ampacity;
+
+    /// @brief Flag to remember whether we already published a proximity error
+    std::atomic_bool pp_fault_reported;
+
+    /// @brief Mutex to enable/disable PP observation thread
+    std::mutex pp_observation_lock;
+
+    /// @brief PP observation thread handle
+    std::thread pp_observation_thread;
+
     /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
     bool cp_state_changed(struct cp_state_signal_side& signal_side);
 
@@ -102,6 +118,9 @@ private:
 
     /// @brief Main function of the CP observation thread
     void cp_observation_worker(void);
+
+    /// @brief Main function of the PP observation thread
+    void pp_observation_worker(void);
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
