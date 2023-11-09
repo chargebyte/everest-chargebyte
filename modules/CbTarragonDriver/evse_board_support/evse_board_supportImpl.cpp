@@ -106,6 +106,11 @@ void evse_board_supportImpl::handle_setup(bool& three_phases, bool& has_ventilat
 }
 
 types::evse_board_support::HardwareCapabilities evse_board_supportImpl::handle_get_hw_capabilities() {
+    // FIXME: hw_capabilities.set supports_changing_phases_during_charging to indicate whether
+    //        changing number of phases is supported during charging. We should decide:
+    //        - Do we need a new BSP configuration parameter for this?
+    //        - If not, is it OK to support this feature directly as long as hw_capabilities.max_phase_count_import
+    //          is set to '3' or we would need other checks?
     return this->hw_capabilities;
 }
 
