@@ -72,6 +72,12 @@ private:
     /// @brief Hardware Capabilities
     types::evse_board_support::HardwareCapabilities hw_capabilities;
 
+    /// @brief Flag to determine if three-phase operation is supported
+    bool three_phase_supported;
+
+    ///@brief Flag to determine if ventilation should be supported
+    bool support_ventilation;
+
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested;
 

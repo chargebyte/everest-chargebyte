@@ -96,7 +96,13 @@ evse_board_supportImpl::~evse_board_supportImpl() {
 }
 
 void evse_board_supportImpl::handle_setup(bool& three_phases, bool& has_ventilation, std::string& country_code) {
-    // your code for cmd setup goes here
+    // FIXME: The argument three_phase is received as 'true' if:
+    //        - The configuration parameter three_phase is set to 'true' by the customer in the configuration file
+    //        - hw_capabilities.max_phase_count_import is set to '3'
+    //        Do we need to make other checks before setting max_phase_count_import and sending it as part of the
+    //        hw_capabilties e.g., read out our rotary encoder?
+    this->three_phase_supported = three_phases;
+    this->support_ventilation = has_ventilation;
 }
 
 types::evse_board_support::HardwareCapabilities evse_board_supportImpl::handle_get_hw_capabilities() {
