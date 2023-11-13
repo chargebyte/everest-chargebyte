@@ -394,8 +394,6 @@ void evse_board_supportImpl::cp_observation_worker(void) {
 }
 
 void evse_board_supportImpl::contactor_handling_worker(void) {
-    static bool is_switch_on_allowed_lock{false};
-
     EVLOG_info << "Contactor Handling Thread started";
 
     while (!this->termination_requested) {
@@ -467,14 +465,21 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
 
                 // if no contactor feedback has been detected but we are intentionally delaying switching on
                 // the contactor to prevent wearout. Contactor is only allowed to be switched on once every 10 seconds
-                if ((is_switch_on_allowed_lock != this->contactor_controller.is_switch_on_allowed()) &&
-                    (this->contactor_controller.is_switch_on_allowed() == true) &&
+                if ((this->contactor_controller.is_switch_on_allowed() == true) &&
                     (this->contactor_controller.get_delay_contactor_close() == true) &&
                     (this->contactor_controller.get_state(StateType::TARGET_STATE) == ContactorState::CONTACTOR_CLOSED)) {
                     // set the target state again to switch on the contactor
                     this->contactor_controller.set_target_state(ContactorState::CONTACTOR_CLOSED);
 
                     this->contactor_controller.reset_delay_contactor_close();
+                }
+
+                else if ((this->contactor_controller.get_delay_contactor_close() == true) &&
+                        (((this->mod->config.contactor_1_feedback_type == "none") && (this->mod->config.contactor_2_feedback_type == "none")) ||
+                        ((this->mod->config.contactor_1_feedback_type == "none") && (this->contactor_controller.get_target_phase_count() == 1)))) {
+                    // intentional sleep because no feedback monitoring is needed and we know that we are waiting
+                    // for the 10 seconds timeout regarding relay wear prevention to pass
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
                 }
 
                 else if ((this->contactor_controller.get_delay_contactor_close() == false) &&
@@ -491,8 +496,6 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                     // reset the flag that marked the start of counting the contactor_feedback_timeout
                     this->contactor_controller.reset_is_new_target_state_set();
                 }
-
-                is_switch_on_allowed_lock = this->contactor_controller.is_switch_on_allowed();
             }
         }
     }
