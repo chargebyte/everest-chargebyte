@@ -405,7 +405,7 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
         if (this->last_allow_power_on != this->allow_power_on) {
             this->last_allow_power_on = this->allow_power_on;
 
-            EVLOG_info << (this->allow_power_on ? "Closing" : "Opening") << " contactor";
+            EVLOG_info << (this->allow_power_on ? "Closing" : "Opening") << " contactor...";
 
             this->contactor_controller.set_target_state(this->allow_power_on ? ContactorState::CONTACTOR_CLOSED :
                                                                                ContactorState::CONTACTOR_OPEN);
@@ -421,10 +421,12 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
             //   mechanism for edge events should take place
             // - OR if we are in single phase operation and the first contactor has no feedback
 
+
             // in case a new target state is set, we need to update the actual state by simply setting
             // it to be equal to the required target state
             if (this->contactor_controller.is_error_state()) {
                 this->contactor_controller.set_actual_state(this->contactor_controller.get_state(StateType::TARGET_STATE));
+                EVLOG_info << "Contactor state: " << this->contactor_controller.get_state(StateType::TARGET_STATE);
 
                 // publish PowerOn or PowerOff event
                 types::board_support_common::Event tmp_event = (this->contactor_controller.get_state(StateType::TARGET_STATE) == ContactorState::CONTACTOR_CLOSED) ?
@@ -449,6 +451,7 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                 contactor_state != this->contactor_controller.get_state(StateType::ACTUAL_STATE)) {
                 // if the received state is equal to the expected state, set the actual state
                 this->contactor_controller.set_actual_state(contactor_state);
+                EVLOG_info << "Contactor state: " << this->contactor_controller.get_state(StateType::TARGET_STATE);
 
                 // publish PowerOn or PowerOff event
                 types::board_support_common::Event tmp_event = (contactor_state == ContactorState::CONTACTOR_CLOSED) ?
@@ -478,6 +481,8 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                          (this->contactor_controller.get_is_new_target_state_set() == true) &&
                          (std::chrono::steady_clock::now() - this->contactor_controller.get_new_target_state_ts() > this->contactor_feedback_timeout)) {
                     // if no new events for contactor feedback have been detected for 200ms after a new target state was set
+                    EVLOG_error << "Failed to detect feedback. Contactor should be: "
+                                << this->contactor_controller.get_state(StateType::TARGET_STATE);
 
                     // publish a 'contactor fault' event to the upper layer
                     types::board_support_common::BspEvent tmp {types::board_support_common::Event::MREC_17_EVSEContactorFault};
