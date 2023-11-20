@@ -26,6 +26,7 @@ target_include_directories(${MODULE_NAME}
     PRIVATE
         ${UTILS_INCLUDE_DIR}
         ${TARRAGON_INCLUDE_DIR}
+        ${CMAKE_BINARY_DIR}
 )
 
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
