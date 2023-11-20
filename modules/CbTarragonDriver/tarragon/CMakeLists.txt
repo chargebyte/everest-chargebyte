@@ -12,7 +12,10 @@ target_sources(tarragon
         "CbTarragonContactorControl.cpp"
 )
 
-get_target_property(EVEREST_GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
+get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
 
-target_include_directories(tarragon PRIVATE ${UTILS_INCLUDE_DIR} ${EVEREST_GENERATED_INCLUDE_DIR})
+target_include_directories(tarragon PRIVATE ${UTILS_INCLUDE_DIR} ${GENERATED_INCLUDE_DIR})
+
+add_dependencies(tarragon generate_cpp_files)
+
 target_link_libraries(tarragon PRIVATE utils everest::framework everest::log)
