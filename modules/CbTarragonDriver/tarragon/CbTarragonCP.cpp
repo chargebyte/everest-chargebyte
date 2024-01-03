@@ -1,7 +1,7 @@
 #include <chrono>
 #include <string>
 #include <thread>
-#include <generated/interfaces/evse_board_support/Implementation.hpp>
+#include <generated/types/cb_board_support.hpp>
 #include "CbTarragonCPADC.hpp"
 #include "CbTarragonCP.hpp"
 
@@ -40,98 +40,98 @@ void CbTarragonCP::get_values(int& positive_value, int& negative_value) {
     negative_value = this->neg_adc.get_value();
 }
 
-types::board_support_common::Event CbTarragonCP::voltage_to_state(int voltage, types::board_support_common::Event previous_state) const {
+types::cb_board_support::CPState CbTarragonCP::voltage_to_state(int voltage, types::cb_board_support::CPState previous_state) const {
     // The following thresholds mostly based on IEC 61851-1
     // Table A.4 System states detected by the charging station.
     if (voltage > 13000 /* mV */) /* > 13 V */
-        return types::board_support_common::Event::MREC_14_PilotFault;
+        return types::cb_board_support::CPState::PilotFault;
 
     if (voltage >= 11000 /* mV */) /* 11 V <= x <= 13 V */
-        return types::board_support_common::Event::A;
+        return types::cb_board_support::CPState::A;
 
     if (voltage >= 10000 /* mV */) { /* 10 V <= x < 11 V */
         switch (previous_state) {
-        case types::board_support_common::Event::A:
-            return types::board_support_common::Event::A;
+        case types::cb_board_support::CPState::A:
+            return types::cb_board_support::CPState::A;
         default:
-            return types::board_support_common::Event::B;
+            return types::cb_board_support::CPState::B;
         }
     }
 
     if (voltage >= 8000 /* mV */) /* 8 V <= x < 10 V */
-        return types::board_support_common::Event::B;
+        return types::cb_board_support::CPState::B;
 
     if (voltage >= 7000 /* mV */) { /* 7 V <= x < 8 V */
         switch (previous_state) {
-        case types::board_support_common::Event::A:
-        case types::board_support_common::Event::B:
-            return types::board_support_common::Event::B;
+        case types::cb_board_support::CPState::A:
+        case types::cb_board_support::CPState::B:
+            return types::cb_board_support::CPState::B;
         default:
-            return types::board_support_common::Event::C;
+            return types::cb_board_support::CPState::C;
         }
     }
 
     if (voltage >= 5000 /* mV */) /* 5 V <= x < 7 V */
-        return types::board_support_common::Event::C;
+        return types::cb_board_support::CPState::C;
 
     if (voltage >= 4000 /* mV */) { /* 4 V <= x < 5 V */
         switch (previous_state) {
-        case types::board_support_common::Event::A:
-        case types::board_support_common::Event::B:
-        case types::board_support_common::Event::C:
-            return types::board_support_common::Event::C;
+        case types::cb_board_support::CPState::A:
+        case types::cb_board_support::CPState::B:
+        case types::cb_board_support::CPState::C:
+            return types::cb_board_support::CPState::C;
         default:
-            return types::board_support_common::Event::D;
+            return types::cb_board_support::CPState::D;
         }
     }
 
     if (voltage >= 2000 /* mV */) /* 2 V <= x < 4 V */
-        return types::board_support_common::Event::D;
+        return types::cb_board_support::CPState::D;
 
     if (voltage >= 1000 /* mV */) { /* 1 V <= x < 2 V */
         switch (previous_state) {
-        case types::board_support_common::Event::A:
-        case types::board_support_common::Event::B:
-        case types::board_support_common::Event::C:
-        case types::board_support_common::Event::D:
-            return types::board_support_common::Event::D;
+        case types::cb_board_support::CPState::A:
+        case types::cb_board_support::CPState::B:
+        case types::cb_board_support::CPState::C:
+        case types::cb_board_support::CPState::D:
+            return types::cb_board_support::CPState::D;
         default:
-            return types::board_support_common::Event::E;
+            return types::cb_board_support::CPState::E;
         }
     }
 
     if (voltage >= -1000 /* mV */) /* -1 V <= x < 1 V */
-        return types::board_support_common::Event::E;
+        return types::cb_board_support::CPState::E;
 
     if (voltage >= -2000 /* mV */) { /* -2 V <= x < -1 V (not standard) */
         switch (previous_state) {
-        case types::board_support_common::Event::A:
-        case types::board_support_common::Event::B:
-        case types::board_support_common::Event::C:
-        case types::board_support_common::Event::D:
-        case types::board_support_common::Event::E:
-            return types::board_support_common::Event::E;
+        case types::cb_board_support::CPState::A:
+        case types::cb_board_support::CPState::B:
+        case types::cb_board_support::CPState::C:
+        case types::cb_board_support::CPState::D:
+        case types::cb_board_support::CPState::E:
+            return types::cb_board_support::CPState::E;
         default:
-            return types::board_support_common::Event::MREC_14_PilotFault;
+            return types::cb_board_support::CPState::PilotFault;
         }
     }
 
     if (voltage >= -10000 /* mV */) /* -10 V <= x < -2 V */
-        return types::board_support_common::Event::MREC_14_PilotFault;
+        return types::cb_board_support::CPState::PilotFault;
 
     if (voltage >= -11000 /* mV */) { /* -11 V <= x < -10 V (not standard) */
-        return previous_state == types::board_support_common::Event::F
-                   ? types::board_support_common::Event::F
-                   : types::board_support_common::Event::MREC_14_PilotFault;
+        return previous_state == types::cb_board_support::CPState::F
+                   ? types::cb_board_support::CPState::F
+                   : types::cb_board_support::CPState::PilotFault;
     }
 
     if (voltage >= -13000 /* mV */) /* -13 V <= x < -11 V */
-        return types::board_support_common::Event::F;
+        return types::cb_board_support::CPState::F;
 
-    return types::board_support_common::Event::MREC_14_PilotFault; /* < -13 V */
+    return types::cb_board_support::CPState::PilotFault; /* < -13 V */
 }
 
-bool CbTarragonCP::is_valid_cp_state(types::board_support_common::Event& cp_state) {
-    return (types::board_support_common::Event::A <= cp_state) &&
-               (cp_state <= types::board_support_common::Event::F);
+bool CbTarragonCP::is_valid_cp_state(types::cb_board_support::CPState& cp_state) {
+    return (types::cb_board_support::CPState::A <= cp_state) &&
+               (cp_state <= types::cb_board_support::CPState::F);
 }

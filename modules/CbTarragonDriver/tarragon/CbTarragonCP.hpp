@@ -1,7 +1,7 @@
 #pragma once
 #include <chrono>
 #include <string>
-#include <generated/interfaces/evse_board_support/Implementation.hpp>
+#include <generated/types/cb_board_support.hpp>
 #include "CbTarragonCPADC.hpp"
 
 ///
@@ -39,10 +39,10 @@ public:
     void get_values(int& positive_value, int& negative_value);
 
     /// @brief Helper to map a measured voltage to a CP state (takes hysteresis into account)
-    types::board_support_common::Event voltage_to_state(int voltage, types::board_support_common::Event previous_state) const;
+    types::cb_board_support::CPState voltage_to_state(int voltage, types::cb_board_support::CPState previous_state) const;
 
     /// @brief Helper to judge whether CP state is invalid or in range A..F
-    bool is_valid_cp_state(types::board_support_common::Event& cp_state);
+    bool is_valid_cp_state(types::cb_board_support::CPState& cp_state);
 
 private:
     /// @brief The ADC for positive side of the CP signal.

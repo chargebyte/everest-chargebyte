@@ -1,0 +1,21 @@
+description: chargebyte specific board support types
+types:
+  CPState:
+    description: >-
+      Control Pilot related states.
+
+      PowerOn: initial state when powering on, for nice logging.
+
+      A-F: CP states as defined in IEC61851-1
+
+      PilotFault: Measured Control Pilot out of expected range.
+    type: string
+    enum:
+      - PowerOn
+      - A
+      - B
+      - C
+      - D
+      - E
+      - F
+      - PilotFault

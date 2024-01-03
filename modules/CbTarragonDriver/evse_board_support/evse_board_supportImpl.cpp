@@ -1,9 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
 
+#include <generated/types/cb_board_support.hpp>
+
 #include "evse_board_supportImpl.hpp"
 
 using namespace std::chrono_literals;
+
+types::board_support_common::BspEvent cpstate_to_bspevent(const types::cb_board_support::CPState& other) {
+    switch (other) {
+    case types::cb_board_support::CPState::A:
+        return {types::board_support_common::Event::A};
+    case types::cb_board_support::CPState::B:
+        return {types::board_support_common::Event::B};
+    case types::cb_board_support::CPState::C:
+        return {types::board_support_common::Event::C};
+    case types::cb_board_support::CPState::D:
+        return {types::board_support_common::Event::D};
+    case types::cb_board_support::CPState::E:
+        return {types::board_support_common::Event::E};
+    case types::cb_board_support::CPState::F:
+        return {types::board_support_common::Event::F};
+    default:
+        throw std::runtime_error("Unable to map the value '" + cpstate_to_string(other) + "'.");
+    }
+}
 
 namespace module {
 namespace evse_board_support {
@@ -40,7 +61,7 @@ void evse_board_supportImpl::init() {
     this->cp_observation_enabled = false;
 
     // preset with PowerOn for nice logging
-    this->cp_current_state = types::board_support_common::BspEvent{types::board_support_common::Event::PowerOn};
+    this->cp_current_state = types::cb_board_support::CPState::PowerOn;
 
     // start cp-observation-worker thread
     this->cp_observation_thread = std::thread(&evse_board_supportImpl::cp_observation_worker, this);
@@ -180,6 +201,9 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
         EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity <<
                   " (U_PP: " << voltage << " mV)";
 
+        if (this->pp_fault_reported)
+            this->request_clear_all_evse_board_support_MREC23ProximityFault();
+
         // reset possible set flag since we successfully read a valid value
         this->pp_fault_reported = false;
     }
@@ -187,8 +211,7 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
         EVLOG_error << e.what();
 
         // publish a ProximityFault
-        types::board_support_common::BspEvent tmp{types::board_support_common::Event::MREC_23_ProximityFault};
-        this->publish_event(tmp);
+        this->raise_evse_board_support_MREC23ProximityFault(e.what(), Everest::error::Severity::High);
 
         // remember that we just reported the fault
         this->pp_fault_reported = true;
@@ -226,7 +249,7 @@ void evse_board_supportImpl::pp_observation_worker(void) {
                 }
 
                 // publish new value, upper layer should decide how to handle the change
-                this->publish_pp_ampacity(this->pp_ampacity);
+                this->publish_ac_pp_ampacity(this->pp_ampacity);
             }
         }
         catch (std::underflow_error& e) {
@@ -234,8 +257,7 @@ void evse_board_supportImpl::pp_observation_worker(void) {
                 EVLOG_error << e.what();
 
                 // publish a ProximityFault
-                types::board_support_common::BspEvent tmp{types::board_support_common::Event::MREC_23_ProximityFault};
-                this->publish_event(tmp);
+                this->raise_evse_board_support_MREC23ProximityFault(e.what(), Everest::error::Severity::High);
 
                 this->pp_fault_reported = true;
             }
@@ -281,13 +303,13 @@ void evse_board_supportImpl::enable_cp_observation(void) {
 
 struct cp_state_signal_side {
     /// @brief previous state is what we measured before the last round
-    types::board_support_common::Event previous_state;
+    types::cb_board_support::CPState previous_state;
 
     /// @brief current state is what we measured in the last round
-    types::board_support_common::Event current_state;
+    types::cb_board_support::CPState current_state;
 
     /// @brief measured state is what we just measured in this round
-    types::board_support_common::Event measured_state;
+    types::cb_board_support::CPState measured_state;
 
     /// @brief the voltage of the just completed measurement
     int voltage;
@@ -321,13 +343,13 @@ bool evse_board_supportImpl::cp_state_changed(struct cp_state_signal_side& signa
 
 void evse_board_supportImpl::cp_observation_worker(void) {
     // both sides of the CP level
-    struct cp_state_signal_side positive_side{types::board_support_common::Event::MREC_14_PilotFault,
-                                              types::board_support_common::Event::MREC_14_PilotFault,
-                                              types::board_support_common::Event::MREC_14_PilotFault,
+    struct cp_state_signal_side positive_side{types::cb_board_support::CPState::PilotFault,
+                                              types::cb_board_support::CPState::PilotFault,
+                                              types::cb_board_support::CPState::PilotFault,
                                               0};
-    struct cp_state_signal_side negative_side{types::board_support_common::Event::MREC_14_PilotFault,
-                                              types::board_support_common::Event::MREC_14_PilotFault,
-                                              types::board_support_common::Event::MREC_14_PilotFault,
+    struct cp_state_signal_side negative_side{types::cb_board_support::CPState::PilotFault,
+                                              types::cb_board_support::CPState::PilotFault,
+                                              types::cb_board_support::CPState::PilotFault,
                                               0};
 
     EVLOG_info << "Control Pilot Observation Thread started";
@@ -357,13 +379,14 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             if (this->pwm_controller.get_duty_cycle() > 0.0 &&
                 this->pwm_controller.get_duty_cycle() < 100.0 &&
                 // check wether -12 V was seen on the negative side
-                negative_side.current_state != types::board_support_common::Event::F) {
-                types::board_support_common::BspEvent tmp {types::board_support_common::Event::ErrorDF};
-                this->publish_event(tmp);
-                EVLOG_warning << "Diode fault detected. Previous CP state was: " << this->cp_current_state.load().event << ", "
+                negative_side.current_state != types::cb_board_support::CPState::F) {
+
+                this->raise_evse_board_support_DiodeFault("Diode fault detected.", Everest::error::Severity::High);
+
+                EVLOG_warning << "Diode fault detected. Previous CP state was: " << this->cp_current_state << ", "
                               << "U_CP+: " << positive_side.voltage << " mV, "
                               << "U_CP-: " << negative_side.voltage << " mV";
-                this->cp_current_state = tmp;
+                this->cp_current_state = types::cb_board_support::CPState::PilotFault;
                 continue;
             }
 
@@ -371,21 +394,24 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             if (this->pwm_controller.get_duty_cycle() == 0.0) {
                 types::board_support_common::BspEvent tmp {types::board_support_common::Event::F};
                 this->publish_event(tmp);
-                EVLOG_info << "CP state change from " << this->cp_current_state.load().event << " to " << types::board_support_common::Event::F << ", "
+                EVLOG_info << "CP state change from " << this->cp_current_state << " to " << types::board_support_common::Event::F << ", "
                            << "U_CP+: " << positive_side.voltage << " mV, "
                            << "U_CP-: " << negative_side.voltage << " mV";
-                this->cp_current_state = tmp;
+                this->cp_current_state = types::cb_board_support::CPState::F;
                 continue;
             }
 
             // normal CP state change
-            if (positive_side.current_state != this->cp_current_state.load().event) {
-                types::board_support_common::BspEvent tmp {positive_side.current_state};
+            if (positive_side.current_state != this->cp_current_state) {
+                types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
                 this->publish_event(tmp);
-                EVLOG_info << "CP state change from " << this->cp_current_state.load().event << " to " << positive_side.current_state << ", "
+                EVLOG_info << "CP state change from " << this->cp_current_state << " to " << positive_side.current_state << ", "
                            << "U_CP+: " << positive_side.voltage << " mV, "
                            << "U_CP-: " << negative_side.voltage << " mV";
-                this->cp_current_state = tmp;
+                this->cp_current_state = positive_side.current_state;
+
+                if (this->cp_current_state == types::cb_board_support::CPState::A)
+                    this->request_clear_all_evse_board_support_DiodeFault();
             }
         }
     }
@@ -490,8 +516,7 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                                 << this->contactor_controller.get_state(StateType::TARGET_STATE);
 
                     // publish a 'contactor fault' event to the upper layer
-                    types::board_support_common::BspEvent tmp {types::board_support_common::Event::MREC_17_EVSEContactorFault};
-                    this->publish_event(tmp);
+                    this->raise_evse_board_support_MREC17EVSEContactorFault("Unexpected contactor feedback", Everest::error::Severity::High);
 
                     // reset the flag that marked the start of counting the contactor_feedback_timeout
                     this->contactor_controller.reset_is_new_target_state_set();

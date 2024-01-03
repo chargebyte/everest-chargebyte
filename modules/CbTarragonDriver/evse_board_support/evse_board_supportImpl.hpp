@@ -17,6 +17,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <generated/types/cb_board_support.hpp>
 #include <CbTarragonCP.hpp>
 #include <CbTarragonPWM.hpp>
 #include <CbTarragonPP.hpp>
@@ -98,7 +99,7 @@ private:
     bool cp_observation_enabled;
 
     /// @brief Tracks the last published CP state.
-    std::atomic<types::board_support_common::BspEvent> cp_current_state;
+    std::atomic<types::cb_board_support::CPState> cp_current_state;
 
     /// @brief CP observation thread handle
     std::thread cp_observation_thread;
