@@ -20,20 +20,14 @@
 namespace module {
 
 struct Conf {
-    std::string contactor_1_relay;
     std::string contactor_1_feedback_type;
-    std::string contactor_2_relay;
     std::string contactor_2_feedback_type;
     std::string relay_1_name;
     std::string relay_1_actuator_gpio_line_name;
-    bool relay_1_actuator_active_low;
     std::string relay_1_feedback_gpio_line_name;
-    bool relay_1_feedback_active_low;
     std::string relay_2_name;
     std::string relay_2_actuator_gpio_line_name;
-    bool relay_2_actuator_active_low;
     std::string relay_2_feedback_gpio_line_name;
-    bool relay_2_feedback_active_low;
     std::string cp_rst_neg_peak_gpio_line_name;
     std::string cp_neg_peak_adc_device;
     std::string cp_neg_peak_adc_channel;
