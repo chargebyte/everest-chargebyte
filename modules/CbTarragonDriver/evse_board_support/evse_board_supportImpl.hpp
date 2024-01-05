@@ -39,7 +39,7 @@ public:
 
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
-     ~evse_board_supportImpl();
+    ~evse_board_supportImpl();
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
 
 protected:
@@ -147,6 +147,7 @@ private:
 
     /// @brief Main function of the PP observation thread
     void pp_observation_worker(void);
+
     /// @brief Main function of the contactor handling thread. This is responsible for both setting
     ///        the target state of the relay actuator and waiting for the contactor feedback
     //         to be recieved.
