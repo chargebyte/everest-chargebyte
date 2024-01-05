@@ -42,6 +42,7 @@ void evse_board_supportImpl::init() {
     this->hw_capabilities.min_current_A_export = 0;
     this->hw_capabilities.max_phase_count_export = 3;
     this->hw_capabilities.min_phase_count_export = 1;
+    this->hw_capabilities.connector_type = types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
     // Control Pilot state observation
     this->cp_controller = CbTarragonCP(this->mod->config.cp_pos_peak_adc_device,

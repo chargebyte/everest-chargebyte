@@ -1,5 +1,12 @@
 description: Hardware abstraction layer for chargebyte's HW Tarragon
 config:
+  connector_type:
+    description: Type of charging connector available at this EVSE
+    type: string
+    enum:
+      - IEC62196Type2Cable
+      - IEC62196Type2Socket
+    default: IEC62196Type2Socket
   contactor_1_feedback_type:
     description: >-
       Defines the logic behind the feedback

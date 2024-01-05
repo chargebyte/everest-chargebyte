@@ -20,6 +20,7 @@
 namespace module {
 
 struct Conf {
+    std::string connector_type;
     std::string contactor_1_feedback_type;
     std::string contactor_2_feedback_type;
     std::string relay_1_name;
