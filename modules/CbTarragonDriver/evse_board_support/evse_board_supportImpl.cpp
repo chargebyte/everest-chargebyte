@@ -271,7 +271,7 @@ void evse_board_supportImpl::pp_observation_worker(void) {
 
         // let's sleep for a "randomly" selected time: 500ms should be a good trade-off between
         // CPU usage and fast recognition of any kind of trouble with the PP line
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(500ms);
     }
 
     EVLOG_info << "Proximity Pilot Observation Thread terminated";
@@ -445,7 +445,6 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
             //   mechanism for edge events should take place
             // - OR if we are in single phase operation and the first contactor has no feedback
 
-
             // in case a new target state is set, we need to update the actual state by simply setting
             // it to be equal to the required target state
             if (this->contactor_controller.is_error_state()) {
@@ -461,9 +460,9 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
             }
 
             // intentional sleep because no feedback monitoring is needed
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            std::this_thread::sleep_for(200ms);
 
-        } else if (this->contactor_controller.wait_for_events(std::chrono::milliseconds(20)) == true) {
+        } else if (this->contactor_controller.wait_for_events(20ms) == true) {
             // otherwise wait for edge events to happen on one or both contactors
 
             // Read if the new event is a contactor closed or opened event
@@ -505,7 +504,7 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                         ((this->mod->config.contactor_1_feedback_type == "none") && (this->contactor_controller.get_target_phase_count() == 1)))) {
                     // intentional sleep because no feedback monitoring is needed and we know that we are waiting
                     // for the 10 seconds timeout regarding relay wear prevention to pass
-                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    std::this_thread::sleep_for(200ms);
                 }
 
                 else if ((this->contactor_controller.get_delay_contactor_close() == false) &&
