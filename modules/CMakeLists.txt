@@ -1,2 +1,1 @@
-ev_add_cpp_module(EvseHardwareManager)
 ev_add_cpp_module(CbTarragonDriver)

@@ -5,13 +5,17 @@ set(CMAKE_C_FLAGS "-Wno-psabi" CACHE STRING "" FORCE )
 set(CMAKE_CXX_FLAGS "-Wno-psabi"  CACHE STRING "" FORCE )
 
 set(CMAKE_C_FLAGS "-L${CMAKE_SYSROOT}/usr/lib")
-set(CCMAKE_CXX_FLAGS "-L${CMAKE_SYSROOT}/usr/lib")
+set(CMAKE_CXX_FLAGS "-L${CMAKE_SYSROOT}/usr/lib")
 
 if(EXISTS ${CMAKE_SYSROOT} AND IS_DIRECTORY ${CMAKE_SYSROOT})
   message(STATUS "SYSROOT found")
 else()
-  message(FATAL_ERROR "ERROR: SYSROOT not found!!!")
+  message(FATAL_ERROR "ERROR: SYSROOT '${CMAKE_SYSROOT}' not found!!!")
 endif()
+
+set(ENV{PKG_CONFIG_PATH} "${CMAKE_SYSROOT}/usr/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+
+set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_SYSROOT}/usr/lib/libstdc++.so")
 
 set(NODEJS_INCLUDE_DIR /usr/include/node) # make sure that nodejs is installed. If not, sudo apt-get install nodejs-dev
 

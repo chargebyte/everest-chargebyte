@@ -9,6 +9,12 @@ find_package(everest-cmake 0.1 REQUIRED
     PATHS ../everest-cmake
 )
 
+# make CMake project variables usable in source code
+configure_file(configuration.h.in configuration.h @ONLY)
+
+# create a VERSION file
+configure_file(VERSION.in VERSION @ONLY)
+
 # options
 option(BUILD_TESTING "Run unit tests" OFF)
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy" OFF)

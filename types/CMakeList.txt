@@ -1,0 +1,1 @@
+ev_add_types(${TYPES_FILES})

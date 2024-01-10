@@ -1,85 +1,69 @@
 description: Hardware abstraction layer for chargebyte's HW Tarragon
 config:
-  contactor_1_relay: 
-    description: >-
-      This is the index number of the platform specific relay to use (Only applicable
-      for interface type "gpio")
-    type: integer
-    default: 0
+  connector_type:
+    description: Type of charging connector available at this EVSE
+    type: string
+    enum:
+      - IEC62196Type2Cable
+      - IEC62196Type2Socket
+    default: IEC62196Type2Socket
   contactor_1_feedback_type:
     description: >-
-      Defines the logic behind the feedback (nc = normally close, no = normally open,
-      none = no feedback, sim = simulate)
+      Defines the logic behind the feedback
+      - none = no feedback contact wired
+      - nc = normally close
+      - no = normally open
     type: string
     enum:
+      - none
       - no
       - nc
-      - none
-      - sim
-    default: nc
-  contactor_2_relay: 
-    description: >-
-      This is the index number of the platform specific relay to use (Only applicable
-      for interface type "gpio")
-    type: integer
-    default: 1
+    default: none
   contactor_2_feedback_type:
     description: >-
-      Defines the logic behind the feedback of the secondary contactor (nc = normally close,
-      no = normally open, none = no feedback, sim = simulate)
+      Defines the logic behind the feedback
+      - none = no feedback contact wired
+      - nc = normally close
+      - no = normally open
     type: string
     enum:
+      - none
       - no
       - nc
-      - none
-      - sim
-    default: no
+    default: none
   relay_1_name:
-    description: Name of the relay and it's feedback as labeled on hardware
+    description: Name of the first the relay and its feedback as labeled on hardware
     type: string
     default: R1/S1
-  relay_1_actuator_gpio:
-    description: The GPIO number of the GPIO line which switches the relay on/off
-    type: integer
-    default: 76
-  relay_1_actuator_active_low:
-    description: Defines whether the actuator_gpio has inverted logic or not
-    type: boolean
-    default: false
-  relay_1_feedback_gpio:
+  relay_1_actuator_gpio_line_name:
+    description: The GPIO line name which switches the first relay on/off
+    type: string
+    default: RELAY_1_ENABLE
+  relay_1_feedback_gpio_line_name:
     description:  >-
-      The GPIO number of the GPIO line to which the feedback/sense signal is connected to
-    type: integer
-    default: 131
-  relay_1_feedback_active_low:
-    description: Defines whether the feedback_gpio has inverted logic or not
-    type: boolean
-    default: false
+      The GPIO line name to which the feedback/sense signal is connected to
+    type: string
+    default: RELAY_1_SENSE
   relay_2_name:
-    description: Name of the relay and it's feedback as labeled on hardware
+    description:  >-
+      Name of the second relay and its feedback as labeled on hardware. This relay is
+      normally used for 3-phase operation. If this relay should be used for other
+      purposes other than 3-phase operation, set the name to "none".
     type: string
     default: R2/S2
-  relay_2_actuator_gpio:
-    description: The GPIO number of the GPIO line which switches the relay on/off
-    type: integer
-    default: 77
-  relay_2_actuator_active_low:
-    description: Defines whether the actuator_gpio has inverted logic or not
-    type: boolean
-    default: false
-  relay_2_feedback_gpio:
+  relay_2_actuator_gpio_line_name:
+    description: The GPIO line name which switches the second relay on/off
+    type: string
+    default: RELAY_2_ENABLE
+  relay_2_feedback_gpio_line_name:
     description:  >-
-      The GPIO number of the GPIO line to which the feedback/sense signal is connected to
-    type: integer
-    default: 130
-  relay_2_feedback_active_low:
-    description: Defines whether the feedback_gpio has inverted logic or not
-    type: boolean
-    default: false
-  cp_rst_neg_peak:
-    description: The GPIO number of reset pin for negative peak ADC
-    type: integer
-    default: 139
+      The GPIO line name to which the feedback/sense signal is connected to
+    type: string
+    default: RELAY_2_SENSE
+  cp_rst_neg_peak_gpio_line_name:
+    description: The GPIO line name of reset pin for negative peak ADC
+    type: string
+    default: CP_NEGATIVE_PEAK_RST
   cp_neg_peak_adc_device:
     description: >-
       The unique ADC interface name (/sys/bus/iio/devices/iio:device?/name) of negative
@@ -90,17 +74,17 @@ config:
     description: The ADC interface channel (without prefix and suffix) of negative peak ADC
     type: string
     default: voltage3
-  cp_rst_pos_peak:
-    description: The GPIO number of reset pin for positive peak ADC
-    type: integer
-    default: 138
+  cp_rst_pos_peak_gpio_line_name:
+    description: The GPIO line name of reset pin for positive peak ADC
+    type: string
+    default: CP_POSITIVE_PEAK_RST
   cp_pos_peak_adc_device:
     description: >-
       The unique ADC interface name (/sys/bus/iio/devices/iio:device?/name) of positive
       peak ADC
     type: string
     default: 2198000.adc
-  cp_neg_peak_adc_channel:
+  cp_pos_peak_adc_channel:
     description: >-
       The ADC interface channel (without prefix and suffix) of positive peak ADC
     type: string
@@ -113,10 +97,10 @@ config:
     description: The PWM channel number to use as output
     type: integer
     default: 0
-  cp_invert:
-    description: The GPIO number of inverter signal to PWM
-    type: integer
-    default: 13
+  cp_invert_gpio_line_name:
+    description: The GPIO line name of CP_INVERT signal to PWM
+    type: string
+    default: CP_INVERT
   pp_adc_device:
     description: >-
       The unique ADC interface name (/sys/bus/iio/devices/iio:device?/name) to use as input
@@ -126,36 +110,12 @@ config:
     description: The ADC interface channel (without prefix and suffix) to use as input
     type: string
     default: voltage5
-  digital_input_reference_pwm_device:
-    description: The unique name of the PWM device to use as digital input reference
-    type: string
-    default: 2084000.pwm
-  digital_input_reference_pwmchannel:
-    description: The PWM channel number to use as digital input reference
-    type: integer
-    default: 0
-  rcd_enable:
-    description: Enables or disables monitoring of an external Residual Current Device (RCD).
-    type: boolean
-    default: true
-  rcd_gpio:
-    description: The GPIO number of the GPIO line which connects to RCD feedback
-    type: integer
-    default: 122
-  rcd_polarity:
-    description: ->
-      Defines whether the RCD feedback is LOW or HIGH during normal operation. Valid values
-      are "active_low" or "active_high". For example, when the attached RCM/RCD provides 0 V
-      to the board's digital input pin in normal mode and it provides e.g. 12 V when fault
-      condition is signaled, then "active_low" must be used here
-    type: string
-    default: active_high
 provides:
-  low_level:
+  evse_board_support:
     description: >-
-      Provides an interface to forward low level functionality e.g., control pilot voltage
-      values, contactor switching and feedback, to a high level module
-    interface: board_support_low_level
+      Provide the board support driver for the Tarragon platform, e.g., control pilot voltage
+      values, contactor switching and feedback and similar.
+    interface: evse_board_support
 metadata:
   license: https://chargebyte.com
   authors:
