@@ -1,1 +1,2 @@
 ev_add_cpp_module(CbTarragonDriver)
+ev_add_cpp_module(CbTarragonPlugLock)

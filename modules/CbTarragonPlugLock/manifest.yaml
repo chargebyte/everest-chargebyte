@@ -1,0 +1,41 @@
+description: Hardware abstraction layer for chargebyte's Tarragon plug lock control
+config:
+  sense_adc_device:
+    description: >-
+      The unique IIO ADC interface name (/sys/bus/iio/devices/iio:device?/name) of
+      plug lock sense ADC
+    type: string
+    default: 2198000.adc
+  sense_adc_channel:
+    description: >-
+      The IIO ADC interface channel (without prefix and suffix) of plug lock sense ADC
+    type: string
+    default: voltage0
+  actuator_duration:
+    description: The time duration for motor drive (in ms)
+    type: integer
+    default: 600
+  drv8872_in1_gpio_line_name:
+    description: The GPIO line name which controls the motor driver pin 'in1'
+    type: string
+    default: MOTOR_1_DRIVER_IN1_N
+  drv8872_in2_gpio_line_name:
+    description: The GPIO line name which controls the motor driver pin 'in2'
+    type: string
+    default: MOTOR_1_DRIVER_IN2
+  drv8872_in1_active_low:
+    description: The GPIO polarity of motor driver pin 'in1' (active low = true, active high = false)
+    type: boolean
+    default: true
+  drv8872_in2_active_low:
+    description: The GPIO polarity of motor driver pin 'in2' (active low = true, active high = false)
+    type: boolean
+    default: false
+provides:
+  connector_lock:
+    description: Provide the driver for plug lock control (currently only KUESTER02S supported)
+    interface: connector_lock
+metadata:
+  license: https://chargebyte.com
+  authors:
+    - Martin Lukas
