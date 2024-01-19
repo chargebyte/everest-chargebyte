@@ -21,7 +21,7 @@ active_modules:
       evse_manager:
       - module_id: connector_1
         implementation_id: evse
-  cb_tarragon_driver:
+  tarragon_bsp:
     module: CbTarragonDriver
     connections: {}
   energy_manager:
@@ -54,7 +54,7 @@ active_modules:
       three_phases: true
     connections:
       bsp:
-        - module_id: cb_tarragon_driver
+        - module_id: tarragon_bsp
           implementation_id: evse_board_support
   grid_connection_point:
     module: EnergyNode
