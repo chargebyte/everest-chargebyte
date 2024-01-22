@@ -20,6 +20,11 @@ public:
                    bool drv8872_in1_active_low,
                    bool drv8872_in2_active_low);
 
+    void forward(void);
+    void backward(void);
+    void coast(void);
+    void brake(void);
+
 private:
     /// @brief The GPIO line to motor in1 pin.
     std::unique_ptr<gpiod::line_request> motor_in1;
