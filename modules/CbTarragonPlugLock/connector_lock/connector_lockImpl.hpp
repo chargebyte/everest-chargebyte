@@ -11,6 +11,8 @@
 #include <generated/interfaces/connector_lock/Implementation.hpp>
 
 #include "../CbTarragonPlugLock.hpp"
+#include "CbLockActuator.hpp"
+#include "CbLockSense.hpp"
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
@@ -48,7 +50,9 @@ private:
     virtual void ready() override;
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
-    // insert your private definitions here
+    CbLockActuator lock_actuator;
+    CbLockSense lock_sense;
+    int duration;
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

@@ -7,6 +7,17 @@ namespace module {
 namespace connector_lock {
 
 void connector_lockImpl::init() {
+    
+    this->duration = this->mod->config.actuator_duration;
+    this->lock_actuator = CbLockActuator(this->mod->config.drv8872_in1_gpio_line_name,
+                                         this->mod->config.drv8872_in2_gpio_line_name,
+                                         this->mod->config.drv8872_in1_active_low,
+                                         this->mod->config.drv8872_in2_active_low);
+
+    this->lock_sense = CbLockSense(this->mod->config.sense_adc_device,
+                                   this->mod->config.sense_adc_channel,
+                                   700,
+                                   2900);
 }
 
 void connector_lockImpl::ready() {

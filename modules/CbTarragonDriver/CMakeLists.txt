@@ -10,11 +10,6 @@ ev_setup_cpp_module()
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
 # insert your custom targets and additional config variables here
 
-find_package(PkgConfig REQUIRED)
-
-# search for libgpiod
-pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
-
 add_subdirectory("utils")
 add_subdirectory("tarragon")
 
