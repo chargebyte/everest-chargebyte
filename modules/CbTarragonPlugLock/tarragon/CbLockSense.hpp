@@ -10,7 +10,12 @@ public:
     CbLockSense(void);
 
     /// @brief Constructor.
-    /// @param unlock_threshold The GPIO line name which controls the motor driver pin 'in1'
+    /// @param adc_device The name of the IIO ADC device to use.
+    /// @param adc_channel The name of the channel of the ADC device, e.g. 'voltage0'.
+    /// @param unlock_threshold_min The lower threshold value (in mV) of a range for determinate an unlocked plug lock
+    /// @param unlock_threshold_max The upper threshold value (in mV) of a range for determinate an unlocked plug lock
+    /// @param lock_threshold_min The lower threshold value (in mV) of a range for determinate an locked plug lock
+    /// @param lock_threshold_max The upper threshold value (in mV) of a range for determinate an locked plug lock
     CbLockSense(const std::string& adc_device,
                 const std::string& adc_channel,
                 int unlock_threshold_min,
@@ -18,10 +23,16 @@ public:
                 int lock_threshold_min,
                 int lock_threshold_max);
 
-    /// @brief  Read the current value from the ADC and convert it to an integer value representing a value in mV.
+    /// @brief Read the current value from the ADC and convert it to an integer value representing a value in mV.
     /// @return The current value in mV.
     int get_voltage(void);
+
+    /// @brief Check wether the plug lock is locked
+    /// @return Returns true if plug lock is locked
     bool is_locked(void);
+
+    /// @brief Check wether the plug lock is unlocked
+    /// @return Returns true if plug lock is unlocked
     bool is_unlocked(void);
 
 private:
