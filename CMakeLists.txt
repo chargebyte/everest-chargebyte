@@ -9,6 +9,12 @@ find_package(everest-cmake 0.1 REQUIRED
     PATHS ../everest-cmake
 )
 
+# search for package PkgConfig
+find_package(PkgConfig REQUIRED)
+
+# search for libgpiod
+pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
+
 # make CMake project variables usable in source code
 configure_file(configuration.h.in configuration.h @ONLY)
 
