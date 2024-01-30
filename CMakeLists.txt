@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14.7)
 
-project(chargebytetarragondriver VERSION 0.1
+project(chargebytetarragondriver VERSION 0.2.0
     DESCRIPTION "Chargebyte's Tarragon driver for EVerest"
     LANGUAGES CXX)
 
