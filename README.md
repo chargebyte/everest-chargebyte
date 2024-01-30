@@ -37,6 +37,7 @@ If you want to compile the content of this repository natively and not cross-com
 ```bash
 git clone git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git
 cd libgpiod/
+git checkout v2.0.1
 ./autogen.sh --enable-bindings-cxx
 sudo make install
 ```
