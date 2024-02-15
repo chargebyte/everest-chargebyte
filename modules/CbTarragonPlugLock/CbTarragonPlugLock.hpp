@@ -23,6 +23,10 @@ struct Conf {
     std::string sense_adc_device;
     std::string sense_adc_channel;
     int actuator_duration;
+    int unlocked_threshold_voltage_min;
+    int unlocked_threshold_voltage_max;
+    int locked_threshold_voltage_min;
+    int locked_threshold_voltage_max;
     std::string drv8872_in1_gpio_line_name;
     std::string drv8872_in2_gpio_line_name;
     bool drv8872_in1_active_low;

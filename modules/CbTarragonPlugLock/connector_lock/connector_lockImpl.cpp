@@ -14,18 +14,16 @@ void connector_lockImpl::init() {
                                          this->mod->config.drv8872_in2_gpio_line_name,
                                          this->mod->config.drv8872_in1_active_low,
                                          this->mod->config.drv8872_in2_active_low);
-    // CbLockSense object for KUESTER02S motors
+    // CbLockSense object for motors
     this->lock_sense = CbLockSense(this->mod->config.sense_adc_device,
                                    this->mod->config.sense_adc_channel,
-                                   2900, // unlock threshold min in mV
-                                   3300, // unlock threshold max in mV
-                                   0, // lock threshold min in mV
-                                   700); // lock threshold max in mV
+                                   this->mod->config.unlocked_threshold_voltage_min,
+                                   this->mod->config.unlocked_threshold_voltage_max,
+                                   this->mod->config.locked_threshold_voltage_min,
+                                   this->mod->config.locked_threshold_voltage_max);
 }
 
 void connector_lockImpl::ready() {
-
-    EVLOG_info << "Motortype KUESTER02S";
 
     // unlock plug lock at start time
     // wait for caps are loaded. Simulate voltage value for full charge > 10V
