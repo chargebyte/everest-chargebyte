@@ -10,11 +10,12 @@ namespace connector_lock {
 
 void connector_lockImpl::init() {
 
-    this->actuator_duration = this->mod->config.actuator_duration;
     // range check for actuator duration
-    if (this->actuator_duration <= 0 || this->actuator_duration > 4000)
-        throw std::out_of_range("Configured actuator duration (" + std::to_string(this->actuator_duration) +
+    if (this->mod->config.actuator_duration <= 0 || this->mod->config.actuator_duration > 4000)
+        throw std::out_of_range("Configured actuator duration (" + std::to_string(this->mod->config.actuator_duration) +
                                 " ms) is out of allowed range (1-4000 ms)");
+
+    this->actuator_duration = this->mod->config.actuator_duration;
 
     this->lock_actuator = CbLockActuator(this->mod->config.drv8872_in1_gpio_line_name,
                                          this->mod->config.drv8872_in2_gpio_line_name,
