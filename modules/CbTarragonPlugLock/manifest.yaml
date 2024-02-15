@@ -14,6 +14,8 @@ config:
   actuator_duration:
     description: The time duration for motor drive (in ms)
     type: integer
+    minimum: 1
+    maximum: 4000
     default: 600
   drv8872_in1_gpio_line_name:
     description: The GPIO line name which controls the motor driver pin 'in1'

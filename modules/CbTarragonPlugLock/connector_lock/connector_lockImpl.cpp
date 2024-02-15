@@ -10,13 +10,6 @@ namespace connector_lock {
 
 void connector_lockImpl::init() {
 
-    // range check for actuator duration
-    if (this->mod->config.actuator_duration <= 0 || this->mod->config.actuator_duration > 4000)
-        throw std::out_of_range("Configured actuator duration (" + std::to_string(this->mod->config.actuator_duration) +
-                                " ms) is out of allowed range (1-4000 ms)");
-
-    this->actuator_duration = this->mod->config.actuator_duration;
-
     this->lock_actuator = CbLockActuator(this->mod->config.drv8872_in1_gpio_line_name,
                                          this->mod->config.drv8872_in2_gpio_line_name,
                                          this->mod->config.drv8872_in1_active_low,
@@ -43,7 +36,7 @@ void connector_lockImpl::ready() {
 
 void connector_lockImpl::handle_lock() {
     this->lock_actuator.backward();
-    std::this_thread::sleep_for(std::chrono::milliseconds(this->actuator_duration));
+    std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));
     this->lock_actuator.brake();
 
     int feedback_voltage = lock_sense.get_voltage();
@@ -58,7 +51,7 @@ void connector_lockImpl::handle_lock() {
 
 void connector_lockImpl::handle_unlock() {
     this->lock_actuator.forward();
-    std::this_thread::sleep_for(std::chrono::milliseconds(this->actuator_duration));
+    std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));
     this->lock_actuator.brake();
 
     int feedback_voltage = this->lock_sense.get_voltage();

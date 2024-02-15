@@ -51,7 +51,6 @@ private:
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
     CbLockActuator lock_actuator;
     CbLockSense lock_sense;
-    int actuator_duration;
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
