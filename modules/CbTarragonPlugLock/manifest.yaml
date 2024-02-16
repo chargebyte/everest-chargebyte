@@ -14,7 +14,33 @@ config:
   actuator_duration:
     description: The time duration for motor drive (in ms)
     type: integer
+    minimum: 1
+    maximum: 4000
     default: 600
+  unlocked_threshold_voltage_min:
+    description: The minimum threshold voltage to decide if the plug is in unlocked state (0 - 3300 mV)
+    type: integer
+    minimum: 0
+    maximum: 3300
+    default: 2900
+  unlocked_threshold_voltage_max:
+    description: The maximum threshold voltage to decide if the plug is in unlocked state (0 - 3300 mV)
+    type: integer
+    minimum: 0
+    maximum: 3300
+    default: 3300
+  locked_threshold_voltage_min:
+    description: The minimum threshold voltage to decide if the plug is in locked state (0 - 3300 mV)
+    type: integer
+    minimum: 0
+    maximum: 3300
+    default: 0
+  locked_threshold_voltage_max:
+    description: The maximum threshold voltage to decide if the plug is in locked state (0 - 3300 mV)
+    type: integer
+    minimum: 0
+    maximum: 3300
+    default: 700
   drv8872_in1_gpio_line_name:
     description: The GPIO line name which controls the motor driver pin 'in1'
     type: string
@@ -33,7 +59,7 @@ config:
     default: false
 provides:
   connector_lock:
-    description: Provide the driver for plug lock control (currently only KUESTER02S supported)
+    description: Provide a generic driver for plug lock control (defaults suitable for a KUESTER02S plug lock motor)
     interface: connector_lock
 metadata:
   license: https://chargebyte.com
