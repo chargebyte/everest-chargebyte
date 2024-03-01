@@ -173,7 +173,7 @@ void evse_board_supportImpl::handle_pwm_F() {
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
 
     if (value.allow_power_on && this->cp_current_state == types::cb_board_support::CPState::PilotFault) {
-        EVLOG_info << "power on rejected due pilot fault detected";
+        EVLOG_warning << "Power on rejected due to detected pilot fault.";
         return;
     }
 
