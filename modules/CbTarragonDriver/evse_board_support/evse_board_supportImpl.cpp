@@ -34,11 +34,11 @@ void evse_board_supportImpl::init() {
     this->termination_requested = false;
 
     // Configure hardware capabilities
-    this->hw_capabilities.max_current_A_import = 16;
+    this->hw_capabilities.max_current_A_import = 32;
     this->hw_capabilities.min_current_A_import = 0;
     this->hw_capabilities.max_phase_count_import = 3;
     this->hw_capabilities.min_phase_count_import = 1;
-    this->hw_capabilities.max_current_A_export = 16;
+    this->hw_capabilities.max_current_A_export = 32;
     this->hw_capabilities.min_current_A_export = 0;
     this->hw_capabilities.max_phase_count_export = 3;
     this->hw_capabilities.min_phase_count_export = 1;
