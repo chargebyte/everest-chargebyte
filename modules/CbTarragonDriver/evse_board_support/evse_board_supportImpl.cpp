@@ -171,7 +171,13 @@ void evse_board_supportImpl::handle_pwm_F() {
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
-    this->allow_power_on = value.allow_power_on ? true : false;
+
+    if (value.allow_power_on && this->cp_current_state == types::cb_board_support::CPState::PilotFault) {
+        EVLOG_warning << "Power on rejected due to detected pilot fault.";
+        return;
+    }
+
+    this->allow_power_on = value.allow_power_on;
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
@@ -343,6 +349,7 @@ bool evse_board_supportImpl::cp_state_changed(struct cp_state_signal_side& signa
 }
 
 void evse_board_supportImpl::cp_observation_worker(void) {
+    double previous_duty_cycle{100.0};
     // both sides of the CP level
     struct cp_state_signal_side positive_side{types::cb_board_support::CPState::PilotFault,
                                               types::cb_board_support::CPState::PilotFault,
@@ -356,6 +363,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
     EVLOG_info << "Control Pilot Observation Thread started";
 
     while (!this->termination_requested) {
+        bool duty_cycle_changed{false};
         bool cp_state_changed{false};
 
         // acquire measurement lock for this loop round, wait for it eventually
@@ -374,8 +382,12 @@ void evse_board_supportImpl::cp_observation_worker(void) {
 
         // at this point, the current_state member was already updated by the cp_state_changed methods
 
+        // check whether we see a change of the duty cycle
+        duty_cycle_changed = previous_duty_cycle != this->pwm_controller.get_duty_cycle();
+        previous_duty_cycle = this->pwm_controller.get_duty_cycle();
+
         // if there was actually a change -> tell it to upper layers
-        if (cp_state_changed) {
+        if (cp_state_changed || duty_cycle_changed) {
             // check whether the PWM is actively driven by us
             if (this->pwm_controller.get_duty_cycle() > 0.0 &&
                 this->pwm_controller.get_duty_cycle() < 100.0 &&
@@ -390,7 +402,9 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                 this->cp_current_state = types::cb_board_support::CPState::PilotFault;
                 continue;
             }
+        }
 
+        if (cp_state_changed) {
             // in case we drive state F, then we cannot trust the peak detectors
             if (this->pwm_controller.get_duty_cycle() == 0.0) {
                 types::board_support_common::BspEvent tmp {types::board_support_common::Event::F};
