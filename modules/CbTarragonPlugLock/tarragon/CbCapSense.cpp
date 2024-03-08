@@ -7,10 +7,8 @@ CbCapSense::CbCapSense(void) {
 CbCapSense::CbCapSense(const std::string& adc_device, const std::string& adc_channel,
                         int charged_threshold_voltage):
     adc(get_iioadc_by_name(adc_device)) {
-    
-    // range check for threshold values
-    this->check_range(charged_threshold_voltage, 0, CAP_MAX_VOLTAGE);
-    this->charged_threshold_voltage = charged_threshold_voltage;
+
+    this->set_threshold_voltage(charged_threshold_voltage);
 
     // open adc channel
     if (!this->adc.has_channel(adc_channel))
@@ -31,10 +29,12 @@ int CbCapSense::get_voltage(void) {
     return this->calc_voltage(this->adc.get_value());
 }
 
-void CbCapSense::check_range(int charged_threshold_voltage, int min, int max) const {
-    if ((charged_threshold_voltage < min) || (charged_threshold_voltage > max))
+void CbCapSense::set_threshold_voltage(int charged_threshold_voltage) {
+    if ((charged_threshold_voltage < 0) || (charged_threshold_voltage > CAP_MAX_VOLTAGE))
         throw std::out_of_range("charged_threshold_voltage(" + std::to_string(charged_threshold_voltage) +
                                 ") not in range between 0 and " + std::to_string(CAP_MAX_VOLTAGE) + " mV");
+
+    this->charged_threshold_voltage = charged_threshold_voltage;
 }
 
 int CbCapSense::calc_voltage(int adc_value) const {

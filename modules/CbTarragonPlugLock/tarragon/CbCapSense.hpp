@@ -41,11 +41,9 @@ private:
     /// @brief The threshold voltage in mV to determine charged capacitors
     int charged_threshold_voltage;
 
-    /// @brief helper function to determine wether the charged_threshold_voltage is in range
-    /// @param charged_threshold_voltage The value to be checked
-    /// @param min The lower range voltage limit in mV
-    /// @param max The upper range voltage limit in mV
-    void check_range(int charged_threshold_voltage, int min, int max) const;
+    /// @brief setter function for charged_threshold_voltage which also does a range check
+    /// @param charged_threshold_voltage The threshold voltage in mV
+    void set_threshold_voltage(int charged_threshold_voltage);
 
 protected:
     /// @brief  Convert a raw ADC value into a voltage scaled to 12V
