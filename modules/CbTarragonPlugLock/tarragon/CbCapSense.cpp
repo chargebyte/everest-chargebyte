@@ -1,11 +1,6 @@
 #include "CbCapSense.hpp"
 #include "IIOADCUtils.hpp"
 
-#define ADC_MAX_VALUE ((1 << 12) - 1) // max value at ADC precision of 12bit
-#define ADC_REF_VOLTAGE 3300 // reference voltage which is used to scale capacitor voltage
-#define CAP_SCALE_VALUE (6.8 / 2.2 + 1) // reference voltage which is used to scale capacitor voltage (see schematic of Tarragon hardware)
-#define CAP_MAX_VOLTAGE 12000 // max capacitor voltage
-
 CbCapSense::CbCapSense(void) {
 }
 
@@ -47,6 +42,7 @@ int CbCapSense::calc_voltage(int adc_value) const {
     int v_int = adc_value * ADC_REF_VOLTAGE / ADC_MAX_VALUE;
 
     // scale ADC voltage to voltage for motor driver
-    int v_cap = v_int * CAP_SCALE_VALUE;
+    // TODO: Avoid floating point operation and check against Truffle
+    int v_cap = v_int * 6.8 / 2.2 + 1;
     return v_cap;
 }

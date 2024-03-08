@@ -26,16 +26,25 @@ public:
     int get_voltage(void);
 
 private:
+    /// @brief max capacitor voltage
+    static constexpr unsigned int CAP_MAX_VOLTAGE {12000};
+
+    /// @brief reference voltage which is used to scale capacitor voltage
+    static constexpr unsigned int ADC_REF_VOLTAGE {3300};
+
+    /// @brief max value at ADC precision of 12bit
+	static constexpr unsigned int ADC_MAX_VALUE {(1 << 12) - 1};
+
     /// @brief The underlying IIO ADC instance.
     IIOADC adc;
 
-    /// @brief The threshold voltage to determine charged capacitors
+    /// @brief The threshold voltage in mV to determine charged capacitors
     int charged_threshold_voltage;
 
     /// @brief helper function to determine wether the charged_threshold_voltage is in range
     /// @param charged_threshold_voltage The value to be checked
-    /// @param min The lower range limit
-    /// @param max The upper range limit
+    /// @param min The lower range voltage limit in mV
+    /// @param max The upper range voltage limit in mV
     void check_range(int charged_threshold_voltage, int min, int max) const;
 
 protected:
