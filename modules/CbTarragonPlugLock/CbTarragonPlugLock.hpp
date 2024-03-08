@@ -31,6 +31,9 @@ struct Conf {
     std::string drv8872_in2_gpio_line_name;
     bool drv8872_in1_active_low;
     bool drv8872_in2_active_low;
+    std::string capcharge_adc_device;
+    std::string capcharge_adc_channel;
+    int charged_threshold_voltage;
 };
 
 class CbTarragonPlugLock : public Everest::ModuleBase {
