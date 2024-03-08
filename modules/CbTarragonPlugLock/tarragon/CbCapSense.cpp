@@ -39,10 +39,10 @@ void CbCapSense::set_threshold_voltage(int charged_threshold_voltage) {
 
 int CbCapSense::calc_voltage(int adc_value) const {
     // scale value to ADC range
-    int v_int = adc_value * ADC_REF_VOLTAGE / ADC_MAX_VALUE;
+    int voltage3_3v = adc_value * ADC_REF_VOLTAGE / ADC_MAX_VALUE;
 
     // scale ADC voltage to voltage for motor driver
     // TODO: Avoid floating point operation and check against Truffle
-    int v_cap = v_int * 6.8 / 2.2 + 1;
-    return v_cap;
+    int voltage12v = voltage3_3v * 6.8 / 2.2 + 1;
+    return voltage12v;
 }
