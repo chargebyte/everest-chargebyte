@@ -18,7 +18,7 @@ public:
                 int charged_threshold_voltage);
 
     /// @brief Check wether the capacitors are charged
-    /// @return Returns true if capacitors voltage is above charged_threshold_voltage
+    /// @return Returns true if capacitors voltage is above or equal charged_threshold_voltage
     bool is_charged(void);
 
     /// @brief Read the current value from the ADC and convert it to an integer value representing a value in mV.

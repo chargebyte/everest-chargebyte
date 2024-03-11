@@ -18,10 +18,7 @@ CbCapSense::CbCapSense(const std::string& adc_device, const std::string& adc_cha
 }
 
 bool CbCapSense::is_charged(void) {
-    if (this->get_voltage() <= this->charged_threshold_voltage)
-        return false;
-
-    return true;
+    return (this->get_voltage() >= this->charged_threshold_voltage);
 }
 
 int CbCapSense::get_voltage(void) {
