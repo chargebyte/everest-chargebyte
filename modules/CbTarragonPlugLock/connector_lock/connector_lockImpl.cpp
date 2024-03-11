@@ -34,7 +34,8 @@ bool connector_lockImpl::wait_for_charged(std::chrono::seconds timeout) {
 
     while (!this->cap_sense.is_charged()) {
         if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time) > timeout) {
-            EVLOG_warning << "Timeout capacitor voltage: " << this->cap_sense.get_voltage() << " mV";
+            EVLOG_warning << "Timeout! Measured capacitor voltage: " << this->cap_sense.get_voltage() << " mV," <<
+            		         "expected capacitor voltage: " << this->cap_sense.get_threshold_voltage() << " mV";
             return false;
         }
         std::this_thread::sleep_for(100ms);

@@ -45,3 +45,7 @@ int CbCapSense::calc_voltage(int adc_value) const {
     int voltage12v = voltage3_3v * 90 / 22;
     return voltage12v;
 }
+
+int CbCapSense::get_threshold_voltage(void) const {
+	return this->charged_threshold_voltage;
+}

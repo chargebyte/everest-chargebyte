@@ -25,6 +25,10 @@ public:
     /// @return The current value in mV.
     int get_voltage(void);
 
+    // @brief getter function for charged_threshold_voltage
+    /// @param charged_threshold_voltage The threshold voltage in mV
+    int get_threshold_voltage(void) const;
+
 private:
     /// @brief max capacitor voltage
     static constexpr unsigned int CAP_MAX_VOLTAGE {12000};
