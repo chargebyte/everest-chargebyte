@@ -42,7 +42,6 @@ int CbCapSense::calc_voltage(int adc_value) const {
     int voltage3_3v = adc_value * ADC_REF_VOLTAGE / ADC_MAX_VALUE;
 
     // scale ADC voltage to voltage for motor driver
-    // TODO: Avoid floating point operation and check against Truffle
-    int voltage12v = voltage3_3v * 6.8 / 2.2 + 1;
+    int voltage12v = voltage3_3v * 90 / 22;
     return voltage12v;
 }

@@ -53,6 +53,9 @@ private:
     CbLockActuator lock_actuator;
     CbLockSense lock_sense;
     CbCapSense cap_sense;
+    bool wait_for_charged(std::chrono::seconds timeout);
+    static constexpr std::chrono::seconds CHARGED_TIMEOUT_WORK {5};
+    static constexpr std::chrono::seconds CHARGED_TIMEOUT_INITIAL {400};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

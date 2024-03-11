@@ -2,6 +2,7 @@
 // Copyright Pionix GmbH and Contributors to EVerest
 
 #include "connector_lockImpl.hpp"
+#include <chrono>
 
 using namespace std::chrono_literals;
 
@@ -27,20 +28,35 @@ void connector_lockImpl::init() {
                                 this->mod->config.charged_threshold_voltage);
 }
 
+bool connector_lockImpl::wait_for_charged(std::chrono::seconds timeout) {
+
+    auto now = std::chrono::steady_clock::now();
+
+    while (!this->cap_sense.is_charged()) {
+        if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - now) > timeout) {
+            EVLOG_warning << "Timeout capacitor voltage: " << this->cap_sense.get_voltage() << " mV";
+            return false;
+        }
+        std::this_thread::sleep_for(100ms);
+    };
+
+    return true;
+}
+
 void connector_lockImpl::ready() {
 
     // unlock plug lock at start time
     // wait for caps are loaded. Simulate voltage value for full charge > 10V
-    // TODO add timeout
-    while(!this->cap_sense.is_charged()) {
-        EVLOG_info << "Current capacitor voltage: " << this->cap_sense.get_voltage() << "mV";
-        std::this_thread::sleep_for(100ms);
-    }
-    EVLOG_info << "Current capacitor voltage: " << this->cap_sense.get_voltage() << "mV";
+    if (this->wait_for_charged(CHARGED_TIMEOUT_INITIAL) == false)
+        throw std::runtime_error("Initial capacitor voltage not reached");
     this->handle_unlock();
 }
 
 void connector_lockImpl::handle_lock() {
+    // wait for caps are loaded before locking pluglock
+    if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false)
+        EVLOG_error << "Capacitor voltage not reached before lock";
+
     this->lock_actuator.backward();
     std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));
     this->lock_actuator.brake();
@@ -56,6 +72,10 @@ void connector_lockImpl::handle_lock() {
 }
 
 void connector_lockImpl::handle_unlock() {
+    // wait for caps are loaded before unlocking pluglock
+    if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false)
+        EVLOG_error << "Capacitor voltage not reached before unlock";
+
     this->lock_actuator.forward();
     std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));
     this->lock_actuator.brake();
