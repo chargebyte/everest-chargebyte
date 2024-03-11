@@ -30,10 +30,10 @@ void connector_lockImpl::init() {
 
 bool connector_lockImpl::wait_for_charged(std::chrono::seconds timeout) {
 
-    auto now = std::chrono::steady_clock::now();
+    auto start_time = std::chrono::steady_clock::now();
 
     while (!this->cap_sense.is_charged()) {
-        if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - now) > timeout) {
+        if (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time) > timeout) {
             EVLOG_warning << "Timeout capacitor voltage: " << this->cap_sense.get_voltage() << " mV";
             return false;
         }
