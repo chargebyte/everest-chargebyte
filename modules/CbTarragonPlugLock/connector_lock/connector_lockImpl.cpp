@@ -65,7 +65,7 @@ void connector_lockImpl::handle_lock() {
     std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));
     this->lock_actuator.brake();
 
-    int feedback_voltage = lock_sense.get_voltage();
+    int feedback_voltage = this->lock_sense.get_voltage();
 
     if (this->lock_sense.is_locked()) {
         EVLOG_info << "Plug is locked. Feedback voltage: " << feedback_voltage << " mV";
