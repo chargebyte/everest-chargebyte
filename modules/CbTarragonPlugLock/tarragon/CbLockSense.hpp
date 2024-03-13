@@ -1,5 +1,12 @@
 #include <string>
 #include "IIOADC.hpp"
+
+/// @brief reference voltage which is used to scale capacitor voltage
+static constexpr unsigned int ADC_REF_VOLTAGE {3300};
+
+/// @brief max value at ADC precision of 12bit
+static constexpr unsigned int ADC_MAX_VALUE {(1 << 12) - 1};
+
 //
 // A class for abstracting the plug lock sense handling
 //

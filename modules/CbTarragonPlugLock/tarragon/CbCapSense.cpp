@@ -1,5 +1,6 @@
 #include "CbCapSense.hpp"
 #include "IIOADCUtils.hpp"
+#include "CbLockSense.hpp"
 
 CbCapSense::CbCapSense(void) {
 }

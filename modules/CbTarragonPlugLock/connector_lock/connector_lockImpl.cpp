@@ -55,8 +55,11 @@ void connector_lockImpl::ready() {
 
 void connector_lockImpl::handle_lock() {
     // wait for caps are loaded before locking pluglock
-    if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false)
+    if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false) {
         this->raise_connector_lock_ConnectorLockCapNotCharged("Capacitor voltage not reached before lock", Everest::error::Severity::Medium);
+    } else {
+        this->request_clear_all_connector_lock_ConnectorLockCapNotCharged();
+    }
 
     this->lock_actuator.backward();
     std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));
@@ -75,8 +78,11 @@ void connector_lockImpl::handle_lock() {
 
 void connector_lockImpl::handle_unlock() {
     // wait for caps are loaded before unlocking pluglock
-    if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false)
+    if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false) {
         this->raise_connector_lock_ConnectorLockCapNotCharged("Capacitor voltage not reached before unlock", Everest::error::Severity::Medium);
+    } else {
+        this->request_clear_all_connector_lock_ConnectorLockCapNotCharged();
+    }
 
     this->lock_actuator.forward();
     std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));

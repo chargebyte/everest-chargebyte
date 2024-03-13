@@ -30,15 +30,6 @@ public:
     int get_threshold_voltage(void) const;
 
 private:
-    /// @brief max capacitor voltage
-    static constexpr unsigned int CAP_MAX_VOLTAGE {12000};
-
-    /// @brief reference voltage which is used to scale capacitor voltage
-    static constexpr unsigned int ADC_REF_VOLTAGE {3300};
-
-    /// @brief max value at ADC precision of 12bit
-	static constexpr unsigned int ADC_MAX_VALUE {(1 << 12) - 1};
-
     /// @brief The underlying IIO ADC instance.
     IIOADC adc;
 
