@@ -45,18 +45,18 @@ bool connector_lockImpl::wait_for_charged(std::chrono::seconds timeout) {
 }
 
 void connector_lockImpl::ready() {
-
     // unlock plug lock at start time
     // wait for caps are loaded. Simulate voltage value for full charge > 10V
     if (this->wait_for_charged(CHARGED_TIMEOUT_INITIAL) == false)
-        throw std::runtime_error("Initial capacitor voltage not reached");
+        this->raise_connector_lock_ConnectorLockCapNotCharged("Initial capacitor voltage not reached", Everest::error::Severity::High);
+
     this->handle_unlock();
 }
 
 void connector_lockImpl::handle_lock() {
     // wait for caps are loaded before locking pluglock
     if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false)
-        EVLOG_error << "Capacitor voltage not reached before lock";
+        this->raise_connector_lock_ConnectorLockCapNotCharged("Capacitor voltage not reached before lock", Everest::error::Severity::Medium);
 
     this->lock_actuator.backward();
     std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));
@@ -65,17 +65,18 @@ void connector_lockImpl::handle_lock() {
     int feedback_voltage = lock_sense.get_voltage();
 
     if (this->lock_sense.is_locked()) {
-        EVLOG_info << "plug is locked. Feedback voltage: " << feedback_voltage << " mV";
+        EVLOG_info << "Plug is locked. Feedback voltage: " << feedback_voltage << " mV";
+        this->request_clear_all_connector_lock_ConnectorLockFailedLock();
     } else {
-        // TODO error handling
-        EVLOG_warning << "plug is not locked. Feedback voltage: " << feedback_voltage << " mV";
+        EVLOG_warning << "Plug is not locked. Feedback voltage: " << feedback_voltage << " mV";
+        this->raise_connector_lock_ConnectorLockFailedLock("Plug is not locked", Everest::error::Severity::Medium);
     }
 }
 
 void connector_lockImpl::handle_unlock() {
     // wait for caps are loaded before unlocking pluglock
     if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false)
-        EVLOG_error << "Capacitor voltage not reached before unlock";
+        this->raise_connector_lock_ConnectorLockCapNotCharged("Capacitor voltage not reached before unlock", Everest::error::Severity::Medium);
 
     this->lock_actuator.forward();
     std::this_thread::sleep_for(std::chrono::milliseconds(this->mod->config.actuator_duration));
@@ -84,10 +85,11 @@ void connector_lockImpl::handle_unlock() {
     int feedback_voltage = this->lock_sense.get_voltage();
 
     if (this->lock_sense.is_unlocked()) {
-        EVLOG_info << "plug is unlocked. Feedback voltage: " << feedback_voltage << " mV";
+        EVLOG_info << "Plug is unlocked. Feedback voltage: " << feedback_voltage << " mV";
+        this->request_clear_all_connector_lock_ConnectorLockFailedUnlock();
     } else {
-        // TODO error handling
-        EVLOG_warning << "plug is not unlocked. Feedback voltage: " << feedback_voltage << " mV";
+        EVLOG_warning << "Plug is not unlocked. Feedback voltage: " << feedback_voltage << " mV";
+        this->raise_connector_lock_ConnectorLockFailedUnlock("Plug is not unlocked", Everest::error::Severity::Medium);
     }
 }
 
