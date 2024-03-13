@@ -4,6 +4,7 @@ target_sources(${MODULE_NAME}
     PRIVATE
         "CbLockActuator.cpp"
         "CbLockSense.cpp"
+        "CbCapSense.cpp"
 )
 
 get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)

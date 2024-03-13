@@ -57,6 +57,23 @@ config:
     description: The GPIO polarity of motor driver pin 'in2' (active low = true, active high = false)
     type: boolean
     default: false
+  capcharge_adc_device:
+    description: >-
+      The unique IIO ADC interface name (/sys/bus/iio/devices/iio:device?/name) of
+      capacitor measurement ADC
+    type: string
+    default: 2198000.adc
+  capcharge_adc_channel:
+    description: >-
+      The IIO ADC interface channel (without prefix and suffix) of capacitor measurement ADC
+    type: string
+    default: voltage4
+  charged_threshold_voltage:
+    description: The threshold voltage to decide if the capacitors are charged (0 - 12000 mV)
+    type: integer
+    minimum: 0
+    maximum: 12000
+    default: 10000
 provides:
   connector_lock:
     description: Provide a generic driver for plug lock control (defaults suitable for a KUESTER02S plug lock motor)

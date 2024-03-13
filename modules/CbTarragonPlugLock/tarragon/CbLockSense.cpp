@@ -2,9 +2,6 @@
 #include "IIOADCUtils.hpp"
 #include <everest/logging.hpp>
 
-#define ADC_MAX_VALUE ((1 << 12) - 1) // max value at ADC precision of 12bit
-#define ADC_REF_VOLTAGE 3300 // reference voltage which is used by ADC
-
 CbLockSense::CbLockSense(void) {
 }
 

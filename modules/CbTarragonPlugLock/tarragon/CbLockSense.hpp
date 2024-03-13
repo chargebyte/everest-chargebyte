@@ -1,5 +1,12 @@
 #include <string>
 #include "IIOADC.hpp"
+
+/// @brief reference voltage which is used to scale capacitor voltage
+static constexpr unsigned int ADC_REF_VOLTAGE {3300};
+
+/// @brief max value at ADC precision of 12bit
+static constexpr unsigned int ADC_MAX_VALUE {(1 << 12) - 1};
+
 //
 // A class for abstracting the plug lock sense handling
 //
@@ -54,7 +61,7 @@ private:
     void check_range(const std::string& parameter, int value_min, int value_max, int min, int max) const;
 
 protected:
-    /// @brief  Convert a raw ADC value into a voltage
+    /// @brief  Convert a raw ADC value into a voltage scaled to 3.3 V
     /// @param  adc_value The raw ADC value as obtained from the IIO ADC.
     /// @return A voltage value in mV.
     int calc_voltage(int adc_value) const;
