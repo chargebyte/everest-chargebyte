@@ -46,7 +46,7 @@ bool connector_lockImpl::wait_for_charged(std::chrono::seconds timeout) {
 
 void connector_lockImpl::ready() {
     // unlock plug lock at start time
-    // wait for caps are loaded. Simulate voltage value for full charge > 10V
+    // wait for caps are loaded.
     if (this->wait_for_charged(CHARGED_TIMEOUT_INITIAL) == false)
         this->raise_connector_lock_ConnectorLockCapNotCharged("Initial capacitor voltage not reached", Everest::error::Severity::High);
 
