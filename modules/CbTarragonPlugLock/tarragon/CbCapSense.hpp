@@ -37,7 +37,7 @@ private:
     int charged_threshold_voltage;
 
 protected:
-    /// @brief  Convert a raw ADC value into a voltage scaled to 12V
+    /// @brief  Convert a raw ADC value into a voltage scaled to 13.5 V
     /// @param  adc_value The raw ADC value as obtained from the IIO ADC.
     /// @return A voltage value in mV.
     int calc_voltage(int adc_value) const;

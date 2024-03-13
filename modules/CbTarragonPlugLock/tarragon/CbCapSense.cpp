@@ -31,9 +31,9 @@ int CbCapSense::calc_voltage(int adc_value) const {
     // scale value to ADC range
     int voltage3_3v = adc_value * ADC_REF_VOLTAGE / ADC_MAX_VALUE;
 
-    // scale ADC voltage to voltage for motor driver
-    int voltage12v = voltage3_3v * 90 / 22;
-    return voltage12v;
+    // according to the datasheet the expected DC supply should be between 12 and 13 V
+    // so scale ADC voltage according to the motor driver (max 13.5 V)
+    return voltage3_3v * 90 / 22;
 }
 
 int CbCapSense::get_threshold_voltage(void) const {
