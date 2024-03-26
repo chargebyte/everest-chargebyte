@@ -1,0 +1,26 @@
+description: Hardware abstraction layer for configuration of chargebyte's Tarragon digital inputs
+config:
+  pwm_device:
+    description: The unique name of the PWM device to use as digital input reference
+    type: string
+    default: 2084000.pwm
+  pwmchannel:
+    description: The PWM channel number to use as digital input reference
+    type: integer
+    default: 0
+  threshold_voltage:
+    description: >-
+      The threshold voltage for the digital inputs in mV. Values above this
+      threshold are considered as high.
+    type: integer
+    minimum: 0
+    maximum: 12000
+    default: 6000
+provides:
+  empty:
+    description: EVerest API
+    interface: empty
+metadata:
+  license: https://chargebyte.com
+  authors:
+    - Moritz Barsnick
