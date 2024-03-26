@@ -7,7 +7,7 @@
 /// A class for interpreting a measured ADC value for Proximity Pilot evaluation on Tarragon platform.
 /// The PP contact is wired to an ADC input on Tarragon which can be read and mapped
 /// according to a lookup table to the corresponding resistor value in the plugged-in socket.
-/// In case the measured value is too low, i.e. the resistor is greater than specific in the
+/// In case the measured value is too low, i.e. the resistor is greater than specified in the
 /// standard, then an exception is raised which should be caught by upper layers.
 ///
 class CbTarragonPP {

@@ -6,7 +6,7 @@
 
 ///
 /// A class for abstracting a PWM device for Control Pilot on Tarragon platform.
-/// On Tarargon platform, the PWM generation circuit uses an additional GPIO (CP_INVERT)
+/// On Tarragon platform, the PWM generation circuit uses an additional GPIO (CP_INVERT)
 /// to allow disabling the pin output completely so that CP state E can be generated.
 /// The underlying standard PWM is parametrized with the 1 kHz frequency as demanded by
 /// the IEC 61851 standard.
@@ -22,7 +22,7 @@ public:
     /// @brief Constructor. The underlying PWM is disabled first, then re-configured
     ///        but left disabled. The pin output is disabled.
     ///        A specific PWM duty cycle and/or driving the signal must be later
-    ///        achived by using `set_duty_cycle`.
+    ///        achieved by using `set_duty_cycle`.
     /// @param pwm_device The name of the underlying PWM chip device.
     /// @param pwm_device_channel The number of the PWM within the PWM chip device.
     /// @param invert_gpioline_name The GPIO line name of the CP_INVERT signal.
