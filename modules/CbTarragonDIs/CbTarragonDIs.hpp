@@ -15,7 +15,7 @@
 
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
-#include <chrono>
+#include "tarragon/CbTarragonDIPWM.hpp"
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -37,6 +37,9 @@ public:
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
     // insert your public definitions here
+    ~CbTarragonDIs() {
+        delete tarragon_di_pwm;
+    };
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
@@ -51,10 +54,7 @@ private:
 
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
     // insert your private definitions here
-    static constexpr std::chrono::nanoseconds PWM_PERIOD {40000}; // equals 25 kHz
-    static constexpr int MAX_THRESHOLD_VOLTAGE {12000};           // mV
-
-    void configure_digital_input_pwm();
+    CbTarragonDIPWM* tarragon_di_pwm;
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
 };
 

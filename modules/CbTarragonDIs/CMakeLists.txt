@@ -9,13 +9,17 @@ ev_setup_cpp_module()
 
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
 # insert your custom targets and additional config variables here
+add_subdirectory("tarragon")
+
 target_include_directories(${MODULE_NAME}
     PRIVATE
         ${UTILS_INCLUDE_DIR}
+        ${TARRAGON_INCLUDE_DIR}
         ${CMAKE_BINARY_DIR}
 )
 target_link_libraries(${MODULE_NAME}
     PRIVATE
+        tarragon
         utils
 )
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
