@@ -15,6 +15,9 @@ find_package(PkgConfig REQUIRED)
 # search for libgpiod
 pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
 
+# gpiod utils
+add_subdirectory("utils")
+
 # make CMake project variables usable in source code
 configure_file(configuration.h.in configuration.h @ONLY)
 
