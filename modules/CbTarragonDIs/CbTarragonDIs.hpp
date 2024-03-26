@@ -15,6 +15,7 @@
 
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
+#include <chrono>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -50,6 +51,10 @@ private:
 
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
     // insert your private definitions here
+    static constexpr std::chrono::nanoseconds PWM_PERIOD {40000}; // equals 25 kHz
+    static constexpr int MAX_THRESHOLD_VOLTAGE {12000};           // mV
+
+    void configure_digital_input_pwm();
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
 };
 
