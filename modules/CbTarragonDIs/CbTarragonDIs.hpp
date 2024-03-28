@@ -37,9 +37,6 @@ public:
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
     // insert your public definitions here
-    ~CbTarragonDIs() {
-        delete tarragon_di_pwm;
-    };
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
@@ -54,7 +51,8 @@ private:
 
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
     // insert your private definitions here
-    CbTarragonDIPWM* tarragon_di_pwm;
+    // cannot initialize a direct object here (this->config is initialized later), therefore use a pointer
+    std::unique_ptr<CbTarragonDIPWM> tarragon_di_pwm;
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
 };
 

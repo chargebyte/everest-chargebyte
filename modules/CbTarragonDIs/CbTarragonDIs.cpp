@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
+#include <everest/logging.hpp>
+
 #include "CbTarragonDIs.hpp"
-#include "tarragon/CbTarragonDIPWM.hpp"
 #include "configuration.h"
+#include "tarragon/CbTarragonDIPWM.hpp"
 
 namespace module {
 
 void CbTarragonDIs::init() {
     invoke_init(*p_empty);
 
-    EVLOG_info << PROJECT_DESCRIPTION << " (version: " << PROJECT_VERSION << ")";
+    // PROJECT_DESCRIPTION is global, we need our own string here
+    EVLOG_info << "chargebyte's Tarragon driver for digital input reference PWM (version: " << PROJECT_VERSION << ")";
 
-    tarragon_di_pwm =
-        new CbTarragonDIPWM(this->config.pwm_device, this->config.pwmchannel, this->config.threshold_voltage);
+    this->tarragon_di_pwm = std::make_unique<CbTarragonDIPWM>(this->config.pwm_device, this->config.pwmchannel,
+                                                              this->config.threshold_voltage);
 }
 
 void CbTarragonDIs::ready() {
