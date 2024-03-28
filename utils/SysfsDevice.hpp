@@ -18,7 +18,7 @@ public:
     /// @param root A path pointing to the 'root' directory of the device
     ///             within the /sys hierarchy. This is usually an absolute path
     ///             but for testing purpose, this could also be a relative one.
-    ///             If this directory does not exists, a `std::runtime` exception
+    ///             If this directory does not exist, a `std::runtime` exception
     ///             is raised.
     SysfsDevice(const std::filesystem::path& root);
 
