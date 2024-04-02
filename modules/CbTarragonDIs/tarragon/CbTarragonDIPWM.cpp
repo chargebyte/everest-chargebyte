@@ -13,8 +13,8 @@ void CbTarragonDIPWM::configure_digital_input_pwm() {
     auto duty_cycle = this->threshold_voltage * this->PWM_PERIOD / this->MAX_THRESHOLD_VOLTAGE;
     pwm.set_duty_cycle(duty_cycle);
     pwm.set_enabled(true);
-    EVLOG_info << "Enabled digital input reference PWM with period " << this->PWM_PERIOD.count() << " and duty cycle "
-               << duty_cycle.count();
+    EVLOG_info << "Enabled digital input reference PWM " << this->device << ", channel " << this->channel
+               << " with period " << this->PWM_PERIOD.count() << " and duty cycle " << duty_cycle.count();
 }
 
 } // namespace module
