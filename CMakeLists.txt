@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14.7)
 
-project(chargebytetarragondriver VERSION 0.4.0
+project(chargebytetarragondriver VERSION 0.5.0
     DESCRIPTION "Chargebyte's Tarragon driver for EVerest"
     LANGUAGES CXX)
 
@@ -14,6 +14,9 @@ find_package(PkgConfig REQUIRED)
 
 # search for libgpiod
 pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
+
+# gpiod utils
+add_subdirectory("utils")
 
 # make CMake project variables usable in source code
 configure_file(configuration.h.in configuration.h @ONLY)

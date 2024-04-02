@@ -8,7 +8,7 @@ SysfsDevice::SysfsDevice(void) {
 
 SysfsDevice::SysfsDevice(const std::filesystem::path& root) : root(root) {
     if (!std::filesystem::is_directory(this->root))
-        throw std::runtime_error("The directory '" + root.generic_string() + "' does not exists.");
+        throw std::runtime_error("The directory '" + root.generic_string() + "' does not exist.");
 }
 
 bool SysfsDevice::has_sys_attr(const std::string& name) const {

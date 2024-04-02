@@ -14,7 +14,7 @@ add_subdirectory("tarragon")
 
 target_include_directories(${MODULE_NAME}
     PRIVATE
-        "../CbTarragonDriver/utils"
+        ${UTILS_INCLUDE_DIR}
         ${PLUGLOCK_INCLUDE_DIR}
         ${CMAKE_BINARY_DIR}
 )
