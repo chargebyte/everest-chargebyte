@@ -423,10 +423,12 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                 EVLOG_info << "CP state change from " << this->cp_current_state << " to " << positive_side.current_state << ", "
                            << "U_CP+: " << positive_side.voltage << " mV, "
                            << "U_CP-: " << negative_side.voltage << " mV";
-                this->cp_current_state = positive_side.current_state;
 
-                if (this->cp_current_state == types::cb_board_support::CPState::A)
+                // clear a DiodeFault error on CP state change but only if it exists
+                if (this->cp_current_state == types::cb_board_support::CPState::PilotFault)
                     this->request_clear_all_evse_board_support_DiodeFault();
+
+                this->cp_current_state = positive_side.current_state;
             }
         }
     }
