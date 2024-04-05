@@ -1,4 +1,8 @@
 *build
 *build-cross
 *.cache
+*.cproject
+*.project
+*.settings
+*.vscode
 workspace.yaml
