@@ -32,6 +32,7 @@ namespace evse_board_support {
 void evse_board_supportImpl::init() {
     // just for clarity
     this->termination_requested = false;
+    this->pp_fault_reported = false;
 
     // Configure hardware capabilities
     this->hw_capabilities.max_current_A_import = 32;
@@ -243,9 +244,6 @@ void evse_board_supportImpl::pp_observation_worker(void) {
             int voltage = 0;
             this->pp_ampacity.ampacity = this->pp_controller.get_ampacity(voltage);
 
-            // reset possible set flag since we successfully read a valid value
-            this->pp_fault_reported = false;
-
             if (this->pp_ampacity.ampacity != prev_value) {
 
                 if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None) {
@@ -257,6 +255,20 @@ void evse_board_supportImpl::pp_observation_worker(void) {
 
                 // publish new value, upper layer should decide how to handle the change
                 this->publish_ac_pp_ampacity(this->pp_ampacity);
+
+                if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None && 
+                    (this->cp_current_state == types::cb_board_support::CPState::C ||
+                    this->cp_current_state == types::cb_board_support::CPState::D)) {
+                    // publish a ProximityFault
+                    this->raise_evse_board_support_MREC23ProximityFault("Plug removed from socket during charge", Everest::error::Severity::High);
+                    this->pp_fault_reported = true;
+                }
+
+                if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None && this->pp_fault_reported) {
+                    // clear a ProximityFault error on PP state change to a valid value but only if it exists
+                    this->request_clear_all_evse_board_support_MREC23ProximityFault();
+                    this->pp_fault_reported = false;
+                }
             }
         }
         catch (std::underflow_error& e) {
