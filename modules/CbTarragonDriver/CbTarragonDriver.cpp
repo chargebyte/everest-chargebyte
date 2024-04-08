@@ -8,7 +8,7 @@ namespace module {
 void CbTarragonDriver::init() {
     invoke_init(*p_evse_board_support);
 
-    EVLOG_info << PROJECT_DESCRIPTION << " (version: " << PROJECT_VERSION << ")";
+    EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
 }
 
 void CbTarragonDriver::ready() {

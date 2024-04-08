@@ -11,8 +11,7 @@ namespace module {
 void CbTarragonDIs::init() {
     invoke_init(*p_empty);
 
-    // PROJECT_DESCRIPTION is global, we need our own string here
-    EVLOG_info << "chargebyte's Tarragon driver for digital input reference PWM (version: " << PROJECT_VERSION << ")";
+    EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
 
     this->tarragon_di_pwm = std::make_unique<CbTarragonDIPWM>(this->config.pwm_device, this->config.pwmchannel,
                                                               this->config.threshold_voltage);

@@ -12,11 +12,20 @@ ev_setup_cpp_module()
 
 add_subdirectory("tarragon")
 
+set(MODULE_DESCRIPTION "chargebyte's Tarragon driver for plug lock control")
+set(MODULE_VERSION ${PROJECT_VERSION})
+
+# make CMake project variables usable in source code
+configure_file(configuration.h.in configuration.h @ONLY)
+
+# create a VERSION file
+configure_file(VERSION.in VERSION @ONLY)
+
 target_include_directories(${MODULE_NAME}
     PRIVATE
         ${UTILS_INCLUDE_DIR}
         ${PLUGLOCK_INCLUDE_DIR}
-        ${CMAKE_BINARY_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}
 )
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
 

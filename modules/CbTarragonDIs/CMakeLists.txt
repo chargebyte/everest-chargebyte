@@ -11,11 +11,20 @@ ev_setup_cpp_module()
 # insert your custom targets and additional config variables here
 add_subdirectory("tarragon")
 
+set(MODULE_DESCRIPTION "chargebyte's Tarragon driver for configuration of digital input reference PWM")
+set(MODULE_VERSION ${PROJECT_VERSION})
+
+# make CMake project variables usable in source code
+configure_file(configuration.h.in configuration.h @ONLY)
+
+# create a VERSION file
+configure_file(VERSION.in VERSION @ONLY)
+
 target_include_directories(${MODULE_NAME}
     PRIVATE
         ${UTILS_INCLUDE_DIR}
         ${TARRAGON_INCLUDE_DIR}
-        ${CMAKE_BINARY_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}
 )
 target_link_libraries(${MODULE_NAME}
     PRIVATE
