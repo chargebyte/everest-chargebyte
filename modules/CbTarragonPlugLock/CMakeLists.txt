@@ -20,6 +20,9 @@ configure_file(configuration.h.in configuration.h @ONLY)
 
 # create a VERSION file
 configure_file(VERSION.in VERSION @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/VERSION"
+    DESTINATION "${EVEREST_MODULE_INSTALL_PREFIX}/${MODULE_NAME}"
+)
 
 target_include_directories(${MODULE_NAME}
     PRIVATE
