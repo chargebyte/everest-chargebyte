@@ -95,9 +95,6 @@ private:
     /// @brief Flag to determine if three-phase operation is supported
     bool three_phase_supported;
 
-    ///@brief Flag to determine if ventilation should be supported
-    bool support_ventilation;
-
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};
 
@@ -137,6 +134,9 @@ private:
 
     /// @brief Flag to remember whether we already published a diode error
     std::atomic_bool diode_fault_reported {false};
+
+    /// @brief Flag to remember whether we already published a ventilation error
+    std::atomic_bool ventilation_fault_reported {false};
 
     /// @brief Mutex to enable/disable PP observation thread
     std::mutex pp_observation_lock;
