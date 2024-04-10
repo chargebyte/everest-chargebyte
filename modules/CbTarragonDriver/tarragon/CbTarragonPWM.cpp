@@ -30,7 +30,7 @@ CbTarragonPWM::CbTarragonPWM(const std::string& pwm_device, unsigned int pwm_dev
     this->pwm.set_frequency_and_ratio(1000, 1);
 }
 
-double CbTarragonPWM::get_duty_cycle(void) {
+double CbTarragonPWM::get_duty_cycle(void) const {
     double rv = 0.0;
 
     if (this->get_cp_invert() && this->pwm.is_enabled())
@@ -51,6 +51,11 @@ void CbTarragonPWM::set_duty_cycle(double duty_cycle) {
         this->set_cp_invert(true);
 }
 
+bool CbTarragonPWM::is_nominal_duty_cycle() const {
+    double current_duty_cycle = this->get_duty_cycle();
+    return 0.0 < current_duty_cycle && current_duty_cycle < 100.0;
+}
+
 bool CbTarragonPWM::is_enabled(void) {
     return this->get_cp_invert();
 }
@@ -64,7 +69,7 @@ void CbTarragonPWM::disable(void) {
     this->pwm.set_enabled(false);
 }
 
-bool CbTarragonPWM::get_cp_invert(void) {
+bool CbTarragonPWM::get_cp_invert(void) const {
     return this->cp_invert->get_value(this->cp_invert->offsets()[0]) == gpiod::line::value::ACTIVE;
 }
 

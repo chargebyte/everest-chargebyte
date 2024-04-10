@@ -94,6 +94,18 @@ void evse_board_supportImpl::init() {
 void evse_board_supportImpl::ready() {
 }
 
+void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
+                                                        const struct cp_state_signal_side& negative_side,
+                                                        const struct cp_state_signal_side& positive_side) {
+    if (this->cp_current_state == state)
+        return;
+
+    EVLOG_info << "CP state change from " << this->cp_current_state << " to " << state << ", "
+               << "U_CP+: " << positive_side.voltage << " mV, "
+               << "U_CP-: " << negative_side.voltage << " mV";
+    this->cp_current_state = state;
+}
+
 evse_board_supportImpl::~evse_board_supportImpl() {
     // request termination of our worker threads
     this->termination_requested = true;
@@ -256,7 +268,7 @@ void evse_board_supportImpl::pp_observation_worker(void) {
                 // publish new value, upper layer should decide how to handle the change
                 this->publish_ac_pp_ampacity(this->pp_ampacity);
 
-                if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None && 
+                if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None &&
                     (this->cp_current_state == types::cb_board_support::CPState::C ||
                     this->cp_current_state == types::cb_board_support::CPState::D)) {
                     // publish a ProximityFault
@@ -319,20 +331,6 @@ void evse_board_supportImpl::enable_cp_observation(void) {
         EVLOG_debug << "Enabling CP observation (suppressed)";
     }
 }
-
-struct cp_state_signal_side {
-    /// @brief previous state is what we measured before the last round
-    types::cb_board_support::CPState previous_state;
-
-    /// @brief current state is what we measured in the last round
-    types::cb_board_support::CPState current_state;
-
-    /// @brief measured state is what we just measured in this round
-    types::cb_board_support::CPState measured_state;
-
-    /// @brief the voltage of the just completed measurement
-    int voltage;
-};
 
 bool evse_board_supportImpl::cp_state_changed(struct cp_state_signal_side& signal_side) {
     bool rv{false};
@@ -400,18 +398,12 @@ void evse_board_supportImpl::cp_observation_worker(void) {
 
         // if there was actually a change -> tell it to upper layers
         if (cp_state_changed || duty_cycle_changed) {
-            // check whether the PWM is actively driven by us
-            if (this->pwm_controller.get_duty_cycle() > 0.0 &&
-                this->pwm_controller.get_duty_cycle() < 100.0 &&
-                // check wether -12 V was seen on the negative side
+            // A diode fault is detected if the nominal duty cycle is set and the negative side of
+            // the CP is not in state F (-12V)
+            if (this->pwm_controller.is_nominal_duty_cycle() &&
                 negative_side.current_state != types::cb_board_support::CPState::F) {
-
                 this->raise_evse_board_support_DiodeFault("Diode fault detected.", Everest::error::Severity::High);
-
-                EVLOG_warning << "Diode fault detected. Previous CP state was: " << this->cp_current_state << ", "
-                              << "U_CP+: " << positive_side.voltage << " mV, "
-                              << "U_CP-: " << negative_side.voltage << " mV";
-                this->cp_current_state = types::cb_board_support::CPState::PilotFault;
+                this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
                 continue;
             }
         }
@@ -421,26 +413,18 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             if (this->pwm_controller.get_duty_cycle() == 0.0) {
                 types::board_support_common::BspEvent tmp {types::board_support_common::Event::F};
                 this->publish_event(tmp);
-                EVLOG_info << "CP state change from " << this->cp_current_state << " to " << types::board_support_common::Event::F << ", "
-                           << "U_CP+: " << positive_side.voltage << " mV, "
-                           << "U_CP-: " << negative_side.voltage << " mV";
-                this->cp_current_state = types::cb_board_support::CPState::F;
+                this->update_cp_state_internally(types::cb_board_support::CPState::F, negative_side, positive_side);
                 continue;
             }
-
             // normal CP state change
             if (positive_side.current_state != this->cp_current_state) {
-                types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
-                this->publish_event(tmp);
-                EVLOG_info << "CP state change from " << this->cp_current_state << " to " << positive_side.current_state << ", "
-                           << "U_CP+: " << positive_side.voltage << " mV, "
-                           << "U_CP-: " << negative_side.voltage << " mV";
-
                 // clear a DiodeFault error on CP state change but only if it exists
                 if (this->cp_current_state == types::cb_board_support::CPState::PilotFault)
                     this->request_clear_all_evse_board_support_DiodeFault();
 
-                this->cp_current_state = positive_side.current_state;
+                types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
+                this->publish_event(tmp);
+                this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
             }
         }
     }
