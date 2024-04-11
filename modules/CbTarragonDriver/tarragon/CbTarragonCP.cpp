@@ -130,8 +130,3 @@ types::cb_board_support::CPState CbTarragonCP::voltage_to_state(int voltage, typ
 
     return types::cb_board_support::CPState::PilotFault; /* < -13 V */
 }
-
-bool CbTarragonCP::is_valid_cp_state(types::cb_board_support::CPState& cp_state) {
-    return (types::cb_board_support::CPState::A <= cp_state) &&
-               (cp_state <= types::cb_board_support::CPState::F);
-}

@@ -342,8 +342,7 @@ bool evse_board_supportImpl::cp_state_changed(struct cp_state_signal_side& signa
     // For that, we need at least two CP state measurements (third condition)
 
     if (signal_side.previous_state != signal_side.measured_state &&
-        signal_side.current_state == signal_side.measured_state &&
-        this->cp_controller.is_valid_cp_state(signal_side.measured_state)) {
+        signal_side.current_state == signal_side.measured_state) {
 
         // update the previous state
         signal_side.previous_state = signal_side.current_state;
@@ -439,9 +438,15 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                     this->request_clear_all_evse_board_support_MREC14PilotFault();
                     this->pilot_fault_reported = false;
                 }
-                types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
-                this->publish_event(tmp);
-                this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
+                try {
+                    types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
+                    this->publish_event(tmp);
+                    this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
+                }
+                catch(std::runtime_error& e) {
+                    // Should never happen, when all invalid states are handled correctly
+                    EVLOG_warning << e.what();
+                }
             }
         }
     }
