@@ -132,6 +132,12 @@ private:
     /// @brief Flag to remember whether we already published a proximity error
     std::atomic_bool pp_fault_reported {false};
 
+    /// @brief Flag to remember whether we already published a control pilot error
+    std::atomic_bool pilot_fault_reported {false};
+
+    /// @brief Flag to remember whether we already published a diode error
+    std::atomic_bool diode_fault_reported {false};
+
     /// @brief Mutex to enable/disable PP observation thread
     std::mutex pp_observation_lock;
 

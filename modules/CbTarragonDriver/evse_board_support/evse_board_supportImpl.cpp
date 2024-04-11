@@ -33,6 +33,8 @@ void evse_board_supportImpl::init() {
     // just for clarity
     this->termination_requested = false;
     this->pp_fault_reported = false;
+    this->pilot_fault_reported = false;
+    this->diode_fault_reported = false;
 
     // Configure hardware capabilities
     this->hw_capabilities.max_current_A_import = 32;
@@ -403,6 +405,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             if (this->pwm_controller.is_nominal_duty_cycle() &&
                 negative_side.current_state != types::cb_board_support::CPState::F) {
                 this->raise_evse_board_support_DiodeFault("Diode fault detected.", Everest::error::Severity::High);
+                this->diode_fault_reported = true;
                 this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
                 continue;
             }
@@ -418,10 +421,24 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             }
             // normal CP state change
             if (positive_side.current_state != this->cp_current_state) {
-                // clear a DiodeFault error on CP state change but only if it exists
-                if (this->cp_current_state == types::cb_board_support::CPState::PilotFault)
+                // in case we see a pilot fault, we need to inform the upper layer
+                if (positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
+                    negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
+                    this->raise_evse_board_support_MREC14PilotFault("Pilot fault detected.",
+                                                                    Everest::error::Severity::High);
+                    this->pilot_fault_reported = true;
+                    this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
+                    continue;
+                }
+                // clear a DiodeFault / PilotFault error on CP state change but only if it exists
+                if (this->diode_fault_reported) {
                     this->request_clear_all_evse_board_support_DiodeFault();
-
+                    this->diode_fault_reported = false;
+                }
+                if (this->pilot_fault_reported) {
+                    this->request_clear_all_evse_board_support_MREC14PilotFault();
+                    this->pilot_fault_reported = false;
+                }
                 types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
                 this->publish_event(tmp);
                 this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
