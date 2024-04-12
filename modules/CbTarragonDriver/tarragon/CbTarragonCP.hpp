@@ -41,9 +41,6 @@ public:
     /// @brief Helper to map a measured voltage to a CP state (takes hysteresis into account)
     types::cb_board_support::CPState voltage_to_state(int voltage, types::cb_board_support::CPState previous_state) const;
 
-    /// @brief Helper to judge whether CP state is invalid or in range A..F
-    bool is_valid_cp_state(types::cb_board_support::CPState& cp_state);
-
 private:
     /// @brief The ADC for positive side of the CP signal.
     CbTarragonCPADC pos_adc;

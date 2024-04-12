@@ -23,6 +23,20 @@
 #include <CbTarragonPP.hpp>
 #include <CbTarragonContactorControl.hpp>
 
+struct cp_state_signal_side {
+    /// @brief previous state is what we measured before the last round
+    types::cb_board_support::CPState previous_state;
+
+    /// @brief current state is what we measured in the last round
+    types::cb_board_support::CPState current_state;
+
+    /// @brief measured state is what we just measured in this round
+    types::cb_board_support::CPState measured_state;
+
+    /// @brief the voltage of the just completed measurement
+    int voltage;
+};
+
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -70,6 +84,11 @@ private:
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
     // insert your private definitions here
 
+    /// @brief Helper to remember and log the current CP state
+    void update_cp_state_internally(types::cb_board_support::CPState state,
+                                    const struct cp_state_signal_side& negative_side,
+                                    const struct cp_state_signal_side& positive_side);
+
     /// @brief Hardware Capabilities
     types::evse_board_support::HardwareCapabilities hw_capabilities;
 
@@ -80,7 +99,7 @@ private:
     bool support_ventilation;
 
     /// @brief Helper to signal thread termination wish
-    std::atomic_bool termination_requested;
+    std::atomic_bool termination_requested {false};
 
     /// @brief Control Pilot observation
     CbTarragonCP cp_controller;
@@ -96,7 +115,7 @@ private:
     std::mutex cp_observation_lock;
 
     /// @brief Helper to track whether the CP observation is running
-    bool cp_observation_enabled;
+    bool cp_observation_enabled {false};
 
     /// @brief Tracks the last published CP state.
     std::atomic<types::cb_board_support::CPState> cp_current_state;
@@ -111,7 +130,13 @@ private:
     types::board_support_common::ProximityPilot pp_ampacity;
 
     /// @brief Flag to remember whether we already published a proximity error
-    std::atomic_bool pp_fault_reported;
+    std::atomic_bool pp_fault_reported {false};
+
+    /// @brief Flag to remember whether we already published a control pilot error
+    std::atomic_bool pilot_fault_reported {false};
+
+    /// @brief Flag to remember whether we already published a diode error
+    std::atomic_bool diode_fault_reported {false};
 
     /// @brief Mutex to enable/disable PP observation thread
     std::mutex pp_observation_lock;
@@ -125,10 +150,10 @@ private:
 
     /// @brief Signal from upper layers to determine if relays can be switched on
     ///        (`true`: Switch on allowed, `false`: Switch off)
-    bool allow_power_on;
+    bool allow_power_on {false};
 
     /// @brief Previous value of flag `allow_power_on`;
-    bool last_allow_power_on;
+    bool last_allow_power_on {false};
 
     /// @brief Contactor handling thread handle
     std::thread contactor_handling_thread;

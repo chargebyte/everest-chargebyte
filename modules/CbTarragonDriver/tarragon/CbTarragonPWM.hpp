@@ -26,16 +26,22 @@ public:
     /// @param pwm_device The name of the underlying PWM chip device.
     /// @param pwm_device_channel The number of the PWM within the PWM chip device.
     /// @param invert_gpioline_name The GPIO line name of the CP_INVERT signal.
-    CbTarragonPWM(const std::string& pwm_device, unsigned int pwm_device_channel, const std::string& invert_gpioline_name);
+    CbTarragonPWM(const std::string& pwm_device, unsigned int pwm_device_channel,
+                  const std::string& invert_gpioline_name);
 
     /// @brief  Get the current duty cycle in percent.
     /// @return The current duty cycle.
-    double get_duty_cycle(void);
+    double get_duty_cycle(void) const;
 
     /// @brief Set a new duty cycle. Also enable the PWM and the CP_INVERT signal
     ///        if necessary so that the desired PWM signal actually shows up at the output pin.
     /// @param duty_cycle The desired duty cycle in percent.
     void set_duty_cycle(double duty_cycle);
+
+    /// @brief Check whether the current duty cycle is nominal.
+    /// @return True when configured duty cycle is >0 and <100% (nominal dutry cyle),
+    ///         false otherwise.
+    bool is_nominal_duty_cycle() const;
 
     /// @brief  Check whether the PWM output is actively driven.
     /// @return True when a signal is driven, false otherwise.
@@ -54,7 +60,7 @@ private:
     std::unique_ptr<gpiod::line_request> cp_invert;
 
     /// @brief Helper to get the current CP_INVERT line state.
-    bool get_cp_invert(void);
+    bool get_cp_invert(void) const;
 
     /// @brief Helper to set the CP_INVERT line state.
     void set_cp_invert(bool active);
