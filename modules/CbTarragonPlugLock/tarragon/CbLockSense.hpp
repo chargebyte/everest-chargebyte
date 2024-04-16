@@ -34,11 +34,11 @@ public:
     /// @return The current value in mV.
     int get_voltage(void);
 
-    /// @brief Check wether the plug lock is locked
+    /// @brief Check whether the plug lock is locked
     /// @return Returns true if plug lock is locked
     bool is_locked(void);
 
-    /// @brief Check wether the plug lock is unlocked
+    /// @brief Check whether the plug lock is unlocked
     /// @return Returns true if plug lock is unlocked
     bool is_unlocked(void);
 

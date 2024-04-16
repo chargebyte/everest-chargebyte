@@ -16,6 +16,9 @@
 #include "CbLockActuator.hpp"
 #include "CbLockSense.hpp"
 #include "CbCapSense.hpp"
+
+#include <mutex>
+#include <utils/thread.hpp>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -31,6 +34,7 @@ public:
 
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
+    ~connector_lockImpl();
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
 
 protected:
@@ -56,6 +60,16 @@ private:
     bool wait_for_charged(std::chrono::seconds timeout);
     static constexpr std::chrono::seconds CHARGED_TIMEOUT_WORK {5};
     static constexpr std::chrono::seconds CHARGED_TIMEOUT_INITIAL {400};
+    static constexpr std::chrono::milliseconds FEEDBACK_CHECK_INTERVAL {1000};
+
+    /// @brief plug lock observation thread handle
+    Everest::Thread lock_observation_thread;
+    /// @brief plug lock observation worker method
+    void lock_observation_worker();
+    /// @brief mutex to protect feedback error evaluation during driving
+    std::mutex observation_mtx;
+    /// @brief current assumed lock state, true if locked
+    bool assumed_is_locked {false};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

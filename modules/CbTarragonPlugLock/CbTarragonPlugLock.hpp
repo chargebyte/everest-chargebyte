@@ -34,6 +34,7 @@ struct Conf {
     std::string capcharge_adc_device;
     std::string capcharge_adc_channel;
     int charged_threshold_voltage;
+    bool enable_monitoring;
 };
 
 class CbTarragonPlugLock : public Everest::ModuleBase {
