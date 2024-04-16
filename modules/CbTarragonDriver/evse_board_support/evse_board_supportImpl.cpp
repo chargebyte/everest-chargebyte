@@ -35,6 +35,7 @@ void evse_board_supportImpl::init() {
     this->pp_fault_reported = false;
     this->pilot_fault_reported = false;
     this->diode_fault_reported = false;
+    this->ventilation_fault_reported = false;
 
     // Configure hardware capabilities
     this->hw_capabilities.max_current_A_import = 32;
@@ -139,7 +140,10 @@ void evse_board_supportImpl::handle_setup(bool& three_phases, bool& has_ventilat
     //        Do we need to make other checks before setting max_phase_count_import and sending it as part of the
     //        hw_capabilties e.g., read out our rotary encoder?
     this->three_phase_supported = three_phases;
-    this->support_ventilation = has_ventilation;
+    
+    if (has_ventilation) {
+        throw std::runtime_error("Module setup failed: Ventilation is currently not supported on this platform.");
+    }
 }
 
 types::evse_board_support::HardwareCapabilities evse_board_supportImpl::handle_get_hw_capabilities() {
@@ -429,6 +433,17 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                     this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
                     continue;
                 }
+                // check if a ventilation error has occurred
+                if (positive_side.current_state == types::cb_board_support::CPState::D) {
+                    // in case we see a ventilation request, although we do not support it,
+                    // we need to inform the upper layer
+                    this->raise_evse_board_support_VentilationNotAvailable("Ventilation fault detected.",
+                                                                            Everest::error::Severity::High);
+                    this->ventilation_fault_reported = true;
+                    this->publish_event({types::board_support_common::Event::D});
+                    this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
+                    continue;
+                }
                 // clear a DiodeFault / PilotFault error on CP state change but only if it exists
                 if (this->diode_fault_reported) {
                     this->request_clear_all_evse_board_support_DiodeFault();
@@ -437,6 +452,10 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                 if (this->pilot_fault_reported) {
                     this->request_clear_all_evse_board_support_MREC14PilotFault();
                     this->pilot_fault_reported = false;
+                }
+                if (this->ventilation_fault_reported) {
+                    this->request_clear_all_evse_board_support_VentilationNotAvailable();
+                    this->ventilation_fault_reported = false;
                 }
                 try {
                     types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
