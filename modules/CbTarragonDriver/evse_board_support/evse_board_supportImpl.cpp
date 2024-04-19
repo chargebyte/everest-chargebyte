@@ -409,9 +409,11 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             // the CP is not in state F (-12V)
             if (this->pwm_controller.is_nominal_duty_cycle() &&
                 negative_side.current_state != types::cb_board_support::CPState::F) {
-                this->raise_evse_board_support_DiodeFault("Diode fault detected.", Everest::error::Severity::High);
-                this->diode_fault_reported = true;
-                this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
+                if (!this->diode_fault_reported) {
+                    this->diode_fault_reported = true;
+                    this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
+                    this->raise_evse_board_support_DiodeFault("Diode fault detected.", Everest::error::Severity::High);
+                }
                 continue;
             }
         }
