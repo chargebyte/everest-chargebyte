@@ -110,12 +110,28 @@ config:
     description: The ADC interface channel (without prefix and suffix) to use as input
     type: string
     default: voltage5
+  rcm_enable:
+    description: Enables or disables monitoring of an external Residual Current Device.
+    type: boolean
+    default: false
+  rcm_fault_gpio_line_name:
+    description: The GPIO line name which is connected to RCM fault pin
+    type: string
+    default: DIG_IN_2
+  rcm_fault_active_low:
+    description: The polarity of the RCM fault pin
+    type: string
+    default: active_high
 provides:
   evse_board_support:
     description: >-
       Provide the board support driver for the Tarragon platform, e.g., control pilot voltage
       values, contactor switching and feedback and similar.
     interface: evse_board_support
+  ac_rcd:
+    description: >-
+      TODO
+    interface: ac_rcd
 metadata:
   license: https://chargebyte.com
   authors:
