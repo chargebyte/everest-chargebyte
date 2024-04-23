@@ -158,34 +158,36 @@ types::evse_board_support::HardwareCapabilities evse_board_supportImpl::handle_g
 void evse_board_supportImpl::handle_enable(bool& value) {
     // generate state A or state F
     double new_duty_cycle = value ? 100.0 : 0.0;
-
+    // Pause CP oberservation to avoid race condition between this thread and the CP observation thread
+    this->disable_cp_observation();
     EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle << "%";
     this->pwm_controller.set_duty_cycle(new_duty_cycle);
-
     this->enable_cp_observation();
 }
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
+    // Pause CP oberservation to avoid race condition between this thread and the CP observation thread
+    this->disable_cp_observation();
     EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%";
     this->pwm_controller.set_duty_cycle(value);
-
     this->enable_cp_observation();
 }
 
 void evse_board_supportImpl::handle_pwm_off() {
     // generate state A
     double new_duty_cycle = 100.0;
-
+    // Pause CP oberservation to avoid race condition between this thread and the CP observation thread
+    this->disable_cp_observation();
     EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle << "%";
     this->pwm_controller.set_duty_cycle(100.0);
-
     this->enable_cp_observation();
 }
 
 void evse_board_supportImpl::handle_pwm_F() {
+    // Pause CP oberservation to avoid race condition between this thread and the CP observation thread
+    this->disable_cp_observation();
     EVLOG_info << "Generating CP state F";
     this->pwm_controller.set_duty_cycle(0.0);
-
     this->enable_cp_observation();
 }
 
@@ -320,7 +322,7 @@ void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
 
 void evse_board_supportImpl::disable_cp_observation(void) {
     if (this->cp_observation_enabled) {
-        EVLOG_info << "Disabling CP observation";
+        EVLOG_debug << "Disabling CP observation";
         this->cp_observation_lock.lock();
         this->cp_observation_enabled = false;
     } else {
@@ -330,7 +332,7 @@ void evse_board_supportImpl::disable_cp_observation(void) {
 
 void evse_board_supportImpl::enable_cp_observation(void) {
     if (!this->cp_observation_enabled) {
-        EVLOG_info << "Enabling CP observation";
+        EVLOG_debug << "Enabling CP observation";
         this->cp_observation_enabled = true;
         this->cp_observation_lock.unlock();
     } else {
@@ -407,9 +409,11 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             // the CP is not in state F (-12V)
             if (this->pwm_controller.is_nominal_duty_cycle() &&
                 negative_side.current_state != types::cb_board_support::CPState::F) {
-                this->raise_evse_board_support_DiodeFault("Diode fault detected.", Everest::error::Severity::High);
-                this->diode_fault_reported = true;
-                this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
+                if (!this->diode_fault_reported) {
+                    this->diode_fault_reported = true;
+                    this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
+                    this->raise_evse_board_support_DiodeFault("Diode fault detected.", Everest::error::Severity::High);
+                }
                 continue;
             }
         }
