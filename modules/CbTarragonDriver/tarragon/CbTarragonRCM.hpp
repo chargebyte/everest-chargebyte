@@ -10,10 +10,8 @@ public:
     CbTarragonRCM(void);
 
     /// @brief Constructor
-    /// @param contactor_relay Name of the relay and its feedback as labeled on hardware.
-    /// @param actuator_gpio_line_name The name of the GPIO line which switches the relay on/off.
-    /// @param feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close, none = no feedback).
-    /// @param feedback_gpio_line_name The name of the GPIO line to which the feedback/sense signal of relay 1 is connected to.
+    /// @param rcm_fault_gpio_line_name The name of the GPIO line to which the RCM fault is connected to.
+    /// @param rcm_fault_active_low The GPIO polarity of RCM fault pin (active low = true, active high = false)
     CbTarragonRCM(const std::string &rcm_fault_gpio_line_name,
                   const std::string &rcm_fault_active_low);
 
