@@ -12,7 +12,7 @@ void ac_rcdImpl::init() {
     if (this->mod->config.rcm_enable) {
         this->rcm_controller = CbTarragonRCM(this->mod->config.rcm_fault_gpio_line_name,
                                              this->mod->config.rcm_fault_active_low);
-        // start contactor handling thread
+        // start RCM observation thread
         this->rcm_observation_thread = std::thread(&ac_rcdImpl::rcm_observation_worker, this);
     }
 }
