@@ -130,7 +130,7 @@ provides:
     interface: evse_board_support
   ac_rcd:
     description: >-
-      TODO
+      Provide support for fault detection of an external AC Residual Current Device
     interface: ac_rcd
 metadata:
   license: https://chargebyte.com
