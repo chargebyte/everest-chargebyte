@@ -14,8 +14,6 @@ void ac_rcdImpl::init() {
 
         this->rcm_controller = CbTarragonRCM(this->mod->config.rcm_fault_gpio_line_name,
                                              this->mod->config.rcm_fault_active_low);
-        // start RCM observation thread
-        this->rcm_observation_thread = std::thread(&ac_rcdImpl::rcm_observation_worker, this);
     }
 }
 
@@ -27,6 +25,10 @@ ac_rcdImpl::~ac_rcdImpl() {
 }
 
 void ac_rcdImpl::ready() {
+    if (this->mod->config.rcm_enable) {
+        // start RCM observation thread
+        this->rcm_observation_thread = std::thread(&ac_rcdImpl::rcm_observation_worker, this);
+    }
 }
 
 void ac_rcdImpl::handle_self_test() {
@@ -40,6 +42,9 @@ bool ac_rcdImpl::handle_reset() {
 
 void ac_rcdImpl::rcm_observation_worker(void) {
     EVLOG_info << "RCM Observation Thread started";
+
+    // 
+    std::this_thread::sleep_for(1s);
 
     while(!this->termination_requested) {
         this->rcm_controller.wait_for_rcm_event(std::chrono::seconds(1));

@@ -11,7 +11,7 @@ CbTarragonRCM::CbTarragonRCM(const std::string &rcm_fault_gpio_line_name,
 
     bool is_rcm_fault_active_low{false};
 
-    if (rcm_fault_active_low == "actice_low")
+    if (rcm_fault_active_low == "active_low")
         is_rcm_fault_active_low = true;
 
     this->rcm_fault = std::make_unique <gpiod::line_request> (get_gpioline_by_name(rcm_fault_gpio_line_name,
@@ -27,6 +27,6 @@ bool CbTarragonRCM::is_rcm_tripped() const {
 }
 
 void CbTarragonRCM::wait_for_rcm_event(const std::chrono::nanoseconds &timeout) {
-    // waits indefinitely until a GPIO edge event occurs 
+    // waits for a GPIO edge event with timeout 
     this->rcm_fault->wait_edge_events(timeout);
 }
