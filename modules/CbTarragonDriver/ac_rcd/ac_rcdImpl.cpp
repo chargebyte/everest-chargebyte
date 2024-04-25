@@ -32,11 +32,11 @@ void ac_rcdImpl::ready() {
 }
 
 void ac_rcdImpl::handle_self_test() {
-    // your code for cmd self_test goes here
+	// TODO The self test needs to be implemented later ...
 }
 
 bool ac_rcdImpl::handle_reset() {
-    // your code for cmd reset goes here
+	// Currently we assume that the RCD reset itself
     return true;
 }
 
