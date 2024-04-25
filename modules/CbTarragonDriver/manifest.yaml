@@ -117,7 +117,7 @@ config:
   rcm_fault_gpio_line_name:
     description: The GPIO line name which is connected to RCM fault pin
     type: string
-    default: DIG_IN_2
+    default: DIGITAL_IN_2
   rcm_fault_active_low:
     description: The polarity of the RCM fault pin
     type: string

@@ -10,6 +10,8 @@ namespace ac_rcd {
 
 void ac_rcdImpl::init() {
     if (this->mod->config.rcm_enable) {
+        EVLOG_info << "Enabling RCM observation";
+
         this->rcm_controller = CbTarragonRCM(this->mod->config.rcm_fault_gpio_line_name,
                                              this->mod->config.rcm_fault_active_low);
         // start RCM observation thread
