@@ -121,7 +121,7 @@ config:
   rcm_fault_active_low:
     description: The polarity of the RCM fault pin
     type: string
-    default: active_high
+    default: active_low
 provides:
   evse_board_support:
     description: >-

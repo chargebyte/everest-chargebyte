@@ -39,16 +39,26 @@ bool ac_rcdImpl::handle_reset() {
 }
 
 void ac_rcdImpl::rcm_observation_worker(void) {
-    EVLOG_debug << "RCM Observation Thread started";
+    EVLOG_info << "RCM Observation Thread started";
 
     while(!this->termination_requested) {
         this->rcm_controller.wait_for_rcm_event(std::chrono::seconds(1));
-        if(this->rcm_controller.is_rcm_tripped()) {
+
+        if(this->rcm_controller.is_rcm_tripped() && !this->rcm_tripped) {
+            EVLOG_info << "RCM tripped";
+            this->rcm_tripped = true;
             this->raise_ac_rcd_MREC2GroundFailure("RCM failure detected", Everest::error::Severity::High);
-        } else {
+        }
+
+        if (!this->rcm_controller.is_rcm_tripped() && this->rcm_tripped) {
+            this->rcm_tripped = false;
+            EVLOG_info << "RCM not tripped";
+
             this->request_clear_all_ac_rcd_MREC2GroundFailure();
         }
     }
+
+    EVLOG_info << "RCM Observation Thread stopped";
 }
 
 } // namespace ac_rcd
