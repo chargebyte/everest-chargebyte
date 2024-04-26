@@ -2,6 +2,7 @@
 // Copyright Pionix GmbH and Contributors to EVerest
 #include <chrono>
 #include "ac_rcdImpl.hpp"
+#include "evse_board_support/evse_board_supportImpl.hpp"
 
 using namespace std::chrono_literals;
 
@@ -53,6 +54,8 @@ void ac_rcdImpl::rcm_observation_worker(void) {
 
         if(this->rcm_controller.is_rcm_tripped() && !this->rcm_tripped) {
             EVLOG_info << "RCM tripped";
+            // signal emergency state to evse_board_support interface for open the contactor immediately
+            module::evse_board_support::evse_board_supportImpl::set_emergency_state(true);
             this->rcm_tripped = true;
             this->raise_ac_rcd_MREC2GroundFailure("RCM failure detected", Everest::error::Severity::High);
         }
@@ -60,7 +63,8 @@ void ac_rcdImpl::rcm_observation_worker(void) {
         if (!this->rcm_controller.is_rcm_tripped() && this->rcm_tripped) {
             this->rcm_tripped = false;
             EVLOG_info << "RCM not tripped";
-
+            // signal released emergency state to evse_board_support interface
+            module::evse_board_support::evse_board_supportImpl::set_emergency_state(false);
             this->request_clear_all_ac_rcd_MREC2GroundFailure();
         }
     }
