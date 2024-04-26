@@ -53,11 +53,11 @@ void ac_rcdImpl::rcm_observation_worker(void) {
         this->rcm_controller.wait_for_rcm_event(std::chrono::seconds(1));
 
         if(this->rcm_controller.is_rcm_tripped() && !this->rcm_tripped) {
-            EVLOG_info << "RCM tripped";
             // signal emergency state to evse_board_support interface for open the contactor immediately
             module::evse_board_support::evse_board_supportImpl::set_emergency_state(true);
             this->rcm_tripped = true;
             this->raise_ac_rcd_MREC2GroundFailure("RCM failure detected", Everest::error::Severity::High);
+            EVLOG_info << "RCM tripped";
         }
 
         if (!this->rcm_controller.is_rcm_tripped() && this->rcm_tripped) {
