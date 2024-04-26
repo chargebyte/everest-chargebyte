@@ -12,6 +12,9 @@ namespace connector_lock {
 void connector_lockImpl::init() {
 
     this->assumed_is_locked = false;
+    this->is_connectorLockCapNotCharged_raised = false;
+    this->is_connectorLockFailedLock_raised = false;
+    this->is_connectorLockFailedUnlock_raised = false;
 
     this->lock_actuator = CbLockActuator(this->mod->config.drv8872_in1_gpio_line_name,
                                          this->mod->config.drv8872_in2_gpio_line_name,
@@ -91,7 +94,9 @@ bool connector_lockImpl::wait_for_charged(std::chrono::seconds timeout) {
 void connector_lockImpl::ready() {
     // unlock plug lock at start time
     // wait for caps are loaded.
-    if (this->wait_for_charged(CHARGED_TIMEOUT_INITIAL) == false) {
+    if ((this->wait_for_charged(CHARGED_TIMEOUT_INITIAL) == false) &&
+        (this->is_connectorLockCapNotCharged_raised == false)) {
+        this->is_connectorLockCapNotCharged_raised = true;
         this->raise_connector_lock_ConnectorLockCapNotCharged("Initial capacitor voltage not reached", Everest::error::Severity::High);
     }
 
@@ -100,9 +105,13 @@ void connector_lockImpl::ready() {
 
 void connector_lockImpl::handle_lock() {
     // wait for caps are loaded before locking pluglock
-    if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false) {
-        this->raise_connector_lock_ConnectorLockCapNotCharged("Capacitor voltage not reached before lock", Everest::error::Severity::Medium);
-    } else {
+    if ((this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false) &&
+        (this->is_connectorLockCapNotCharged_raised == false)) {
+        this->is_connectorLockCapNotCharged_raised = true;
+        this->raise_connector_lock_ConnectorLockCapNotCharged("Capacitor voltage not reached before lock",
+                                                              Everest::error::Severity::Medium);
+    } else if (this->is_connectorLockCapNotCharged_raised) {
+        this->is_connectorLockCapNotCharged_raised = false;
         this->request_clear_all_connector_lock_ConnectorLockCapNotCharged();
     }
 
@@ -116,21 +125,31 @@ void connector_lockImpl::handle_lock() {
     int feedback_voltage = this->lock_sense.get_voltage();
 
     if (this->lock_sense.is_locked()) {
+        if (this->is_connectorLockFailedLock_raised) {
+            this->is_connectorLockFailedLock_raised = false;
+            this->request_clear_all_connector_lock_ConnectorLockFailedLock();
+        }
         EVLOG_info << "Plug is locked. Feedback voltage: " << feedback_voltage << " mV";
-        this->request_clear_all_connector_lock_ConnectorLockFailedLock();
         this->assumed_is_locked = true;
     } else {
+        if (not this->is_connectorLockFailedLock_raised) {
+            this->is_connectorLockFailedLock_raised = true;
+            this->raise_connector_lock_ConnectorLockFailedLock("Plug is not locked", Everest::error::Severity::Medium);
+        }
         EVLOG_warning << "Plug is not locked. Feedback voltage: " << feedback_voltage << " mV";
-        this->raise_connector_lock_ConnectorLockFailedLock("Plug is not locked", Everest::error::Severity::Medium);
         this->assumed_is_locked = false;
     }
 }
 
 void connector_lockImpl::handle_unlock() {
     // wait for caps are loaded before unlocking pluglock
-    if (this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false) {
-        this->raise_connector_lock_ConnectorLockCapNotCharged("Capacitor voltage not reached before unlock", Everest::error::Severity::Medium);
-    } else {
+    if ((this->wait_for_charged(CHARGED_TIMEOUT_WORK) == false) &&
+        (this->is_connectorLockCapNotCharged_raised == false)) {
+        this->is_connectorLockCapNotCharged_raised = true;
+        this->raise_connector_lock_ConnectorLockCapNotCharged("Capacitor voltage not reached before unlock",
+                                                              Everest::error::Severity::Medium);
+    } else if (is_connectorLockCapNotCharged_raised) {
+        this->is_connectorLockCapNotCharged_raised = false;
         this->request_clear_all_connector_lock_ConnectorLockCapNotCharged();
     }
 
@@ -144,12 +163,19 @@ void connector_lockImpl::handle_unlock() {
     int feedback_voltage = this->lock_sense.get_voltage();
 
     if (this->lock_sense.is_unlocked()) {
+        if (this->is_connectorLockFailedUnlock_raised) {
+            this->is_connectorLockFailedUnlock_raised = false;
+            this->request_clear_all_connector_lock_ConnectorLockFailedUnlock();
+        }
         EVLOG_info << "Plug is unlocked. Feedback voltage: " << feedback_voltage << " mV";
-        this->request_clear_all_connector_lock_ConnectorLockFailedUnlock();
         this->assumed_is_locked = false;
     } else {
+        if (not this->is_connectorLockFailedUnlock_raised) {
+            this->is_connectorLockFailedUnlock_raised = true;
+            this->raise_connector_lock_ConnectorLockFailedUnlock("Plug is not unlocked",
+                                                                 Everest::error::Severity::Medium);
+        }
         EVLOG_warning << "Plug is not unlocked. Feedback voltage: " << feedback_voltage << " mV";
-        this->raise_connector_lock_ConnectorLockFailedUnlock("Plug is not unlocked", Everest::error::Severity::Medium);
         this->assumed_is_locked = true;
     }
 }

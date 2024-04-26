@@ -17,6 +17,7 @@
 #include "CbLockSense.hpp"
 #include "CbCapSense.hpp"
 
+#include <atomic>
 #include <mutex>
 #include <utils/thread.hpp>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
@@ -54,13 +55,17 @@ private:
     virtual void ready() override;
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
+    bool wait_for_charged(std::chrono::seconds timeout);
+
     CbLockActuator lock_actuator;
     CbLockSense lock_sense;
     CbCapSense cap_sense;
-    bool wait_for_charged(std::chrono::seconds timeout);
     static constexpr std::chrono::seconds CHARGED_TIMEOUT_WORK {5};
     static constexpr std::chrono::seconds CHARGED_TIMEOUT_INITIAL {400};
     static constexpr std::chrono::milliseconds FEEDBACK_CHECK_INTERVAL {1000};
+    std::atomic_bool is_connectorLockCapNotCharged_raised{false};
+    std::atomic_bool is_connectorLockFailedLock_raised{false};
+    std::atomic_bool is_connectorLockFailedUnlock_raised{false};
 
     /// @brief plug lock observation thread handle
     Everest::Thread lock_observation_thread;
