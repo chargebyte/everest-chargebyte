@@ -119,7 +119,7 @@ config:
     type: string
     default: DIGITAL_IN_2
   rcm_fault_active_low:
-    description: The polarity of the RCM fault pin
+    description: The polarity of the RCM fault pin (active low = true, active high = false)
     type: boolean
     default: false
 provides:
