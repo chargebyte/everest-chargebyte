@@ -31,10 +31,6 @@ void connector_lockImpl::init() {
     this->cap_sense = CbCapSense(this->mod->config.capcharge_adc_device,
                                  this->mod->config.capcharge_adc_channel,
                                  this->mod->config.charged_threshold_voltage);
-
-    if (this->mod->config.enable_monitoring) {
-        this->lock_observation_thread = std::thread(&connector_lockImpl::lock_observation_worker, this);
-    }
 }
 
 void connector_lockImpl::lock_observation_worker(void) {
@@ -100,7 +96,12 @@ void connector_lockImpl::ready() {
         this->raise_connector_lock_ConnectorLockCapNotCharged("Initial capacitor voltage not reached", Everest::error::Severity::High);
     }
 
+    // First unlock the plug lock, in case the plug is unexpectedly locked, and then start the observation thread
     this->handle_unlock();
+
+    if (this->mod->config.enable_monitoring) {
+        this->lock_observation_thread = std::thread(&connector_lockImpl::lock_observation_worker, this);
+    }
 }
 
 void connector_lockImpl::handle_lock() {
