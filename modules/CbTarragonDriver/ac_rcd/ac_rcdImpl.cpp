@@ -46,7 +46,7 @@ bool ac_rcdImpl::handle_reset() {
 void ac_rcdImpl::rcm_observation_worker(void) {
     EVLOG_info << "RCM Observation Thread started";
 
-    // 
+    // workaround for already tripped RCM at start
     std::this_thread::sleep_for(1s);
 
     while(!this->termination_requested) {
