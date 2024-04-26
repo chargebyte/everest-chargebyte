@@ -11,6 +11,8 @@ namespace ac_rcd {
 void ac_rcdImpl::init() {
     if (this->mod->config.rcm_enable) {
         EVLOG_info << "Enabling RCM observation";
+        EVLOG_info << "RCM GPIO: " << this->mod->config.rcm_fault_gpio_line_name;
+        EVLOG_info << "RCM GPIO polarity: " << (this->mod->config.rcm_fault_active_low ? "active_low" : "active_high");
 
         this->rcm_controller = CbTarragonRCM(this->mod->config.rcm_fault_gpio_line_name,
                                              this->mod->config.rcm_fault_active_low);

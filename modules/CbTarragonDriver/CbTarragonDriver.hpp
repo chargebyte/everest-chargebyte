@@ -43,7 +43,7 @@ struct Conf {
     std::string pp_adc_channel;
     bool rcm_enable;
     std::string rcm_fault_gpio_line_name;
-    std::string rcm_fault_active_low;
+    bool rcm_fault_active_low;
 };
 
 class CbTarragonDriver : public Everest::ModuleBase {

@@ -13,7 +13,7 @@ public:
     /// @param rcm_fault_gpio_line_name The name of the GPIO line to which the RCM fault is connected to.
     /// @param rcm_fault_active_low The GPIO polarity of RCM fault pin (active low = true, active high = false)
     CbTarragonRCM(const std::string &rcm_fault_gpio_line_name,
-                  const std::string &rcm_fault_active_low);
+                  const bool &rcm_fault_active_low);
 
     /// @brief Check whether the RCM is tripped.
     /// @return True if the RCM is tripped, false otherwise.
