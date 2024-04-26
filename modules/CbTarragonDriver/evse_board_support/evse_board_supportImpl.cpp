@@ -100,7 +100,7 @@ void evse_board_supportImpl::ready() {
 void evse_board_supportImpl::set_emergency_state(bool is_emergency)
 {
     evse_board_supportImpl::is_emergency = is_emergency;
-    EVLOG_info << (is_emergency ? "emergency occured" : "emergency released");
+    EVLOG_info << (is_emergency ? "emergency occurred" : "emergency released");
 }
 
 void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,

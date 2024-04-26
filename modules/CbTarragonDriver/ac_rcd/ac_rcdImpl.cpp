@@ -50,7 +50,7 @@ void ac_rcdImpl::rcm_observation_worker(void) {
     std::this_thread::sleep_for(1s);
 
     while(!this->termination_requested) {
-        this->rcm_controller.wait_for_rcm_event(std::chrono::seconds(1));
+        this->rcm_controller.wait_for_rcm_event(1s);
 
         if(this->rcm_controller.is_rcm_tripped() && !this->rcm_tripped) {
             // signal emergency state to evse_board_support interface for open the contactor immediately

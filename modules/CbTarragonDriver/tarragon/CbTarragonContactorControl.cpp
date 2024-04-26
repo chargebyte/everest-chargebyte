@@ -234,22 +234,22 @@ bool CbTarragonContactorControl::is_error_state(void) {
 }
 
 bool CbTarragonContactorControl::wait_for_events(std::chrono::milliseconds duration) {
-    bool event_occured = false;
+    bool event_occurred = false;
 
     // FIXME: phase switching and 3-phase operation is still yet to be implemented.
     //        For now, we only control one relay as we are forcing the phase count to be 1
     if ((this->target_phase_count == 3) && (this->relay_2.has_value()) && (this->contactor_2_feedback_type != "none")) {
-        event_occured = this->relay_2.value().wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
+        event_occurred = this->relay_2.value().wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
 
         if (this->contactor_1_feedback_type != "none")
-            event_occured &= this->relay_1.wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
+            event_occurred &= this->relay_1.wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
 
     } else {
         if (this->contactor_1_feedback_type != "none")
-            event_occured = this->relay_1.wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
+            event_occurred = this->relay_1.wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
     }
 
-    return event_occured;
+    return event_occurred;
 }
 
 bool CbTarragonContactorControl::read_events(void) {
