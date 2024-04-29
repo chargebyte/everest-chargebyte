@@ -97,6 +97,12 @@ void evse_board_supportImpl::init() {
 void evse_board_supportImpl::ready() {
 }
 
+void evse_board_supportImpl::set_emergency_state(bool is_emergency)
+{
+    evse_board_supportImpl::is_emergency = is_emergency;
+    EVLOG_info << (is_emergency ? "emergency occurred" : "emergency released");
+}
+
 void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
                                                         const struct cp_state_signal_side& negative_side,
                                                         const struct cp_state_signal_side& positive_side) {
@@ -195,6 +201,11 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
 
     if (value.allow_power_on && this->cp_current_state == types::cb_board_support::CPState::PilotFault) {
         EVLOG_warning << "Power on rejected due to detected pilot fault.";
+        return;
+    }
+
+    if (evse_board_supportImpl::is_emergency) {
+        EVLOG_warning << "Power on rejected due to detected emergency state.";
         return;
     }
 
@@ -482,6 +493,9 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
 
     while (!this->termination_requested) {
         ContactorState contactor_state{ContactorState::CONTACTOR_OPEN};
+
+        if (evse_board_supportImpl::is_emergency) 
+            this->allow_power_on = false;
 
         // set the new contactor target state
         if (this->last_allow_power_on != this->allow_power_on) {

@@ -8,6 +8,7 @@ target_sources(tarragon
         "CbTarragonCP.cpp"
         "CbTarragonCPADC.cpp"
         "CbTarragonPP.cpp"
+        "CbTarragonRCM.cpp"
         "CbTarragonRelay.cpp"
         "CbTarragonContactorControl.cpp"
 )

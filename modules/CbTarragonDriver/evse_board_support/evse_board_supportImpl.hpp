@@ -54,6 +54,10 @@ public:
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
     ~evse_board_supportImpl();
+
+    /// @brief setter method to signal a emergency
+    /// @param is_emergency
+    static void set_emergency_state(bool is_emergency);
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
 
 protected:
@@ -148,10 +152,6 @@ private:
     ///        A value of 200ms should suffice for both contactors.
     std::chrono::milliseconds contactor_feedback_timeout;
 
-    /// @brief Signal from upper layers to determine if relays can be switched on
-    ///        (`true`: Switch on allowed, `false`: Switch off)
-    bool allow_power_on {false};
-
     /// @brief Previous value of flag `allow_power_on`;
     bool last_allow_power_on {false};
 
@@ -178,6 +178,13 @@ private:
     //         to be recieved.
     void contactor_handling_worker(void);
 
+    /// @brief Signal from upper layers to determine if relays can be switched on
+    ///        (`true`: Switch on allowed, `false`: Switch off)
+    std::atomic_bool allow_power_on {false};
+
+    /// @brief Signal from other interface to determine if an emergency state (e.g. RCD error) is present 
+    ///        (`true`: emergency present, `false`: emergency not present)
+    inline static std::atomic_bool is_emergency {false};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
