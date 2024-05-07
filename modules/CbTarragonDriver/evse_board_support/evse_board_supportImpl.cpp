@@ -442,11 +442,23 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                 // in case we see a pilot fault, we need to inform the upper layer
                 if (positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
                     negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
-                    this->raise_evse_board_support_MREC14PilotFault("Pilot fault detected.",
-                                                                    Everest::error::Severity::High);
-                    this->pilot_fault_reported = true;
-                    this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
+                    if (this->pilot_fault_reported == false) {
+                        this->raise_evse_board_support_MREC14PilotFault("Pilot fault detected.",
+                                                                        Everest::error::Severity::High);
+                        this->pilot_fault_reported = true;
+                        this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault,
+                                                         negative_side, positive_side);
+                    }
                     continue;
+                }
+                // Before checking for ventilation error, we need to clear other errors if they were reported before
+                if (this->diode_fault_reported) {
+                    this->request_clear_all_evse_board_support_DiodeFault();
+                    this->diode_fault_reported = false;
+                }
+                if (this->pilot_fault_reported) {
+                    this->request_clear_all_evse_board_support_MREC14PilotFault();
+                    this->pilot_fault_reported = false;
                 }
                 // check if a ventilation error has occurred
                 if (positive_side.current_state == types::cb_board_support::CPState::D) {
@@ -458,15 +470,6 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                     this->publish_event({types::board_support_common::Event::D});
                     this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
                     continue;
-                }
-                // clear a DiodeFault / PilotFault error on CP state change but only if it exists
-                if (this->diode_fault_reported) {
-                    this->request_clear_all_evse_board_support_DiodeFault();
-                    this->diode_fault_reported = false;
-                }
-                if (this->pilot_fault_reported) {
-                    this->request_clear_all_evse_board_support_MREC14PilotFault();
-                    this->pilot_fault_reported = false;
                 }
                 if (this->ventilation_fault_reported) {
                     this->request_clear_all_evse_board_support_VentilationNotAvailable();
