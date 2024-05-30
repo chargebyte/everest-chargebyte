@@ -56,7 +56,9 @@ void ac_rcdImpl::rcm_observation_worker(void) {
             // signal emergency state to evse_board_support interface for open the contactor immediately
             module::evse_board_support::evse_board_supportImpl::set_emergency_state(true);
             this->rcm_tripped = true;
-            this->raise_ac_rcd_MREC2GroundFailure("RCM failure detected", Everest::error::Severity::High);
+            Everest::error::Error error_object = this->error_factory->create_error(
+                "ac_rcd/MREC2GroundFailure", "", "RCM failure detected", Everest::error::Severity::High);
+            this->raise_error(error_object);
             EVLOG_info << "RCM tripped";
         }
 
@@ -65,7 +67,7 @@ void ac_rcdImpl::rcm_observation_worker(void) {
             EVLOG_info << "RCM not tripped";
             // signal released emergency state to evse_board_support interface
             module::evse_board_support::evse_board_supportImpl::set_emergency_state(false);
-            this->request_clear_all_ac_rcd_MREC2GroundFailure();
+            this->clear_error("ac_rcd/MREC2GroundFailure");
         }
     }
 

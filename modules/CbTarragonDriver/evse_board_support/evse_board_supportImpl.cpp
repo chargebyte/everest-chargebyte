@@ -241,7 +241,7 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
                   " (U_PP: " << voltage << " mV)";
 
         if (this->pp_fault_reported)
-            this->request_clear_all_evse_board_support_MREC23ProximityFault();
+            this->clear_error("evse_board_support/MREC23ProximityFault");
 
         // reset possible set flag since we successfully read a valid value
         this->pp_fault_reported = false;
@@ -250,7 +250,10 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
         EVLOG_error << e.what();
 
         // publish a ProximityFault
-        this->raise_evse_board_support_MREC23ProximityFault(e.what(), Everest::error::Severity::High);
+        Everest::error::Error error_object =
+            this->error_factory->create_error("evse_board_support/MREC23ProximityFault", "",
+                                              e.what(), Everest::error::Severity::High);
+        this->raise_error(error_object);
 
         // remember that we just reported the fault
         this->pp_fault_reported = true;
@@ -291,13 +294,16 @@ void evse_board_supportImpl::pp_observation_worker(void) {
                     (this->cp_current_state == types::cb_board_support::CPState::C ||
                     this->cp_current_state == types::cb_board_support::CPState::D)) {
                     // publish a ProximityFault
-                    this->raise_evse_board_support_MREC23ProximityFault("Plug removed from socket during charge", Everest::error::Severity::High);
+                    Everest::error::Error error_object =
+                        this->error_factory->create_error("evse_board_support/MREC23ProximityFault", "",
+                                                        "Plug removed from socket during charge", Everest::error::Severity::High);
+                    this->raise_error(error_object);
                     this->pp_fault_reported = true;
                 }
 
                 if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None && this->pp_fault_reported) {
                     // clear a ProximityFault error on PP state change to a valid value but only if it exists
-                    this->request_clear_all_evse_board_support_MREC23ProximityFault();
+                    this->clear_error("evse_board_support/MREC23ProximityFault");
                     this->pp_fault_reported = false;
                 }
             }
@@ -307,7 +313,10 @@ void evse_board_supportImpl::pp_observation_worker(void) {
                 EVLOG_error << e.what();
 
                 // publish a ProximityFault
-                this->raise_evse_board_support_MREC23ProximityFault(e.what(), Everest::error::Severity::High);
+                Everest::error::Error error_object =
+                    this->error_factory->create_error("evse_board_support/MREC23ProximityFault", "",
+                                                    e.what(), Everest::error::Severity::High);
+                this->raise_error(error_object);
 
                 this->pp_fault_reported = true;
             }
@@ -423,7 +432,10 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                 if (!this->diode_fault_reported) {
                     this->diode_fault_reported = true;
                     this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side, positive_side);
-                    this->raise_evse_board_support_DiodeFault("Diode fault detected.", Everest::error::Severity::High);
+                    Everest::error::Error error_object =
+                        this->error_factory->create_error("evse_board_support/DiodeFault", "",
+                                                        "Diode fault detected.", Everest::error::Severity::High);
+                    this->raise_error(error_object);
                 }
                 continue;
             }
@@ -443,8 +455,10 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                 if (positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
                     negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
                     if (this->pilot_fault_reported == false) {
-                        this->raise_evse_board_support_MREC14PilotFault("Pilot fault detected.",
-                                                                        Everest::error::Severity::High);
+                        Everest::error::Error error_object =
+                            this->error_factory->create_error("evse_board_support/MREC14PilotFault", "",
+                                                            "Pilot fault detected.", Everest::error::Severity::High);
+                        this->raise_error(error_object);
                         this->pilot_fault_reported = true;
                         this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault,
                                                          negative_side, positive_side);
@@ -453,26 +467,28 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                 }
                 // Before checking for ventilation error, we need to clear other errors if they were reported before
                 if (this->diode_fault_reported) {
-                    this->request_clear_all_evse_board_support_DiodeFault();
+                    this->clear_error("evse_board_support/DiodeFault");
                     this->diode_fault_reported = false;
                 }
                 if (this->pilot_fault_reported) {
-                    this->request_clear_all_evse_board_support_MREC14PilotFault();
+                    this->clear_error("evse_board_support/MREC14PilotFault");
                     this->pilot_fault_reported = false;
                 }
                 // check if a ventilation error has occurred
                 if (positive_side.current_state == types::cb_board_support::CPState::D) {
                     // in case we see a ventilation request, although we do not support it,
                     // we need to inform the upper layer
-                    this->raise_evse_board_support_VentilationNotAvailable("Ventilation fault detected.",
-                                                                            Everest::error::Severity::High);
+                    Everest::error::Error error_object =
+                        this->error_factory->create_error("evse_board_support/VentilationNotAvailable", "",
+                                                        "Ventilation fault detected.", Everest::error::Severity::High);
+                    this->raise_error(error_object);
                     this->ventilation_fault_reported = true;
                     this->publish_event({types::board_support_common::Event::D});
                     this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
                     continue;
                 }
                 if (this->ventilation_fault_reported) {
-                    this->request_clear_all_evse_board_support_VentilationNotAvailable();
+                    this->clear_error("evse_board_support/VentilationNotAvailable");
                     this->ventilation_fault_reported = false;
                 }
                 try {
@@ -590,7 +606,10 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                                 << this->contactor_controller.get_state(StateType::TARGET_STATE);
 
                     // publish a 'contactor fault' event to the upper layer
-                    this->raise_evse_board_support_MREC17EVSEContactorFault("Unexpected contactor feedback", Everest::error::Severity::High);
+                    Everest::error::Error error_object =
+                        this->error_factory->create_error("evse_board_support/MREC17EVSEContactorFault", "",
+                                                        "Unexpected contactor feedback", Everest::error::Severity::High);
+                    this->raise_error(error_object);
 
                     // reset the flag that marked the start of counting the contactor_feedback_timeout
                     this->contactor_controller.reset_is_new_target_state_set();
