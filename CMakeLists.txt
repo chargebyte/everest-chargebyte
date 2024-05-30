@@ -19,7 +19,6 @@ pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
 add_subdirectory("utils")
 
 # options
-option(BUILD_TESTING "Run unit tests" OFF)
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy" OFF)
 
 # dependencies
@@ -50,28 +49,4 @@ install(
 if(CMAKE_RUN_CLANG_TIDY)
     message("Enabling clang-tidy")
     set(CMAKE_CXX_CLANG_TIDY clang-tidy)
-endif()
-
-# testing
-if(BUILD_TESTING)
-    include(CTest)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
-
-    evc_include(CodeCoverage)
-
-    append_coverage_compiler_flags()
-
-    add_subdirectory(tests)
-
-    setup_target_for_coverage_gcovr_html(
-        NAME gcovr_coverage
-        EXECUTABLE test_config
-        DEPENDENCIES test_config everest
-    )
-
-    setup_target_for_coverage_lcov(
-        NAME lcov_coverage
-        EXECUTABLE test_config
-        DEPENDENCIES test_config everest
-    )
 endif()
