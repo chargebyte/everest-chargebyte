@@ -5,7 +5,7 @@
 //
 // A class for abstracting the capacitor sense handling
 //
-class CbCapSense{
+class CbCapSense {
 
 public:
     /// @brief Default constructor.
@@ -15,9 +15,7 @@ public:
     /// @param adc_device The name of the IIO ADC device to use.
     /// @param adc_channel The name of the channel of the ADC device, e.g. 'voltage4'.
     /// @param charged_threshold_voltage The threshold where capacitors are indicated as charged.
-    CbCapSense(const std::string& adc_device,
-                const std::string& adc_channel,
-                int charged_threshold_voltage);
+    CbCapSense(const std::string& adc_device, const std::string& adc_channel, int charged_threshold_voltage);
 
     /// @brief Check wether the capacitors are charged
     /// @return Returns true if capacitors voltage is above or equal charged_threshold_voltage

@@ -12,7 +12,7 @@ static constexpr unsigned int ADC_MAX_VALUE {(1 << 12) - 1};
 //
 // A class for abstracting the plug lock sense handling
 //
-class CbLockSense{
+class CbLockSense {
 
 public:
     /// @brief Default constructor.
@@ -25,12 +25,8 @@ public:
     /// @param unlock_threshold_max The upper threshold value (in mV) of a range for determinate an unlocked plug lock
     /// @param lock_threshold_min The lower threshold value (in mV) of a range for determinate an locked plug lock
     /// @param lock_threshold_max The upper threshold value (in mV) of a range for determinate an locked plug lock
-    CbLockSense(const std::string& adc_device,
-                const std::string& adc_channel,
-                int unlock_threshold_min,
-                int unlock_threshold_max,
-                int lock_threshold_min,
-                int lock_threshold_max);
+    CbLockSense(const std::string& adc_device, const std::string& adc_channel, int unlock_threshold_min,
+                int unlock_threshold_max, int lock_threshold_min, int lock_threshold_max);
 
     /// @brief Read the current value from the ADC and convert it to an integer value representing a value in mV.
     /// @return The current value in mV.

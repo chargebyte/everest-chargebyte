@@ -15,12 +15,12 @@ public:
     /// @brief Constructor.
     /// @param drv8872_in1_gpio_line_name The GPIO line name which controls the motor driver pin 'in1'
     /// @param drv8872_in2_gpio_line_name The GPIO line name which controls the motor driver pin 'in2'
-    /// @param drv8872_in1_active_low The GPIO polarity of motor driver pin 'in1' (active low = true, active high = false)
-    /// @param drv8872_in2_active_low The GPIO polarity of motor driver pin 'in2' (active low = true, active high = false)
-    CbLockActuator(const std::string& drv8872_in1_gpio_line_name,
-                   const std::string& drv8872_in2_gpio_line_name,
-                   bool drv8872_in1_active_low,
-                   bool drv8872_in2_active_low);
+    /// @param drv8872_in1_active_low The GPIO polarity of motor driver pin 'in1' (active low = true, active high =
+    /// false)
+    /// @param drv8872_in2_active_low The GPIO polarity of motor driver pin 'in2' (active low = true, active high =
+    /// false)
+    CbLockActuator(const std::string& drv8872_in1_gpio_line_name, const std::string& drv8872_in2_gpio_line_name,
+                   bool drv8872_in1_active_low, bool drv8872_in2_active_low);
 
     void forward(void);
     void backward(void);
