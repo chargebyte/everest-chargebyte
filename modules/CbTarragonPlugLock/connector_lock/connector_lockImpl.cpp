@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
-
 #include "connector_lockImpl.hpp"
 #include <chrono>
 
@@ -168,7 +167,6 @@ void connector_lockImpl::handle_unlock() {
     } else if (is_connectorLockCapNotCharged_raised) {
         this->is_connectorLockCapNotCharged_raised = false;
         this->clear_error("connector_lock/ConnectorLockCapNotCharged");
-
     }
 
     // lock against observation while trying to drive
