@@ -1,0 +1,43 @@
+#
+# This example configuration can be used as bare minimum starting point:
+# no support for plug lock, no additional peripherals (RFID, meter...)
+#
+active_modules:
+  api:
+    module: API
+    connections:
+      evse_manager:
+      - module_id: connector
+        implementation_id: evse
+  tarragon_bsp:
+    module: CbTarragonDriver
+    config_module:
+      contactor_1_feedback_type: none
+      relay_2_name: none
+  tarragon_dig_in_ref:
+    module: CbTarragonDIs
+  connector:
+    module: EvseManager
+    config_module:
+      connector_id: 1
+      has_ventilation: false
+      disable_authentication: true
+    connections:
+      bsp:
+        - module_id: tarragon_bsp
+          implementation_id: evse_board_support
+  energy_manager:
+    module: EnergyManager
+    connections:
+      energy_trunk:
+      - module_id: grid_connection_point
+        implementation_id: energy_grid
+  grid_connection_point:
+    module: EnergyNode
+    config_module:
+      fuse_limit_A: 16
+      phase_count: 3
+    connections:
+      energy_consumer:
+      - module_id: connector
+        implementation_id: energy_grid

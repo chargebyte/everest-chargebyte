@@ -40,7 +40,7 @@ add_subdirectory(config)
 
 # install config
 install(
-    FILES config/config-chargebyte-tarragon.yaml
+    FILES config/bsp-only.yaml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/everest/config
     RENAME config.yaml
 )
