@@ -20,12 +20,12 @@ public:
     /// @brief Constructor
     /// @param contactor_relay Name of the relay and its feedback as labeled on hardware.
     /// @param actuator_gpio_line_name The name of the GPIO line which switches the relay on/off.
-    /// @param feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close, none = no feedback).
-    /// @param feedback_gpio_line_name The name of the GPIO line to which the feedback/sense signal of relay 1 is connected to.
-    CbTarragonRelay(const std::string &relay_name,
-                    const std::string &actuator_gpio_line_name,
-                    const std::string &feedback_type,
-                    const std::string &feedback_gpio_line_name);
+    /// @param feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close, none = no
+    /// feedback).
+    /// @param feedback_gpio_line_name The name of the GPIO line to which the feedback/sense signal of relay 1 is
+    /// connected to.
+    CbTarragonRelay(const std::string& relay_name, const std::string& actuator_gpio_line_name,
+                    const std::string& feedback_type, const std::string& feedback_gpio_line_name);
 
     /// @brief Set the timestamp of the last contactor state change from closed to open
     void set_last_contactor_open_ts(std::chrono::time_point<std::chrono::steady_clock> timestamp);
@@ -49,7 +49,8 @@ public:
     bool get_actuator_state(void);
 
     /// @brief Function to map the string feedback type to CbContactorFeedbackType.
-    /// @param feedback_type String representing the feedback type (no = normally open, nc = normally close, none = no feedback).
+    /// @param feedback_type String representing the feedback type (no = normally open, nc = normally close, none = no
+    /// feedback).
     /// @return Return NONE as default, NORMALLY_OPEN, NORMALLY_CLOSE.
     CbContactorFeedbackType get_feedback_type(std::string feedback_type);
 
@@ -59,7 +60,7 @@ public:
     /// @brief Wait for duration of 'timeout' for a new event to happen on the GPIO.
     /// @param timeout The duration to wait for an event to happen.
     /// @return Return '1' in case there are new events and '0' if otherwise
-    bool wait_for_feedback(const std::chrono::nanoseconds &timeout) const;
+    bool wait_for_feedback(const std::chrono::nanoseconds& timeout) const;
 
     /// @brief Read events in a buffer. This is a blocking function and therefore it should
     ///        be used only if there are new events to read i.e., in combination with the function wait_for_feedback.

@@ -21,16 +21,18 @@ public:
 
     /// @brief Constructor.
     /// @param adc_device_pos_level The name of the IIO ADC device to use for the positive signal side.
-    /// @param adc_device_channel_pos_level The name of the channel of the ADC device, e.g. 'voltage5' for the positive signal side.
-    /// @param peak_detector_reset_gpioline_name_pos_level The name of the GPIO line to reset the positive peak detector circuit.
+    /// @param adc_device_channel_pos_level The name of the channel of the ADC device, e.g. 'voltage5' for the positive
+    /// signal side.
+    /// @param peak_detector_reset_gpioline_name_pos_level The name of the GPIO line to reset the positive peak detector
+    /// circuit.
     /// @param adc_device_neg_level The name of the IIO ADC device to use for the negative signal side.
-    /// @param adc_device_channel_neg_level The name of the channel of the ADC device, e.g. 'voltage1' for the negative signal side.
-    /// @param peak_detector_reset_gpioline_name_neg_level The name of the GPIO line to reset the negative peak detector circuit.
-    CbTarragonCP(const std::string& adc_device_pos_level,
-                 const std::string& adc_device_channel_pos_level,
+    /// @param adc_device_channel_neg_level The name of the channel of the ADC device, e.g. 'voltage1' for the negative
+    /// signal side.
+    /// @param peak_detector_reset_gpioline_name_neg_level The name of the GPIO line to reset the negative peak detector
+    /// circuit.
+    CbTarragonCP(const std::string& adc_device_pos_level, const std::string& adc_device_channel_pos_level,
                  const std::string& peak_detector_reset_gpioline_name_pos_level,
-                 const std::string& adc_device_neg_level,
-                 const std::string& adc_device_channel_neg_level,
+                 const std::string& adc_device_neg_level, const std::string& adc_device_channel_neg_level,
                  const std::string& peak_detector_reset_gpioline_name_neg_level);
 
     /// @brief  Read the current Control Pilot voltage values, i.e. both signal sides.
@@ -39,7 +41,8 @@ public:
     void get_values(int& positive_value, int& negative_value);
 
     /// @brief Helper to map a measured voltage to a CP state (takes hysteresis into account)
-    types::cb_board_support::CPState voltage_to_state(int voltage, types::cb_board_support::CPState previous_state) const;
+    types::cb_board_support::CPState voltage_to_state(int voltage,
+                                                      types::cb_board_support::CPState previous_state) const;
 
 private:
     /// @brief The ADC for positive side of the CP signal.
@@ -50,10 +53,9 @@ private:
 
     /// @brief The time in microseconds which is required for the peak detector reset to complete.
     ///        The hardware requires at least 1.5 ms (inclusive safety margin).
-     std::chrono::microseconds peak_detector_reset_time;
+    std::chrono::microseconds peak_detector_reset_time;
 
     /// @brief The time in microseconds which is required for a stabilized signal after peak detector was reset.
     ///        The signal would be invalid for 2 ms (inclusive safety margin).
-     std::chrono::microseconds valid_signal_delay;
-
+    std::chrono::microseconds valid_signal_delay;
 };

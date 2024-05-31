@@ -9,7 +9,6 @@ void CbTarragonDriver::init() {
     invoke_init(*p_evse_board_support);
     invoke_init(*p_ac_rcd);
 
-
     EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
 }
 

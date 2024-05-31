@@ -9,31 +9,26 @@
 CbTarragonContactorControl::CbTarragonContactorControl(void) {
 }
 
-CbTarragonContactorControl::CbTarragonContactorControl(const std::string &relay_1_name,
-                                                       const std::string &relay_1_actuator_gpio_line_name,
-                                                       const std::string &relay_1_feedback_gpio_line_name,
-                                                       const std::string &contactor_1_feedback_type,
-                                                       const std::string &relay_2_name,
-                                                       const std::string &relay_2_actuator_gpio_line_name,
-                                                       const std::string &relay_2_feedback_gpio_line_name,
-                                                       const std::string &contactor_2_feedback_type) :
-                                                       relay_1(relay_1_name, relay_1_actuator_gpio_line_name,
-                                                               contactor_1_feedback_type, relay_1_feedback_gpio_line_name),
-                                                       contactor_1_feedback_type(contactor_1_feedback_type) {
+CbTarragonContactorControl::CbTarragonContactorControl(
+    const std::string& relay_1_name, const std::string& relay_1_actuator_gpio_line_name,
+    const std::string& relay_1_feedback_gpio_line_name, const std::string& contactor_1_feedback_type,
+    const std::string& relay_2_name, const std::string& relay_2_actuator_gpio_line_name,
+    const std::string& relay_2_feedback_gpio_line_name, const std::string& contactor_2_feedback_type) :
+    relay_1(relay_1_name, relay_1_actuator_gpio_line_name, contactor_1_feedback_type, relay_1_feedback_gpio_line_name),
+    contactor_1_feedback_type(contactor_1_feedback_type) {
 
     EVLOG_info << "Primary contactor feedback type: '" << this->contactor_1_feedback_type << "'";
 
     if (this->contactor_1_feedback_type == "none")
         EVLOG_warning << "The primary contactor has the feedback pin not connected. This is not recommended.";
 
-
     // it might happen that the second relay would be used for other purposes other
     // than 3-phase operation. If the relay name is something else other 'R2/S2', we
     // then do not need to handle it, as this should be handled by another piece of
     // software that utilizes the relay to its need.
     if (relay_2_name == "R2/S2") {
-        this->relay_2 = CbTarragonRelay(relay_2_name, relay_2_actuator_gpio_line_name,
-                                        contactor_2_feedback_type, relay_2_feedback_gpio_line_name);
+        this->relay_2 = CbTarragonRelay(relay_2_name, relay_2_actuator_gpio_line_name, contactor_2_feedback_type,
+                                        relay_2_feedback_gpio_line_name);
 
         this->contactor_2_feedback_type = contactor_2_feedback_type;
         EVLOG_info << "Secondary contactor feedback type: '" << this->contactor_2_feedback_type << "'";
@@ -70,9 +65,9 @@ ContactorState CbTarragonContactorControl::get_state(void) {
         return (this->relay_1.get_feedback_state() ? ContactorState::CONTACTOR_CLOSED : ContactorState::CONTACTOR_OPEN);
 
     if (this->relay_2.has_value())
-        return (this->relay_1.get_feedback_state() && this->relay_2.value().get_feedback_state()) ?
-                                                                                                  ContactorState::CONTACTOR_CLOSED :
-                                                                                                  ContactorState::CONTACTOR_OPEN;
+        return (this->relay_1.get_feedback_state() && this->relay_2.value().get_feedback_state())
+                   ? ContactorState::CONTACTOR_CLOSED
+                   : ContactorState::CONTACTOR_OPEN;
     else
         return (this->relay_1.get_feedback_state() ? ContactorState::CONTACTOR_CLOSED : ContactorState::CONTACTOR_OPEN);
 }
@@ -94,14 +89,14 @@ void CbTarragonContactorControl::set_target_state(ContactorState target_state) {
         return;
 
     // avoid very fast switching in order to ensure internal relay lifetime
-    if ((this->target_state == ContactorState::CONTACTOR_CLOSED) &&
-        (this->is_switch_on_allowed() == false)) {
+    if ((this->target_state == ContactorState::CONTACTOR_CLOSED) && (this->is_switch_on_allowed() == false)) {
 
         auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
-                                                                                  this->get_last_actual_state_open_ts()).count();
+                                                                                  this->get_last_actual_state_open_ts())
+                                .count();
         auto remaining_time = this->relay_1.get_contactor_close_interval() -
-                              std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
-                                                                                    this->get_last_actual_state_open_ts());
+                              std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::steady_clock::now() - this->get_last_actual_state_open_ts());
 
         EVLOG_warning << "Attempt to close contactor within " << elapsed_time
                       << " ms from last CLOSED state! Delay for " << remaining_time.count() << " ms";
@@ -200,10 +195,11 @@ std::chrono::time_point<std::chrono::steady_clock> CbTarragonContactorControl::g
 }
 
 bool CbTarragonContactorControl::is_switch_on_allowed(void) {
-    bool allowed{true};
+    bool allowed {true};
 
     // avoid very fast switching in order to ensure internal relay lifetime
-    if ((this->target_phase_count == 3) && (this->relay_2.has_value()) && (this->relay_2.value().can_close_contactor() == false))
+    if ((this->target_phase_count == 3) && (this->relay_2.has_value()) &&
+        (this->relay_2.value().can_close_contactor() == false))
         allowed = false;
 
     if (this->relay_1.can_close_contactor() == false)
@@ -219,7 +215,6 @@ bool CbTarragonContactorControl::get_delay_contactor_close(void) {
 void CbTarragonContactorControl::reset_delay_contactor_close(void) {
     this->delay_contactor_close = false;
 }
-
 
 void CbTarragonContactorControl::start_phase_switching_while_charging(int phase_target) {
     this->target_phase_count = phase_target;
@@ -239,14 +234,17 @@ bool CbTarragonContactorControl::wait_for_events(std::chrono::milliseconds durat
     // FIXME: phase switching and 3-phase operation is still yet to be implemented.
     //        For now, we only control one relay as we are forcing the phase count to be 1
     if ((this->target_phase_count == 3) && (this->relay_2.has_value()) && (this->contactor_2_feedback_type != "none")) {
-        event_occurred = this->relay_2.value().wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
+        event_occurred =
+            this->relay_2.value().wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
 
         if (this->contactor_1_feedback_type != "none")
-            event_occurred &= this->relay_1.wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
+            event_occurred &=
+                this->relay_1.wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
 
     } else {
         if (this->contactor_1_feedback_type != "none")
-            event_occurred = this->relay_1.wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
+            event_occurred =
+                this->relay_1.wait_for_feedback(std::chrono::duration_cast<std::chrono::nanoseconds>(duration));
     }
 
     return event_occurred;
@@ -287,9 +285,9 @@ std::ostream& operator<<(std::ostream& os, const ContactorState& state) {
     case ContactorState::CONTACTOR_OPEN:
         mapped_state = "OPEN";
         break;
-     default:
-         mapped_state = "UNKNOWN";
-         break;
+    default:
+        mapped_state = "UNKNOWN";
+        break;
     }
 
     os << mapped_state;

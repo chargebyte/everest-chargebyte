@@ -64,5 +64,4 @@ private:
 
     /// @brief Helper to set the CP_INVERT line state.
     void set_cp_invert(bool active);
-
 };

@@ -31,5 +31,4 @@ public:
 private:
     /// @brief The underlying IIO ADC instance.
     IIOADC adc;
-
 };

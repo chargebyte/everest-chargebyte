@@ -16,11 +16,11 @@ CbTarragonPWM::CbTarragonPWM(const std::string& pwm_device, unsigned int pwm_dev
                              const std::string& invert_gpioline_name) :
     pwm(PWMChip::find_pwm(pwm_device, pwm_device_channel)) {
 
-    this->cp_invert = std::make_unique<gpiod::line_request> (get_gpioline_by_name(invert_gpioline_name,
-                                                                                  "CbTarragonPWM",
-                                                                                  gpiod::line_settings()
-                                                                                      .set_direction(gpiod::line::direction::OUTPUT)
-                                                                                      .set_output_value(gpiod::line::value::INACTIVE)));
+    this->cp_invert = std::make_unique<gpiod::line_request>(
+        get_gpioline_by_name(invert_gpioline_name, "CbTarragonPWM",
+                             gpiod::line_settings()
+                                 .set_direction(gpiod::line::direction::OUTPUT)
+                                 .set_output_value(gpiod::line::value::INACTIVE)));
 
     // in case we find it already enabled -> disable to reconfigure
     if (this->pwm.is_enabled())
@@ -75,7 +75,5 @@ bool CbTarragonPWM::get_cp_invert(void) const {
 
 void CbTarragonPWM::set_cp_invert(bool active) {
     this->cp_invert->set_value(this->cp_invert->offsets()[0],
-                               active
-                                   ? gpiod::line::value::ACTIVE
-                                   : gpiod::line::value::INACTIVE);
+                               active ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
 }
