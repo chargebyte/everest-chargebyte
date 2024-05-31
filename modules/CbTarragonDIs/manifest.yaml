@@ -21,6 +21,6 @@ provides:
     description: EVerest API
     interface: empty
 metadata:
-  license: https://chargebyte.com
+  license: https://spdx.org/licenses/Apache-2.0.html
   authors:
     - Moritz Barsnick
