@@ -1,73 +1,40 @@
-# How to write new modules and build EVerest
+# chargebyte's Hardware EVerest Modules
 
-Make sure this repository is checked out in the same directory as everest-core, eg.:
+This repository contains the control logic for chargebyte GmbH's Linux-based hardware products, implemented as modules within [EVerest](https://github.com/EVerest).
+
+This repository includes the following modules:  
+- **CbTarragonDriver**: Hardware abstraction layer for chargebyte's Tarragon board.  
+- **CbTarragonPlugLock**: Driver for plug lock control on chargebyte's Tarragon board.  
+- **CbTarragonDIs**: Driver for configuring digital input reference PWM on chargebyte's Tarragon board.
+
+## Usage
+To build and use these modules in EVerest, check out this repository in the same directory as everest-core, i.e., your EVerest workspace.
 
 ```bash
 ├── everest-core
-└── everest-cmake
+└── everest-chargebyte
+└── ....
 ```
 
-To write a new module create a new directory inside the modules directory of this repository. The name of your directory is the name of your new module.
+Make sure to follow the instructions written [everest-core](https://github.com/EVerest/everest-core).
 
-Create your module's manifest and the interfaces you need inside the interfaces directory.
+## Dependencies
+Some modules depend on [libgpiod](git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git). However, this cannot be installed on Ubuntu with a package manager because the modules depend on a newer version of libgpiod. The libgpiod should be installed manually.
 
-Use ev-cli to initialize your module from its manifest. Call it from inside your repo:
+## Build and install
+If you need to regenerate the modules using the EVerest ev-cli tool, for example, if there is a change in the EVerest interfaces, execute the following command:
 
 ```bash
-cd everest-chargebyte-internal
-ev-cli mod create <your_module_name>
+cd everest-chargebyte
+ev-cli mod update <your_module_name> --everest-dir . ../everest-core
 ```
 
-If your module depends on interfaces/types that are part of another repo e.g. everest-core, the command should be expanded to be the following:
+Note the two arguments given as `everest-dir`. This is because the modules depend on types in the **everest-chargebyte** repository, along with the known dependency on **everest-core**.
+
+Finally, to build the modules, execute the following commands:
 
 ```bash
-ev-cli mod create <your_module_name> --everest-dir . /path/to/dependency
-```
-
-e.g.,
-
-```bash
-cd everest-chargebyte-internal
-ev-cli mod create EvseHardwareManager --everest-dir . ../everest-core
-```
-
-#### libgpiod for Ubuntu 22.04
-If you want to compile the content of this repository natively and not cross-compile, you need a version of libgpiod newer than the one Ubuntu 22 offers, so we clone the libgpiod repository somewhere local, build and install it ourselves.
-
-```bash
-git clone git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git
-cd libgpiod/
-git checkout v2.0.1
-./autogen.sh --enable-bindings-cxx
-sudo make install
-```
-
-#### Testing
-First of all you need to install GTest
-
-```bash
-sudo apt install libgtest-dev
-```
-
-You might run into some problems regarding running/compiling the tests. A quick fix is as follows
-
-```bash
-sudo apt install libgpiod2
-```
-
-To run the tests, you need to run cmake and turn on the option of compiling tests
-
-```bash
-mkdir build # inside everest-chargebyte-internal
+mkdir build # inside everest-chargebyte
 cd build
-cmake -DBUILD_CB_TESTING=1 ..
 make install -j$(nproc)
-```
-
-Under the 'build' directory, change the directory to the path were the tests are compiled and use CTest
-
-```bash
-cd modules/CbTarragonDriver/tests
-ctest -N # To know how many tests are captured
-ctest -rerun-failed --output-on-failure # to run the tests and re-run the failed cases verbosely
 ```
