@@ -19,7 +19,15 @@ To build and use these modules in EVerest, check out this repository in the same
 Make sure to follow the instructions written [everest-core](https://github.com/EVerest/everest-core).
 
 ## Dependencies
-Some modules depend on [libgpiod](git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git). However, this cannot be installed on Ubuntu with a package manager because the modules depend on a newer version of libgpiod. The libgpiod should be installed manually.
+Some modules depend on [libgpiod](git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git). However, this cannot be installed on Ubuntu with a package manager because the modules depend on a newer version of libgpiod which Ubuntu does not provide (2.0.1). Therefore, the libgpiod should be installed manually.
+
+```bash
+git clone git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git
+cd libgpiod/
+git checkout v2.0.1
+./autogen.sh --enable-bindings-cxx
+sudo make install
+```
 
 ## Build and install
 If you need to regenerate the modules using the EVerest ev-cli tool, for example, if there is a change in the EVerest interfaces, execute the following command:
