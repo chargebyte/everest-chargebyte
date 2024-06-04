@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14.7)
 
-project(chargebytetarragondriver VERSION 0.9.0
-    DESCRIPTION "chargebyte's Tarragon driver for EVerest"
+project(everest-chargebyte VERSION 0.9.0
+    DESCRIPTION "chargebyte's Hardware EVerest Modules"
     LANGUAGES CXX)
 
 find_package(everest-cmake 0.1 REQUIRED
