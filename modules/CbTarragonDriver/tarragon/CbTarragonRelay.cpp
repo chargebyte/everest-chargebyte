@@ -84,7 +84,7 @@ bool CbTarragonRelay::get_actuator_state(void) {
     return this->actuator->get_value(this->actuator->offsets()[0]) == gpiod::line::value::ACTIVE;
 }
 
-CbContactorFeedbackType CbTarragonRelay::get_feedback_type(std::string feedback_type) {
+CbContactorFeedbackType CbTarragonRelay::get_feedback_type(const std::string& feedback_type) {
     CbContactorFeedbackType rv_feedback_type = CbContactorFeedbackType::NONE;
 
     if (feedback_type == "no")

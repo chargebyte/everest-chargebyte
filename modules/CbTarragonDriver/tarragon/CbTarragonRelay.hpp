@@ -54,7 +54,7 @@ public:
     /// @param feedback_type String representing the feedback type (no = normally open, nc = normally close, none = no
     /// feedback).
     /// @return Return NONE as default, NORMALLY_OPEN, NORMALLY_CLOSE.
-    CbContactorFeedbackType get_feedback_type(std::string feedback_type);
+    CbContactorFeedbackType get_feedback_type(const std::string& feedback_type);
 
     /// @brief Read the actual state of the GPIO of the contactor feedback.
     bool get_feedback_state(void);
