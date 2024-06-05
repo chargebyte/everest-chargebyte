@@ -605,7 +605,8 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                     EVLOG_error << "Failed to detect feedback. Contactor should be: "
                                 << this->contactor_controller.get_state(StateType::TARGET_STATE);
 
-                    // publish a 'contactor fault' event to the upper layer
+                    // publish a 'contactor fault' event to the upper layer. This fault is critical as it might be a
+                    // sign of a hardware issue, therefore the fault will not be cleared to prevent further damage.
                     Everest::error::Error error_object =
                         this->error_factory->create_error("evse_board_support/MREC17EVSEContactorFault", "",
                                                         "Unexpected contactor feedback", Everest::error::Severity::High);
