@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #include "CbCapSense.hpp"
 #include "IIOADCUtils.hpp"
 #include "CbLockSense.hpp"
@@ -5,11 +7,10 @@
 CbCapSense::CbCapSense(void) {
 }
 
-CbCapSense::CbCapSense(const std::string& adc_device, const std::string& adc_channel,
-                        int charged_threshold_voltage):
+CbCapSense::CbCapSense(const std::string& adc_device, const std::string& adc_channel, int charged_threshold_voltage) :
     adc(get_iioadc_by_name(adc_device)) {
 
-	this->charged_threshold_voltage = charged_threshold_voltage;
+    this->charged_threshold_voltage = charged_threshold_voltage;
 
     // open adc channel
     if (!this->adc.has_channel(adc_channel))
@@ -37,5 +38,5 @@ int CbCapSense::calc_voltage(int adc_value) const {
 }
 
 int CbCapSense::get_threshold_voltage(void) const {
-	return this->charged_threshold_voltage;
+    return this->charged_threshold_voltage;
 }

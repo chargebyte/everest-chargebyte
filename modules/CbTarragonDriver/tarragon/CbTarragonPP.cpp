@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #include <chrono>
 #include <stdexcept>
 #include <IIOADCUtils.hpp>
@@ -39,6 +41,6 @@ types::board_support_common::Ampacity CbTarragonPP::get_ampacity(int& voltage) {
     if (voltage >= 751)
         return types::board_support_common::Ampacity::A_63_3ph_70_1ph;
 
-    throw std::underflow_error("The measured voltage for the Proximity Pilot is out-of-range (U_PP: " + 
-                               std::to_string(voltage) + " mV).");
+    throw std::underflow_error(
+        "The measured voltage for the Proximity Pilot is out-of-range (U_PP: " + std::to_string(voltage) + " mV).");
 }

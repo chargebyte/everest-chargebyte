@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <chrono>
 #include <optional>
@@ -32,26 +34,28 @@ enum class StateType {
 class CbTarragonContactorControl {
 
 public:
-	/// @brief Default constructor.
+    /// @brief Default constructor.
     CbTarragonContactorControl(void);
 
     /// @brief Constructor.
     /// @param relay_1_name The name of the first relay and its feedback as labeled on hardware.
     /// @param relay_1_actuator_gpio_line_name The name of the GPIO line which switches the first relay on/off.
-    /// @param relay_1_feedback_gpio_line_name The name of the GPIO line to which the feedback/sense signal of relay 1 is connected to.
-    /// @param contactor_1_feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close, none = no feedback).
+    /// @param relay_1_feedback_gpio_line_name The name of the GPIO line to which the feedback/sense signal of relay 1
+    /// is connected to.
+    /// @param contactor_1_feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close,
+    /// none = no feedback).
     /// @param relay_2_name The name of the second relay and its feedback as labeled on hardware.
     /// @param relay_2_actuator_gpio_line_name The name of the GPIO line which switches the second relay on/off.
-    /// @param relay_2_feedback_gpio_line_name The name of the GPIO line to which the feedback/sense signal of relay 2 is connected to.
-    /// @param contactor_2_feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close, none = no feedback).
-    CbTarragonContactorControl(const std::string &relay_1_name,
-                               const std::string &relay_1_actuator_gpio_line_name,
-                               const std::string &relay_1_feedback_gpio_line_name,
-                               const std::string &contactor_1_feedback_type,
-                               const std::string &relay_2_name,
-                               const std::string &relay_2_actuator_gpio_line_name,
-                               const std::string &relay_2_feedback_gpio_line_name,
-                               const std::string &contactor_2_feedback_type);
+    /// @param relay_2_feedback_gpio_line_name The name of the GPIO line to which the feedback/sense signal of relay 2
+    /// is connected to.
+    /// @param contactor_2_feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close,
+    /// none = no feedback).
+    CbTarragonContactorControl(const std::string& relay_1_name, const std::string& relay_1_actuator_gpio_line_name,
+                               const std::string& relay_1_feedback_gpio_line_name,
+                               const std::string& contactor_1_feedback_type, const std::string& relay_2_name,
+                               const std::string& relay_2_actuator_gpio_line_name,
+                               const std::string& relay_2_feedback_gpio_line_name,
+                               const std::string& contactor_2_feedback_type);
 
     /// @brief Get the state of one or both contactors (OPEN or CLOSED).
     ContactorState get_state(void);

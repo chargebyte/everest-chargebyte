@@ -182,7 +182,7 @@ private:
     ///        (`true`: Switch on allowed, `false`: Switch off)
     std::atomic_bool allow_power_on {false};
 
-    /// @brief Signal from other interface to determine if an emergency state (e.g. RCD error) is present 
+    /// @brief Signal from other interface to determine if an emergency state (e.g. RCD error) is present
     ///        (`true`: emergency present, `false`: emergency not present)
     inline static std::atomic_bool is_emergency {false};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1

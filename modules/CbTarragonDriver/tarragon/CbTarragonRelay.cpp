@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #include <memory>
 #include <stdexcept>
 #include <gpiod.hpp>
@@ -6,14 +8,13 @@
 
 using namespace std::chrono_literals;
 
-CbTarragonRelay::CbTarragonRelay(void) {}
+CbTarragonRelay::CbTarragonRelay(void) {
+}
 
-CbTarragonRelay::CbTarragonRelay(const std::string &relay_name,
-                                 const std::string &actuator_gpio_line_name,
-                                 const std::string &feedback_type,
-                                 const std::string &feedback_gpio_line_name) {
-    bool actuator_active_low{false};
-    bool feedback_active_low{false};
+CbTarragonRelay::CbTarragonRelay(const std::string& relay_name, const std::string& actuator_gpio_line_name,
+                                 const std::string& feedback_type, const std::string& feedback_gpio_line_name) {
+    bool actuator_active_low {false};
+    bool feedback_active_low {false};
 
     this->relay_name = relay_name;
 
@@ -34,20 +35,20 @@ CbTarragonRelay::CbTarragonRelay(const std::string &relay_name,
     // initialize the buffer to be of a capacity '1' so that we read a single event
     this->feedback_event_buffer = gpiod::edge_event_buffer(1);
 
-    this->actuator = std::make_unique <gpiod::line_request> (get_gpioline_by_name(actuator_gpio_line_name,
-                                                                                  this->relay_name,
-                                                                                  gpiod::line_settings()
-                                                                                       .set_direction(gpiod::line::direction::OUTPUT)
-                                                                                       .set_output_value(gpiod::line::value::INACTIVE)
-                                                                                       .set_active_low(actuator_active_low)));
+    this->actuator =
+        std::make_unique<gpiod::line_request>(get_gpioline_by_name(actuator_gpio_line_name, this->relay_name,
+                                                                   gpiod::line_settings()
+                                                                       .set_direction(gpiod::line::direction::OUTPUT)
+                                                                       .set_output_value(gpiod::line::value::INACTIVE)
+                                                                       .set_active_low(actuator_active_low)));
 
     if (this->feedback_type != CbContactorFeedbackType::NONE) {
-        this->feedback = std::make_unique <gpiod::line_request> (get_gpioline_by_name(feedback_gpio_line_name,
-                                                                                      this->relay_name,
-                                                                                      gpiod::line_settings()
-                                                                                           .set_direction(gpiod::line::direction::INPUT)
-                                                                                           .set_edge_detection(gpiod::line::edge::BOTH)
-                                                                                           .set_active_low(feedback_active_low)));
+        this->feedback =
+            std::make_unique<gpiod::line_request>(get_gpioline_by_name(feedback_gpio_line_name, this->relay_name,
+                                                                       gpiod::line_settings()
+                                                                           .set_direction(gpiod::line::direction::INPUT)
+                                                                           .set_edge_detection(gpiod::line::edge::BOTH)
+                                                                           .set_active_low(feedback_active_low)));
     }
 }
 
@@ -63,7 +64,7 @@ bool CbTarragonRelay::can_close_contactor(void) {
     if (this->delay_contactor_close == false)
         return true;
 
-    if (std::chrono::steady_clock::now() - this-> last_contactor_open_ts < this->contactor_close_interval)
+    if (std::chrono::steady_clock::now() - this->last_contactor_open_ts < this->contactor_close_interval)
         return false;
 
     this->delay_contactor_close = false;
@@ -75,17 +76,15 @@ std::chrono::seconds CbTarragonRelay::get_contactor_close_interval(void) {
 }
 
 void CbTarragonRelay::set_actuator_state(bool new_state_on) {
-    this->actuator->set_value(this->actuator->offsets()[0], new_state_on ?
-                                                                       gpiod::line::value::ACTIVE :
-                                                                       gpiod::line::value::INACTIVE);
+    this->actuator->set_value(this->actuator->offsets()[0],
+                              new_state_on ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
 }
 
 bool CbTarragonRelay::get_actuator_state(void) {
-    return this->actuator->get_value(this->actuator->offsets()[0])
-            == gpiod::line::value::ACTIVE;
+    return this->actuator->get_value(this->actuator->offsets()[0]) == gpiod::line::value::ACTIVE;
 }
 
-CbContactorFeedbackType CbTarragonRelay::get_feedback_type(std::string feedback_type) {
+CbContactorFeedbackType CbTarragonRelay::get_feedback_type(const std::string& feedback_type) {
     CbContactorFeedbackType rv_feedback_type = CbContactorFeedbackType::NONE;
 
     if (feedback_type == "no")
@@ -109,10 +108,9 @@ bool CbTarragonRelay::get_feedback_state(void) {
         result = !result;
 
     return result;
-
 }
 
-bool CbTarragonRelay::wait_for_feedback(const std::chrono::nanoseconds &timeout) const {
+bool CbTarragonRelay::wait_for_feedback(const std::chrono::nanoseconds& timeout) const {
     return this->feedback->wait_edge_events(timeout);
 }
 

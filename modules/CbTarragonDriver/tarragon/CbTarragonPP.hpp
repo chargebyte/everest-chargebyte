@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <string>
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
@@ -31,5 +33,4 @@ public:
 private:
     /// @brief The underlying IIO ADC instance.
     IIOADC adc;
-
 };

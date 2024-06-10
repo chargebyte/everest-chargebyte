@@ -133,7 +133,7 @@ provides:
       Provide support for fault detection of an external AC Residual Current Device
     interface: ac_rcd
 metadata:
-  license: https://chargebyte.com
+  license: https://spdx.org/licenses/Apache-2.0.html
   authors:
     - Fabian Hartung
     - Mohannad Oraby

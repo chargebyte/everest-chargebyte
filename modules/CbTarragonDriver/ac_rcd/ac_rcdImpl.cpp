@@ -15,8 +15,8 @@ void ac_rcdImpl::init() {
         EVLOG_info << "RCM GPIO: " << this->mod->config.rcm_fault_gpio_line_name;
         EVLOG_info << "RCM GPIO polarity: " << (this->mod->config.rcm_fault_active_low ? "active_low" : "active_high");
 
-        this->rcm_controller = CbTarragonRCM(this->mod->config.rcm_fault_gpio_line_name,
-                                             this->mod->config.rcm_fault_active_low);
+        this->rcm_controller =
+            CbTarragonRCM(this->mod->config.rcm_fault_gpio_line_name, this->mod->config.rcm_fault_active_low);
     }
 }
 
@@ -35,11 +35,11 @@ void ac_rcdImpl::ready() {
 }
 
 void ac_rcdImpl::handle_self_test() {
-	// TODO The self test needs to be implemented later ...
+    // TODO The self test needs to be implemented later ...
 }
 
 bool ac_rcdImpl::handle_reset() {
-	// Currently we assume that the RCD reset itself
+    // Currently we assume that the RCD reset itself
     return true;
 }
 
@@ -49,14 +49,16 @@ void ac_rcdImpl::rcm_observation_worker(void) {
     // workaround for already tripped RCM at start
     std::this_thread::sleep_for(1s);
 
-    while(!this->termination_requested) {
+    while (!this->termination_requested) {
         this->rcm_controller.wait_for_rcm_event(1s);
 
-        if(this->rcm_controller.is_rcm_tripped() && !this->rcm_tripped) {
+        if (this->rcm_controller.is_rcm_tripped() && !this->rcm_tripped) {
             // signal emergency state to evse_board_support interface for open the contactor immediately
             module::evse_board_support::evse_board_supportImpl::set_emergency_state(true);
             this->rcm_tripped = true;
-            this->raise_ac_rcd_MREC2GroundFailure("RCM failure detected", Everest::error::Severity::High);
+            Everest::error::Error error_object = this->error_factory->create_error(
+                "ac_rcd/MREC2GroundFailure", "", "RCM failure detected", Everest::error::Severity::High);
+            this->raise_error(error_object);
             EVLOG_info << "RCM tripped";
         }
 
@@ -65,7 +67,7 @@ void ac_rcdImpl::rcm_observation_worker(void) {
             EVLOG_info << "RCM not tripped";
             // signal released emergency state to evse_board_support interface
             module::evse_board_support::evse_board_supportImpl::set_emergency_state(false);
-            this->request_clear_all_ac_rcd_MREC2GroundFailure();
+            this->clear_error("ac_rcd/MREC2GroundFailure");
         }
     }
 

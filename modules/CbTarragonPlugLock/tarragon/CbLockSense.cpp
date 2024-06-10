@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #include "CbLockSense.hpp"
 #include "IIOADCUtils.hpp"
 #include <everest/logging.hpp>
@@ -5,9 +7,8 @@
 CbLockSense::CbLockSense(void) {
 }
 
-CbLockSense::CbLockSense(const std::string& adc_device, const std::string& adc_channel,
-                         int unlock_threshold_min, int unlock_threshold_max,
-                         int lock_threshold_min, int lock_threshold_max):
+CbLockSense::CbLockSense(const std::string& adc_device, const std::string& adc_channel, int unlock_threshold_min,
+                         int unlock_threshold_max, int lock_threshold_min, int lock_threshold_max) :
     adc(get_iioadc_by_name(adc_device)) {
 
     // range check for threshold values
@@ -52,14 +53,14 @@ int CbLockSense::calc_voltage(int adc_value) const {
 void CbLockSense::check_range(const std::string& parameter, int value_min, int value_max, int min, int max) const {
 
     if ((value_min < min) || (value_min > max))
-        throw std::out_of_range(parameter + "_min(" + std::to_string(value_min) +
-                                ") not in range between 0 and " + std::to_string(ADC_REF_VOLTAGE) + " mV");
+        throw std::out_of_range(parameter + "_min(" + std::to_string(value_min) + ") not in range between 0 and " +
+                                std::to_string(ADC_REF_VOLTAGE) + " mV");
 
     if ((value_max < min) || (value_max > max))
-        throw std::out_of_range(parameter + "_max(" + std::to_string(value_max) +
-                                ") not in range between 0 and " + std::to_string(ADC_REF_VOLTAGE) + " mV");
+        throw std::out_of_range(parameter + "_max(" + std::to_string(value_max) + ") not in range between 0 and " +
+                                std::to_string(ADC_REF_VOLTAGE) + " mV");
 
     if ((value_min > value_max))
-        throw std::out_of_range(parameter + "_min(" + std::to_string(value_min) +
-                                " mV) > " + parameter + "_max(" + std::to_string(value_max) + " mV)");
+        throw std::out_of_range(parameter + "_min(" + std::to_string(value_min) + " mV) > " + parameter + "_max(" +
+                                std::to_string(value_max) + " mV)");
 }

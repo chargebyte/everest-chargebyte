@@ -83,6 +83,6 @@ provides:
     description: Provide a generic driver for plug lock control (defaults suitable for a KUESTER02S plug lock motor)
     interface: connector_lock
 metadata:
-  license: https://chargebyte.com
+  license: https://spdx.org/licenses/Apache-2.0.html
   authors:
     - Martin Lukas

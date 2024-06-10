@@ -20,9 +20,6 @@ configure_file(configuration.h.in configuration.h @ONLY)
 
 # create a VERSION file
 configure_file(VERSION.in VERSION @ONLY)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/VERSION"
-    DESTINATION "${EVEREST_MODULE_INSTALL_PREFIX}/${MODULE_NAME}"
-)
 
 target_include_directories(${MODULE_NAME}
     PRIVATE
@@ -42,4 +39,8 @@ target_sources(${MODULE_NAME}
 
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1
 # insert other things like install cmds etc here
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/VERSION"
+    DESTINATION "${EVEREST_MODULE_INSTALL_PREFIX}/${MODULE_NAME}"
+)
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <string>
 #include <memory>
@@ -64,5 +66,4 @@ private:
 
     /// @brief Helper to set the CP_INVERT line state.
     void set_cp_invert(bool active);
-
 };

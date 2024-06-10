@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #include <chrono>
 #include <string>
 #include <thread>
@@ -14,10 +16,10 @@ CbTarragonCP::CbTarragonCP(const std::string& adc_device_pos_level, const std::s
                            const std::string& peak_detector_reset_gpioline_name_pos_level,
                            const std::string& adc_device_neg_level, const std::string& adc_device_channel_neg_level,
                            const std::string& peak_detector_reset_gpioline_name_neg_level) :
-                           peak_detector_reset_time(1500us),
-                           valid_signal_delay(2ms),
-                           pos_adc(adc_device_pos_level, adc_device_channel_pos_level, peak_detector_reset_gpioline_name_pos_level),
-                           neg_adc(adc_device_neg_level, adc_device_channel_neg_level, peak_detector_reset_gpioline_name_neg_level) {
+    peak_detector_reset_time(1500us),
+    valid_signal_delay(2ms),
+    pos_adc(adc_device_pos_level, adc_device_channel_pos_level, peak_detector_reset_gpioline_name_pos_level),
+    neg_adc(adc_device_neg_level, adc_device_channel_neg_level, peak_detector_reset_gpioline_name_neg_level) {
 }
 
 void CbTarragonCP::get_values(int& positive_value, int& negative_value) {
@@ -40,7 +42,8 @@ void CbTarragonCP::get_values(int& positive_value, int& negative_value) {
     negative_value = this->neg_adc.get_value();
 }
 
-types::cb_board_support::CPState CbTarragonCP::voltage_to_state(int voltage, types::cb_board_support::CPState previous_state) const {
+types::cb_board_support::CPState CbTarragonCP::voltage_to_state(int voltage,
+                                                                types::cb_board_support::CPState previous_state) const {
     // The following thresholds mostly based on IEC 61851-1
     // Table A.4 System states detected by the charging station.
     if (voltage > 13000 /* mV */) /* > 13 V */
@@ -120,9 +123,8 @@ types::cb_board_support::CPState CbTarragonCP::voltage_to_state(int voltage, typ
         return types::cb_board_support::CPState::PilotFault;
 
     if (voltage >= -11000 /* mV */) { /* -11 V <= x < -10 V (not standard) */
-        return previous_state == types::cb_board_support::CPState::F
-                   ? types::cb_board_support::CPState::F
-                   : types::cb_board_support::CPState::PilotFault;
+        return previous_state == types::cb_board_support::CPState::F ? types::cb_board_support::CPState::F
+                                                                     : types::cb_board_support::CPState::PilotFault;
     }
 
     if (voltage >= -13000 /* mV */) /* -13 V <= x < -11 V */

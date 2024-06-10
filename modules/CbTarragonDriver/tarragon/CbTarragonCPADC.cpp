@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -19,11 +21,11 @@ CbTarragonCPADC::CbTarragonCPADC(const std::string& adc_device, const std::strin
 
     this->adc.open_channel(adc_device_channel);
 
-    this->peak_detector_reset = std::make_unique<gpiod::line_request> (get_gpioline_by_name(peak_detector_reset_gpio_line_name,
-                                                                                            "CbTarragonCPADC",
-                                                                                            gpiod::line_settings()
-                                                                                                .set_direction(gpiod::line::direction::OUTPUT)
-                                                                                                .set_output_value(gpiod::line::value::INACTIVE)));
+    this->peak_detector_reset = std::make_unique<gpiod::line_request>(
+        get_gpioline_by_name(peak_detector_reset_gpio_line_name, "CbTarragonCPADC",
+                             gpiod::line_settings()
+                                 .set_direction(gpiod::line::direction::OUTPUT)
+                                 .set_output_value(gpiod::line::value::INACTIVE)));
 }
 
 void CbTarragonCPADC::start_peak_detector_reset(void) {

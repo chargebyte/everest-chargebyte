@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <string>
 #include <memory>
@@ -29,7 +31,7 @@ public:
     /// @param adc_device The name of the IIO ADC device to use.
     /// @param adc_device_channel The name of the channel of the ADC device, e.g. 'voltage5'.
     /// @param peak_detector_reset_gpio_line_name The name of the GPIO line to reset the peak detector circuit.
-    CbTarragonCPADC(const std::string& adc_device, const std::string &adc_device_channel,
+    CbTarragonCPADC(const std::string& adc_device, const std::string& adc_device_channel,
                     const std::string& peak_detector_reset_gpio_line_name);
 
     /// @brief Start the reset of the peak detector circuit by asserting the reset GPIO line.
@@ -54,5 +56,4 @@ protected:
     /// @param  adc_value The raw ADC value as obtained from the IIO ADC.
     /// @return A voltage value in mV.
     int calc_voltage(int adc_value) const;
-
 };

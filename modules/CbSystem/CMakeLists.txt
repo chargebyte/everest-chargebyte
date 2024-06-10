@@ -9,40 +9,35 @@ ev_setup_cpp_module()
 
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
 # insert your custom targets and additional config variables here
+set (ADDITIONAL_MODULE_LIBS everest::timer)
 
-add_subdirectory("tarragon")
-
-set(MODULE_DESCRIPTION ${PROJECT_DESCRIPTION})
-set(MODULE_VERSION ${PROJECT_VERSION})
-
-# make CMake project variables usable in source code
-configure_file(configuration.h.in configuration.h @ONLY)
-
-# create a VERSION file
-configure_file(VERSION.in VERSION @ONLY)
+list(APPEND ADDITIONAL_MODULE_LIBS
+    date::date
+    date::date-tz
+)
 
 target_link_libraries(${MODULE_NAME}
     PRIVATE
-        tarragon
-)
-target_include_directories(${MODULE_NAME}
-    PRIVATE
-        ${UTILS_INCLUDE_DIR}
-        ${TARRAGON_INCLUDE_DIR}
-        ${CMAKE_CURRENT_BINARY_DIR}
+        ${ADDITIONAL_MODULE_LIBS}
 )
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
 
 target_sources(${MODULE_NAME}
     PRIVATE
-        "evse_board_support/evse_board_supportImpl.cpp"
-        "ac_rcd/ac_rcdImpl.cpp"
+        "main/systemImpl.cpp"
 )
 
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1
 # insert other things like install cmds etc here
+target_compile_features(${MODULE_NAME} PRIVATE cxx_std_17)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/VERSION"
+install(
+    PROGRAMS
+        constants.env
+        diagnostics_uploader.sh
+        firmware_updater.sh
+        signed_firmware_downloader.sh
+        signed_firmware_installer.sh
     DESTINATION "${EVEREST_MODULE_INSTALL_PREFIX}/${MODULE_NAME}"
 )
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1

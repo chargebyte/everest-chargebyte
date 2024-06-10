@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14.7)
 
-project(chargebytetarragondriver VERSION 0.9.0
-    DESCRIPTION "chargebyte's Tarragon driver for EVerest"
+project(everest-chargebyte VERSION 0.9.0
+    DESCRIPTION "chargebyte's Hardware EVerest Modules"
     LANGUAGES CXX)
 
 find_package(everest-cmake 0.1 REQUIRED
@@ -19,7 +19,6 @@ pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
 add_subdirectory("utils")
 
 # options
-option(BUILD_TESTING "Run unit tests" OFF)
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy" OFF)
 
 # dependencies
@@ -41,7 +40,7 @@ add_subdirectory(config)
 
 # install config
 install(
-    FILES config/config-chargebyte-tarragon.yaml
+    FILES config/bsp-only.yaml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/everest/config
     RENAME config.yaml
 )
@@ -50,28 +49,4 @@ install(
 if(CMAKE_RUN_CLANG_TIDY)
     message("Enabling clang-tidy")
     set(CMAKE_CXX_CLANG_TIDY clang-tidy)
-endif()
-
-# testing
-if(BUILD_TESTING)
-    include(CTest)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
-
-    evc_include(CodeCoverage)
-
-    append_coverage_compiler_flags()
-
-    add_subdirectory(tests)
-
-    setup_target_for_coverage_gcovr_html(
-        NAME gcovr_coverage
-        EXECUTABLE test_config
-        DEPENDENCIES test_config everest
-    )
-
-    setup_target_for_coverage_lcov(
-        NAME lcov_coverage
-        EXECUTABLE test_config
-        DEPENDENCIES test_config everest
-    )
 endif()
