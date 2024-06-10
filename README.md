@@ -5,7 +5,13 @@ This repository contains the control logic for chargebyte GmbH's Linux-based har
 This repository includes the following modules:  
 - **CbTarragonDriver**: Hardware abstraction layer for chargebyte's Tarragon board.  
 - **CbTarragonPlugLock**: Driver for plug lock control on chargebyte's Tarragon board.  
-- **CbTarragonDIs**: Driver for configuring digital input reference PWM on chargebyte's Tarragon board.
+- **CbTarragonDIs**: Driver for configuring digital input reference PWM on chargebyte's Tarragon board.  
+- **CbSystem**: Implements system wide operations for chargebyte's hardware products.
+
+## Compatibility matrix
+| Tag | EVerest release |
+|----------|----------|
+| 0.9.0 | 2024.3.0 |
 
 ## Usage
 To build and use these modules in EVerest, check out this repository in the same directory as everest-core, i.e., your EVerest workspace.
