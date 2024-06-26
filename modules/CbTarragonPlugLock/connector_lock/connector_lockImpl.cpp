@@ -177,6 +177,9 @@ void connector_lockImpl::handle_unlock() {
         if (this->is_connectorLockFailedUnlock_raised) {
             this->is_connectorLockFailedUnlock_raised = false;
             this->clear_error("connector_lock/ConnectorLockFailedUnlock");
+        }
+        if (this->is_connectorLockFailedLock_raised) {
+            this->is_connectorLockFailedLock_raised = false;
             this->clear_error("connector_lock/ConnectorLockFailedLock");
         }
         EVLOG_info << "Plug is unlocked. Feedback voltage: " << feedback_voltage << " mV";
