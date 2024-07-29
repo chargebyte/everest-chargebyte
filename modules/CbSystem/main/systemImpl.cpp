@@ -599,8 +599,12 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
         this->log_upload_running = true;
         const auto diagnostics_uploader = this->scripts_path / DIAGNOSTICS_UPLOADER;
         const auto constants = this->scripts_path / CONSTANTS;
+        std::string location = upload_logs_request.location;
+        if (not location.empty() and location.back() != '/') {
+            location += '/';
+        }
 
-        std::vector<std::string> args = {constants.string(), upload_logs_request.location, diagnostics_file_name,
+        std::vector<std::string> args = {constants.string(), location, diagnostics_file_name,
                                          diagnostics_file_path.string()};
         bool uploaded = false;
         int32_t retries = 0;
