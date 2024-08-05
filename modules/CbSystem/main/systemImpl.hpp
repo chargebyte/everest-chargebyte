@@ -69,6 +69,7 @@ private:
     bool standard_firmware_update_running;
     bool firmware_download_running;
     bool firmware_installation_running;
+    types::system::BootReason boot_reason {types::system::BootReason::PowerUp};
 
     std::condition_variable log_upload_cv;
     std::condition_variable firmware_update_cv;
@@ -100,7 +101,6 @@ private:
      */
     types::system::UpdateFirmwareResponse
     handle_standard_firmware_update(const types::system::FirmwareUpdateRequest& firmware_update_request);
-    types::system::UpdateFirmwareResponse
 
     /**
      * @brief Handles the given \p firmware_update_request. If the download should not be started in the future it
@@ -109,6 +109,7 @@ private:
      *
      * @param firmware_update_request
      */
+    types::system::UpdateFirmwareResponse
     handle_signed_fimware_update(const types::system::FirmwareUpdateRequest& firmware_update_request);
 
     /**

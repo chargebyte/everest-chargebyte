@@ -3,7 +3,7 @@
 . "${1}"
 
 echo "$DOWNLOADING"
-curl --progress-bar --connect-timeout "$CONNECTION_TIMEOUT" "${2}" -o "${3}"
+curl --location --progress-bar --fail --connect-timeout "$CONNECTION_TIMEOUT" "${2}" -o "${3}"
 curl_exit_code=$?
 sleep 2
 
@@ -31,7 +31,7 @@ marked_good=$(rauc status | grep "boot status" | grep -c good)
 # Check if booted_from and activated are different and the 2 paritions are marked as good
 if [[ "$booted_from" != "$activated" && "$marked_good" -eq 2 ]]; then
 
-    echo "$INSTALLED"
+    echo "$INSTALL_REBOOTING"
 else
     echo "$INSTALLATION_FAILED"
 fi
