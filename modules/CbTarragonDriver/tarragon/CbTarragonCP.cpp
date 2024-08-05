@@ -16,10 +16,10 @@ CbTarragonCP::CbTarragonCP(const std::string& adc_device_pos_level, const std::s
                            const std::string& peak_detector_reset_gpioline_name_pos_level,
                            const std::string& adc_device_neg_level, const std::string& adc_device_channel_neg_level,
                            const std::string& peak_detector_reset_gpioline_name_neg_level) :
-    peak_detector_reset_time(1500us),
-    valid_signal_delay(2ms),
     pos_adc(adc_device_pos_level, adc_device_channel_pos_level, peak_detector_reset_gpioline_name_pos_level),
-    neg_adc(adc_device_neg_level, adc_device_channel_neg_level, peak_detector_reset_gpioline_name_neg_level) {
+    neg_adc(adc_device_neg_level, adc_device_channel_neg_level, peak_detector_reset_gpioline_name_neg_level),
+    peak_detector_reset_time(1500us),
+    valid_signal_delay(2ms) {
 }
 
 void CbTarragonCP::get_values(int& positive_value, int& negative_value) {

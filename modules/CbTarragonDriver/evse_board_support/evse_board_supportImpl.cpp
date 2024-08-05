@@ -138,6 +138,8 @@ void evse_board_supportImpl::handle_setup(bool& three_phases, bool& has_ventilat
     //        - hw_capabilities.max_phase_count_import is set to '3'
     //        Do we need to make other checks before setting max_phase_count_import and sending it as part of the
     //        hw_capabilties e.g., read out our rotary encoder?
+    (void)country_code;
+
     this->three_phase_supported = three_phases;
 
     if (has_ventilation) {
@@ -209,10 +211,12 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
     // your code for cmd ac_switch_three_phases_while_charging goes here
+    (void)value;
 }
 
 void evse_board_supportImpl::handle_evse_replug(int& value) {
     // your code for cmd evse_replug goes here
+    (void)value;
 }
 
 types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
@@ -329,6 +333,7 @@ void evse_board_supportImpl::pp_observation_worker(void) {
 
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
     // your code for cmd ac_set_overcurrent_limit_A goes here
+    (void)value;
 }
 
 void evse_board_supportImpl::disable_cp_observation(void) {
