@@ -31,7 +31,7 @@ marked_good=$(rauc status | grep "boot status" | grep -c good)
 # Check if booted_from and activated are different and the 2 paritions are marked as good
 if [[ "$booted_from" != "$activated" && "$marked_good" -eq 2 ]]; then
 
-    echo "$INSTALLED"
+    echo "$INSTALL_REBOOTING"
 else
     echo "$INSTALLATION_FAILED"
 fi

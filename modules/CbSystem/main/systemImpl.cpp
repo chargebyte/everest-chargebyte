@@ -19,13 +19,14 @@
 namespace module {
 namespace main {
 
+namespace fs = std::filesystem;
+
 const std::string CONSTANTS = "constants.env";
 const std::string DIAGNOSTICS_UPLOADER = "diagnostics_uploader.sh";
 const std::string FIRMWARE_UPDATER = "firmware_updater.sh";
 const std::string SIGNED_FIRMWARE_DOWNLOADER = "signed_firmware_downloader.sh";
 const std::string SIGNED_FIRMWARE_INSTALLER = "signed_firmware_installer.sh";
-
-namespace fs = std::filesystem;
+const fs::path MARKER_FILE_PATH = "/var/lib/everest/.ocpp_fw_installed";
 
 static const char* const diagnostic_files[] = {"/tmp/commands.log", /* must always be the first entry */
                                                "/etc/everest/config.yaml",
@@ -97,9 +98,76 @@ void systemImpl::init() {
     this->firmware_download_running = false;
     this->firmware_installation_running = false;
     this->standard_firmware_update_running = false;
+
+    if (fs::exists(MARKER_FILE_PATH)) {
+        this->boot_reason = types::system::BootReason::FirmwareUpdate;
+    }
+}
+
+enum class PartitionType
+{
+    Active,
+    Inactive
+};
+
+static std::string get_partition(PartitionType part_type) {
+    std::string rauc_status_search;
+    switch (part_type) {
+    case PartitionType::Active:
+        rauc_status_search = "booted";
+        break;
+    case PartitionType::Inactive:
+        rauc_status_search = "inactive";
+        break;
+    }
+
+    const std::string shell_cmd = R"(rauc status | sed 's/\x1b\[[0-9;]*m//g' | awk '/rootfs\./ && /)" +
+                                  rauc_status_search + R"(/ {gsub(/\[|\]/, "", $2); print $2}')";
+    boost::process::ipstream stream;
+    boost::process::child cmd(boost::process::search_path("sh"), std::vector<std::string> {"-c", shell_cmd},
+                              boost::process::std_out > stream);
+
+    std::string output;
+    // this is generic multi-line handling
+    // while (cmd.running() && std::getline(stream, line) && !line.empty()) {
+    //     output += line + "\n";
+    // }
+    // this is single-line handling
+    if (cmd.running()) {
+        std::getline(stream, output);
+    }
+
+    cmd.wait();
+
+    return output;
 }
 
 void systemImpl::ready() {
+
+    // In case the firmware-update marker file exists, we need to check if the firmware update was successful
+    // and publish the status.
+    if (fs::exists(MARKER_FILE_PATH)) {
+        std::ifstream marker_file(MARKER_FILE_PATH);
+        std::string partition;
+        std::string request_id;
+
+        std::string line1, line2;
+        if (std::getline(marker_file, line1) && std::getline(marker_file, line2)) {
+            partition = line1;
+            request_id = line2;
+        }
+
+        if (partition == get_partition(PartitionType::Active)) {
+            this->publish_firmware_update_status({types::system::FirmwareUpdateStatusEnum::Installed});
+            EVLOG_info << "Firmware update was successful";
+        } else {
+            this->publish_firmware_update_status(
+                {types::system::FirmwareUpdateStatusEnum::InstallationFailed, std::stoi(request_id)});
+            EVLOG_error << "Firmware update was not successful: expected partition: " << partition
+                        << " actual partition: " << get_partition(PartitionType::Active);
+        }
+        fs::remove(MARKER_FILE_PATH);
+    }
 }
 
 void systemImpl::standard_firmware_update(const types::system::FirmwareUpdateRequest& firmware_update_request) {
@@ -132,8 +200,16 @@ void systemImpl::standard_firmware_update(const types::system::FirmwareUpdateReq
 
         auto firmware_status_enum = types::system::FirmwareUpdateStatusEnum::DownloadFailed;
         types::system::FirmwareUpdateStatus firmware_status;
-        firmware_status.request_id = -1;
+        firmware_status.request_id = firmware_update_request.request_id;
         firmware_status.firmware_update_status = firmware_status_enum;
+
+        const std::string partition = get_partition(PartitionType::Inactive);
+        // write a flag/marker file which gets copied to the new installation, which indicates what partition we
+        // expect to be on after update
+        {
+            std::ofstream marker_file(MARKER_FILE_PATH, std::ios::trunc);
+            marker_file << partition << "\n" << firmware_status.request_id << std::endl;
+        }
 
         while (firmware_status.firmware_update_status == types::system::FirmwareUpdateStatusEnum::DownloadFailed &&
                retries <= total_retries) {
@@ -154,11 +230,16 @@ void systemImpl::standard_firmware_update(const types::system::FirmwareUpdateReq
             cmd.wait();
         }
         this->standard_firmware_update_running = false;
-        if (firmware_status.firmware_update_status == types::system::FirmwareUpdateStatusEnum::Installed) {
+        if (firmware_status.firmware_update_status == types::system::FirmwareUpdateStatusEnum::InstallRebooting) {
             EVLOG_warning << "Firmware update finished successfully. Initiating reboot in 5 seconds";
             std::this_thread::sleep_for(std::chrono::seconds(5));
             EVLOG_info << "Rebooting...";
             boost::process::system("reboot");
+        } else if ((firmware_status.firmware_update_status ==
+                    types::system::FirmwareUpdateStatusEnum::DownloadFailed) ||
+                   (firmware_status.firmware_update_status ==
+                    types::system::FirmwareUpdateStatusEnum::InstallationFailed)) {
+            fs::remove(MARKER_FILE_PATH);
         }
     });
     this->update_firmware_thread.detach();
@@ -266,7 +347,12 @@ void systemImpl::download_signed_firmware(const types::system::FirmwareUpdateReq
 
     // // create temporary file
     const auto date_time = Everest::Date::to_rfc3339(date::utc_clock::now());
-    const auto firmware_file_path = create_temp_file(fs::temp_directory_path(), "signed_firmware-" + date_time);
+    const auto firmware_file_path = fs::path("/srv/firmware-update.image");
+
+    // ...here by deleting a possibly existing, older file
+    if (fs::exists(firmware_file_path)) {
+        fs::remove(firmware_file_path);
+    }
 
     const auto firmware_downloader = this->scripts_path / SIGNED_FIRMWARE_DOWNLOADER;
     const auto constants = this->scripts_path / CONSTANTS;
@@ -344,12 +430,21 @@ void systemImpl::install_signed_firmware(const types::system::FirmwareUpdateRequ
     types::system::FirmwareUpdateStatus firmware_status;
     firmware_status.request_id = firmware_update_request.request_id;
     firmware_status.firmware_update_status = firmware_status_enum;
+
+    const std::string partition = get_partition(PartitionType::Inactive);
+    // write a flag/marker file which gets copied to the new installation, which indicates what partition we
+    // expect to be on after update
+    {
+        std::ofstream marker_file(MARKER_FILE_PATH, std::ios::trunc);
+        marker_file << partition << "\n" << firmware_status.request_id << std::endl;
+    }
+
     if (!this->firmware_installation_running) {
         this->firmware_installation_running = true;
         boost::process::ipstream install_stream;
         const auto firmware_installer = this->scripts_path / SIGNED_FIRMWARE_INSTALLER;
         const auto constants = this->scripts_path / CONSTANTS;
-        const std::vector<std::string> install_args = {constants.string()};
+        const std::vector<std::string> install_args = {constants.string(), firmware_file_path.string()};
         boost::process::child install_cmd(firmware_installer.string(), boost::process::args(install_args),
                                           boost::process::std_out > install_stream);
         std::string temp;
@@ -360,6 +455,16 @@ void systemImpl::install_signed_firmware(const types::system::FirmwareUpdateRequ
     } else {
         firmware_status.firmware_update_status = types::system::FirmwareUpdateStatusEnum::InstallationFailed;
         this->publish_firmware_update_status(firmware_status);
+    }
+
+    this->firmware_installation_running = false;
+    if (firmware_status.firmware_update_status == types::system::FirmwareUpdateStatusEnum::InstallRebooting) {
+        EVLOG_warning << "Secure firmware update finished successfully. Initiating reboot in 5 seconds";
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        EVLOG_info << "Rebooting...";
+        boost::process::system("reboot");
+    } else if (firmware_status.firmware_update_status == types::system::FirmwareUpdateStatusEnum::InstallationFailed) {
+        fs::remove(MARKER_FILE_PATH);
     }
 }
 
@@ -586,8 +691,7 @@ bool systemImpl::handle_set_system_time(std::string& timestamp) {
 };
 
 types::system::BootReason systemImpl::handle_get_boot_reason() {
-    // FIXME(piet): Provide proper BootReason
-    return types::system::BootReason::PowerUp;
+    return this->boot_reason;
 }
 
 } // namespace main
