@@ -104,8 +104,7 @@ void systemImpl::init() {
     }
 }
 
-enum class PartitionType
-{
+enum class PartitionType {
     Active,
     Inactive
 };
@@ -158,7 +157,8 @@ void systemImpl::ready() {
         }
 
         if (partition == get_partition(PartitionType::Active)) {
-            this->publish_firmware_update_status({types::system::FirmwareUpdateStatusEnum::Installed});
+            this->publish_firmware_update_status(
+                {types::system::FirmwareUpdateStatusEnum::Installed, std::stoi(request_id)});
             EVLOG_info << "Firmware update was successful";
         } else {
             this->publish_firmware_update_status(
