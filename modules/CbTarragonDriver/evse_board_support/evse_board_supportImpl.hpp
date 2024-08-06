@@ -36,7 +36,6 @@ struct cp_state_signal_side {
     /// @brief the voltage of the just completed measurement
     int voltage;
 };
-
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -62,8 +61,6 @@ public:
 
 protected:
     // command handler functions (virtual)
-    virtual void handle_setup(bool& three_phases, bool& has_ventilation, std::string& country_code) override;
-    virtual types::evse_board_support::HardwareCapabilities handle_get_hw_capabilities() override;
     virtual void handle_enable(bool& value) override;
     virtual void handle_pwm_on(double& value) override;
     virtual void handle_pwm_off() override;
@@ -95,9 +92,6 @@ private:
 
     /// @brief Hardware Capabilities
     types::evse_board_support::HardwareCapabilities hw_capabilities;
-
-    /// @brief Flag to determine if three-phase operation is supported
-    bool three_phase_supported;
 
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};
