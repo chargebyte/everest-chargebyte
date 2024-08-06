@@ -46,6 +46,7 @@ void evse_board_supportImpl::init() {
     this->hw_capabilities.min_current_A_export = 0;
     this->hw_capabilities.max_phase_count_export = 3;
     this->hw_capabilities.min_phase_count_export = 1;
+    this->hw_capabilities.supports_changing_phases_during_charging = false;
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
@@ -89,6 +90,8 @@ void evse_board_supportImpl::init() {
 }
 
 void evse_board_supportImpl::ready() {
+    // The BSP must publish this variable at least once during start up.
+    this->publish_capabilities(this->hw_capabilities);
 }
 
 void evse_board_supportImpl::set_emergency_state(bool is_emergency) {
@@ -130,30 +133,6 @@ evse_board_supportImpl::~evse_board_supportImpl() {
     // If thread is active wait until it is terminated
     if (this->contactor_handling_thread.joinable())
         this->contactor_handling_thread.join();
-}
-
-void evse_board_supportImpl::handle_setup(bool& three_phases, bool& has_ventilation, std::string& country_code) {
-    // FIXME: The argument three_phase is received as 'true' if:
-    //        - The configuration parameter three_phase is set to 'true' by the customer in the configuration file
-    //        - hw_capabilities.max_phase_count_import is set to '3'
-    //        Do we need to make other checks before setting max_phase_count_import and sending it as part of the
-    //        hw_capabilties e.g., read out our rotary encoder?
-    (void)country_code;
-
-    this->three_phase_supported = three_phases;
-
-    if (has_ventilation) {
-        throw std::runtime_error("Module setup failed: Ventilation is currently not supported on this platform.");
-    }
-}
-
-types::evse_board_support::HardwareCapabilities evse_board_supportImpl::handle_get_hw_capabilities() {
-    // FIXME: hw_capabilities.set supports_changing_phases_during_charging to indicate whether
-    //        changing number of phases is supported during charging. We should decide:
-    //        - Do we need a new BSP configuration parameter for this?
-    //        - If not, is it OK to support this feature directly as long as hw_capabilities.max_phase_count_import
-    //          is set to '3' or we would need other checks?
-    return this->hw_capabilities;
 }
 
 void evse_board_supportImpl::handle_enable(bool& value) {
