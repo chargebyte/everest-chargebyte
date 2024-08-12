@@ -576,7 +576,6 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
     const auto diagnostics_file_path = fs::temp_directory_path() / diagnostics_file_name;
     EVLOG_info << "Diagnostics file: " << diagnostics_file_path;
 
-    response.upload_logs_status = types::system::UploadLogsStatus::Accepted;
     response.file_name = diagnostics_file_name;
 
     if (!build_upload_logs(diagnostics_file_path.string())) {
