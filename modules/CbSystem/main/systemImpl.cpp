@@ -576,7 +576,6 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
     const auto diagnostics_file_path = fs::temp_directory_path() / diagnostics_file_name;
     EVLOG_info << "Diagnostics file: " << diagnostics_file_path;
 
-    response.upload_logs_status = types::system::UploadLogsStatus::Accepted;
     response.file_name = diagnostics_file_name;
 
     if (!build_upload_logs(diagnostics_file_path.string())) {
@@ -587,7 +586,7 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
     this->upload_logs_thread = std::thread([this, upload_logs_request, diagnostics_file_name, diagnostics_file_path]() {
         if (this->log_upload_running) {
             EVLOG_info << "Received Log upload request and log upload already running - cancelling current upload";
-            this->interrupt_log_upload.exchange(true);
+            this->interrupt_log_upload = true;
             EVLOG_info << "Waiting for other log upload to finish...";
             std::unique_lock<std::mutex> lk(this->log_upload_mutex);
             this->log_upload_cv.wait(lk, [this]() { return !this->log_upload_running; });
@@ -596,12 +595,16 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
 
         std::lock_guard<std::mutex> lg(this->log_upload_mutex);
         EVLOG_info << "Starting upload of log file";
-        this->interrupt_log_upload.exchange(false);
+        this->interrupt_log_upload = false;
         this->log_upload_running = true;
         const auto diagnostics_uploader = this->scripts_path / DIAGNOSTICS_UPLOADER;
         const auto constants = this->scripts_path / CONSTANTS;
+        std::string location = upload_logs_request.location;
+        if (not location.empty() and location.back() != '/') {
+            location += '/';
+        }
 
-        std::vector<std::string> args = {constants.string(), upload_logs_request.location, diagnostics_file_name,
+        std::vector<std::string> args = {constants.string(), location, diagnostics_file_name,
                                          diagnostics_file_path.string()};
         bool uploaded = false;
         int32_t retries = 0;
@@ -633,8 +636,13 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
             if (this->interrupt_log_upload) {
                 EVLOG_info << "Uploading Logs was interrupted, terminating upload script, requestId: "
                            << log_status.request_id;
+                // N01.FR.20
+                // FIXME: This enum is not yet implemented upstream. When it is, activate this code:
+                // log_status.log_status = types::system::LogStatusEnum::AcceptedCanceled;
+                // this->publish_log_status(log_status);
                 cmd.terminate();
             } else if (log_status.log_status != types::system::LogStatusEnum::Uploaded && retries <= total_retries) {
+                // command finished, but neither interrupted nor uploaded
                 std::this_thread::sleep_for(std::chrono::seconds(retry_interval));
             } else {
                 uploaded = true;
