@@ -313,7 +313,7 @@ systemImpl::handle_signed_fimware_update(const types::system::FirmwareUpdateRequ
     }
 
     if (this->firmware_download_running) {
-        return types::system::UpdateFirmwareResponse::AcceptedCancelled;
+        return types::system::UpdateFirmwareResponse::AcceptedCanceled;
     } else if (this->firmware_installation_running) {
         return types::system::UpdateFirmwareResponse::Rejected;
     } else {
@@ -570,7 +570,7 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
     types::system::UploadLogsResponse response;
 
     if (this->log_upload_running) {
-        response.upload_logs_status = types::system::UploadLogsStatus::AcceptedCancelled;
+        response.upload_logs_status = types::system::UploadLogsStatus::AcceptedCanceled;
     } else {
         response.upload_logs_status = types::system::UploadLogsStatus::Accepted;
     }
@@ -643,9 +643,8 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
                 EVLOG_info << "Uploading Logs was interrupted, terminating upload script, requestId: "
                            << log_status.request_id;
                 // N01.FR.20
-                // FIXME: This enum is not yet implemented upstream. When it is, activate this code:
-                // log_status.log_status = types::system::LogStatusEnum::AcceptedCanceled;
-                // this->publish_log_status(log_status);
+                log_status.log_status = types::system::LogStatusEnum::AcceptedCanceled;
+                this->publish_log_status(log_status);
                 cmd.terminate();
             } else if (log_status.log_status != types::system::LogStatusEnum::Uploaded && retries <= total_retries) {
                 // command finished, but neither interrupted nor uploaded
