@@ -142,7 +142,10 @@ static std::string get_partition(PartitionType part_type) {
 }
 
 void systemImpl::ready() {
+    check_update_marker();
+}
 
+void systemImpl::check_update_marker() {
     // In case the firmware-update marker file exists, we need to check if the firmware update was successful
     // and publish the status.
     if (fs::exists(MARKER_FILE_PATH)) {
@@ -159,7 +162,7 @@ void systemImpl::ready() {
         if (partition == get_partition(PartitionType::Active)) {
             this->publish_firmware_update_status(
                 {types::system::FirmwareUpdateStatusEnum::Installed, std::stoi(request_id)});
-            EVLOG_info << "Firmware update was successful";
+            EVLOG_info << "Firmware update was successful (id: " << request_id << ")";
         } else {
             this->publish_firmware_update_status(
                 {types::system::FirmwareUpdateStatusEnum::InstallationFailed, std::stoi(request_id)});
