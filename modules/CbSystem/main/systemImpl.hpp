@@ -139,6 +139,10 @@ private:
     void install_signed_firmware(const types::system::FirmwareUpdateRequest& firmware_update_reqeust,
                                  const std::filesystem::path& firmware_file_path);
 
+    /**
+     *  @brief Checks if the firmware update marker is present and if so, 
+     *  notify the upper layer that the firmware update was successfuly installed.
+     */
     void check_update_marker();
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
