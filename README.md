@@ -11,6 +11,7 @@ This repository includes the following modules:
 ## Compatibility matrix
 | Tag | EVerest release |
 |----------|----------|
+| 0.14.0 | 2024.7.0 |
 | 0.13.0 | 2024.7.0 |
 | 0.12.0 | 2024.5.0 |
 | 0.11.0 | 2024.5.0 |
