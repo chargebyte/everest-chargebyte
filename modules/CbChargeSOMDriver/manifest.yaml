@@ -1,0 +1,25 @@
+description: Hardware abstraction layer for chargebyte's Charge SOM
+config:
+  connector_type:
+    description: Type of charging connector available at this EVSE
+    type: string
+    enum:
+      - IEC62196Type2Cable
+      - IEC62196Type2Socket
+    default: IEC62196Type2Cable
+  serial_port:
+    description: >-
+      Device name of the serial port to use for communication with the
+      safety co-processor.
+    type: string
+    default: /dev/ttyLP2
+provides:
+  evse_board_support:
+    description: >-
+      Provide the board support driver for the Charge SOM platform, e.g., control pilot
+      monitoring and controlling, contactor switching and similar.
+    interface: evse_board_support
+metadata:
+  license: https://spdx.org/licenses/Apache-2.0.html
+  authors:
+    - chargebyte GmbH

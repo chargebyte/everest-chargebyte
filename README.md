@@ -3,6 +3,7 @@
 This repository contains the control logic for chargebyte GmbH's Linux-based hardware products, implemented as modules within [EVerest](https://github.com/EVerest).
 
 This repository includes the following modules:  
+- **CbChargeSOMDriver**: Hardware abstraction layer for chargebyte's Charge SOM.  
 - **CbTarragonDriver**: Hardware abstraction layer for chargebyte's Tarragon board.  
 - **CbTarragonPlugLock**: Driver for plug lock control on chargebyte's Tarragon board.  
 - **CbTarragonDIs**: Driver for configuring digital input reference PWM on chargebyte's Tarragon board.  
@@ -40,6 +41,21 @@ git checkout v2.0.1
 ./autogen.sh --enable-bindings-cxx
 sudo make install
 ```
+
+Some other modules depend on [sigslot](https://github.com/palacaze/sigslot). This is a header-only C++ library which is not packaged in Ubuntu.
+It must be installed manually, for example with the following steps:
+
+```bash
+git clone https://github.com/palacaze/sigslot.git
+cd sigslot
+git checkout v1.2.1
+mkdir build
+cd build
+cmake -DSIGSLOT_COMPILE_EXAMPLES=OFF -DSIGSLOT_COMPILE_TESTS=OFF ..
+sudo make install
+```
+
+Remember that, when cross-compiling for the target platforms, both libraries must be included in your SYSROOT environment.
 
 ## Build and install
 If you need to regenerate the modules using the EVerest ev-cli tool, for example, if there is a change in the EVerest interfaces, execute the following command:
