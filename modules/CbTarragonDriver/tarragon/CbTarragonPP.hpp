@@ -23,10 +23,10 @@ public:
     /// @param adc_device_channel The name of the channel of the ADC device, e.g. 'voltage5'.
     CbTarragonPP(const std::string& adc_device, const std::string& adc_device_channel);
 
-    /// @brief  Reads the current cable rating from underlying ADC
-    ///         Throws a `std::underflow_error`exception in case the ADC reading is out of
-    ///         the expected range and cannot be mapped to a result value.
-    /// @param voltage The physically measured voltage at the ADC input pin in mV
+    /// @brief Reads the current cable rating from underlying ADC
+    ///        Throws a `std::underflow_error`exception in case the ADC reading is outside of
+    ///        the expected range and cannot be mapped to a result value.
+    /// @param[out] voltage The physically measured voltage at the ADC input pin in mV
     /// @return A cable current rating using enum types::board_support_common::Ampacity
     types::board_support_common::Ampacity get_ampacity(int& voltage);
 

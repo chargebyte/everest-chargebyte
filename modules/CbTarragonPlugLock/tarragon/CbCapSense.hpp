@@ -17,7 +17,7 @@ public:
     /// @param charged_threshold_voltage The threshold where capacitors are indicated as charged.
     CbCapSense(const std::string& adc_device, const std::string& adc_channel, int charged_threshold_voltage);
 
-    /// @brief Check wether the capacitors are charged
+    /// @brief Check whether the capacitors are charged
     /// @return Returns true if capacitors voltage is above or equal charged_threshold_voltage
     bool is_charged(void);
 

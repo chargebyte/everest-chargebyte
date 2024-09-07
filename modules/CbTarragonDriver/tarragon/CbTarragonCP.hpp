@@ -8,7 +8,7 @@
 
 ///
 /// A class for abstracting the Control Pilot observation on Tarragon platform.
-/// On Tarargon platform, the PWM observation circuit uses two peak detectors
+/// On Tarragon platform, the PWM observation circuit uses two peak detectors
 /// to measure the positive and negative side of the (PWM) signal.
 /// This class encapsulates the platform specific details, e.g. timings to
 /// respect when accessing the ADC values.

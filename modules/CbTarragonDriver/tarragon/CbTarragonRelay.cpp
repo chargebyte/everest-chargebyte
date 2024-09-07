@@ -18,8 +18,8 @@ CbTarragonRelay::CbTarragonRelay(const std::string& relay_name, const std::strin
 
     this->relay_name = relay_name;
 
-    // find if the name has the character '/' and find it position. This is done because the
-    // Kernal throws warning when a GPIO consumer has '/' in its name.
+    // check if the name contains the character '/' and find its position. This is done because the
+    // kernel throws a warning when a GPIO consumer has '/' in its name.
     size_t pos = this->relay_name.find('/');
 
     // if '/' is found, replace it with '-'

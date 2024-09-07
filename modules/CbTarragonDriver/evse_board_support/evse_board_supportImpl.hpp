@@ -169,7 +169,7 @@ private:
 
     /// @brief Main function of the contactor handling thread. This is responsible for both setting
     ///        the target state of the relay actuator and waiting for the contactor feedback
-    //         to be recieved.
+    //         to be received.
     void contactor_handling_worker(void);
 
     /// @brief Signal from upper layers to determine if relays can be switched on

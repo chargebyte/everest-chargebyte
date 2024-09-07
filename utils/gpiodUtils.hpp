@@ -3,7 +3,7 @@
 #include <gpiod.hpp>
 
 ///
-/// Searchs for a given, named GPIO line within all GPIO chips on the current platform, and if found
+/// Searches for a given, named GPIO line within all GPIO chips on the current platform, and if found
 /// returns a preconfigured `gpiod::line_request` instance. If not found, throws a `std::runtime_error`.
 /// The implementation iterates over all devices found in '/dev' directory.
 ///

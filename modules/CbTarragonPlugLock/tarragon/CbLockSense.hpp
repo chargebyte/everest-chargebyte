@@ -50,7 +50,7 @@ private:
     int lock_threshold_min;
     int lock_threshold_max;
 
-    /// @brief helper function to determine wether the value_min and max are in range
+    /// @brief helper function to determine whether the value_min and max are in range
     /// @param parameter String to associate range check context for logging
     /// @param value_min The lower value to be checked
     /// @param value_max The upper value to be checked
