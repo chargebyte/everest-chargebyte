@@ -9,6 +9,9 @@ active_modules:
       evse_manager:
       - module_id: connector
         implementation_id: evse
+      error_history:
+        - module_id: error_history
+          implementation_id: error_history
   tarragon_bsp:
     module: CbTarragonDriver
     config_module:
@@ -41,3 +44,8 @@ active_modules:
       energy_consumer:
       - module_id: connector
         implementation_id: energy_grid
+  error_history:
+    module: ErrorHistory
+    config_implementation:
+      error_history:
+        database_path: /tmp/error_history.db
