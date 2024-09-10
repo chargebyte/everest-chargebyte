@@ -56,7 +56,7 @@ void evse_board_supportImpl::init() {
                      this->mod->config.cp_rst_pos_peak_gpio_line_name, this->mod->config.cp_neg_peak_adc_device,
                      this->mod->config.cp_neg_peak_adc_channel, this->mod->config.cp_rst_neg_peak_gpio_line_name);
 
-    // Control Pilot PWM generatation
+    // Control Pilot PWM generation
     this->pwm_controller = CbTarragonPWM(this->mod->config.cp_pwm_device, this->mod->config.cp_pwmchannel,
                                          this->mod->config.cp_invert_gpio_line_name);
 
@@ -138,7 +138,7 @@ evse_board_supportImpl::~evse_board_supportImpl() {
 void evse_board_supportImpl::handle_enable(bool& value) {
     // generate state A or state F
     double new_duty_cycle = value ? 100.0 : 0.0;
-    // Pause CP oberservation to avoid race condition between this thread and the CP observation thread
+    // pause CP observation to avoid race condition between this thread and the CP observation thread
     this->disable_cp_observation();
     EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
                << "%";
@@ -147,7 +147,7 @@ void evse_board_supportImpl::handle_enable(bool& value) {
 }
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
-    // Pause CP oberservation to avoid race condition between this thread and the CP observation thread
+    // pause CP observation to avoid race condition between this thread and the CP observation thread
     this->disable_cp_observation();
     EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%";
     this->pwm_controller.set_duty_cycle(value);
@@ -157,7 +157,7 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
 void evse_board_supportImpl::handle_pwm_off() {
     // generate state A
     double new_duty_cycle = 100.0;
-    // Pause CP oberservation to avoid race condition between this thread and the CP observation thread
+    // pause CP observation to avoid race condition between this thread and the CP observation thread
     this->disable_cp_observation();
     EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
                << "%";
@@ -166,7 +166,7 @@ void evse_board_supportImpl::handle_pwm_off() {
 }
 
 void evse_board_supportImpl::handle_pwm_F() {
-    // Pause CP oberservation to avoid race condition between this thread and the CP observation thread
+    // pause CP observation to avoid race condition between this thread and the CP observation thread
     this->disable_cp_observation();
     EVLOG_info << "Generating CP state F";
     this->pwm_controller.set_duty_cycle(0.0);
@@ -339,7 +339,7 @@ bool evse_board_supportImpl::cp_state_changed(struct cp_state_signal_side& signa
     bool rv {false};
 
     // CP state is only detected if the new state is different from the previous one (first condition).
-    // Additionaly, to filter simple disturbances, a new state must be detected twice before notifing it (second
+    // Additionally, to filter simple disturbances, a new state must be detected twice before notifying it (second
     // condition). For that, we need at least two CP state measurements (third condition)
 
     if (signal_side.previous_state != signal_side.measured_state &&

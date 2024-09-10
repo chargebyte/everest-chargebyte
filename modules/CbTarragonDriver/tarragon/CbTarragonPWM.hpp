@@ -41,7 +41,7 @@ public:
     void set_duty_cycle(double duty_cycle);
 
     /// @brief Check whether the current duty cycle is nominal.
-    /// @return True when configured duty cycle is >0 and <100% (nominal dutry cyle),
+    /// @return True when configured duty cycle is >0 and <100% (nominal duty cycle),
     ///         false otherwise.
     bool is_nominal_duty_cycle() const;
 
