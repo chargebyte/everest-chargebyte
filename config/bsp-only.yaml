@@ -7,8 +7,11 @@ active_modules:
     module: API
     connections:
       evse_manager:
-      - module_id: connector
-        implementation_id: evse
+        - module_id: connector
+          implementation_id: evse
+      error_history:
+        - module_id: error_history
+          implementation_id: error_history
   tarragon_bsp:
     module: CbTarragonDriver
     config_module:
@@ -30,8 +33,8 @@ active_modules:
     module: EnergyManager
     connections:
       energy_trunk:
-      - module_id: grid_connection_point
-        implementation_id: energy_grid
+        - module_id: grid_connection_point
+          implementation_id: energy_grid
   grid_connection_point:
     module: EnergyNode
     config_module:
@@ -39,5 +42,10 @@ active_modules:
       phase_count: 3
     connections:
       energy_consumer:
-      - module_id: connector
-        implementation_id: energy_grid
+        - module_id: connector
+          implementation_id: energy_grid
+  error_history:
+    module: ErrorHistory
+    config_implementation:
+      error_history:
+        database_path: /tmp/error_history.db
