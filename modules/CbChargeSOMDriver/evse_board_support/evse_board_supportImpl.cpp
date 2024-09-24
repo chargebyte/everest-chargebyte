@@ -53,8 +53,6 @@ void evse_board_supportImpl::init() {
 void evse_board_supportImpl::ready() {
     // the BSP must publish this variable at least once during start up
     this->publish_capabilities(this->hw_capabilities);
-    // here too, hard-coded 3 phases for the moment
-    this->publish_ac_nr_of_phases_available(3);
 }
 
 void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
