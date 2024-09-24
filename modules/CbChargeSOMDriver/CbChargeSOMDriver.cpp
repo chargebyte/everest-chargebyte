@@ -55,27 +55,12 @@ void CbChargeSOMDriver::init() {
 
 void CbChargeSOMDriver::ready() {
     invoke_ready(*p_evse_board_support);
-    int etimedout_log_threshold = 2;
-    int etimedout_count = 0;
 
     while (!this->termination_requested) {
         try {
             this->controller.sync();
-
-            // reset the counter
-            etimedout_count = 0;
         } catch (std::system_error& e) {
-            // count timeouts
-            if (e.code().value() == ETIMEDOUT)
-                etimedout_count++;
-
-            // and log only timeouts above our threshold value, or
-            // errors which are not timeouts
-            if (etimedout_count >= etimedout_log_threshold ||
-                e.code().value() != ETIMEDOUT) {
-                EVLOG_error << e.what();
-            }
-
+            EVLOG_error << e.what();
             // give the safety controller the chance to recover
             std::this_thread::sleep_for(this->controller.get_recovery_delay_ms());
         }
