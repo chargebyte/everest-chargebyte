@@ -133,6 +133,13 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
     do {
         try {
             this->mod->controller.set_allow_power_on(value.allow_power_on);
+
+            types::board_support_common::Event tmp_event = value.allow_power_on
+                                                               ? types::board_support_common::Event::PowerOn
+                                                               : types::board_support_common::Event::PowerOff;
+            types::board_support_common::BspEvent tmp {tmp_event};
+            this->publish_event(tmp);
+
             break;
         } catch (std::system_error& e) {
             EVLOG_error << e.what();
