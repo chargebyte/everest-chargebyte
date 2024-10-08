@@ -53,8 +53,6 @@ void evse_board_supportImpl::init() {
 void evse_board_supportImpl::ready() {
     // the BSP must publish this variable at least once during start up
     this->publish_capabilities(this->hw_capabilities);
-    // here too, hard-coded 3 phases for the moment
-    this->publish_ac_nr_of_phases_available(3);
 }
 
 void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
@@ -133,6 +131,13 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
     do {
         try {
             this->mod->controller.set_allow_power_on(value.allow_power_on);
+
+            types::board_support_common::Event tmp_event = value.allow_power_on
+                                                               ? types::board_support_common::Event::PowerOn
+                                                               : types::board_support_common::Event::PowerOff;
+            types::board_support_common::BspEvent tmp {tmp_event};
+            this->publish_event(tmp);
+
             break;
         } catch (std::system_error& e) {
             EVLOG_error << e.what();
