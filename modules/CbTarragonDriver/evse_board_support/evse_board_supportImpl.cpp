@@ -442,7 +442,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                     }
                     continue;
                 }
-                // Before checking for ventilation error, we need to clear other errors if they were reported before
+                // Before publishing CP state, we need to clear other errors if they were reported before
                 if (this->diode_fault_reported) {
                     this->clear_error("evse_board_support/DiodeFault");
                     this->diode_fault_reported = false;
@@ -451,7 +451,23 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                     this->clear_error("evse_board_support/MREC14PilotFault");
                     this->pilot_fault_reported = false;
                 }
-                // check if a ventilation error has occurred
+                if (this->ventilation_fault_reported &&
+                    positive_side.current_state != types::cb_board_support::CPState::D) {
+                    this->clear_error("evse_board_support/VentilationNotAvailable");
+                    this->ventilation_fault_reported = false;
+                }
+
+                // In case CP state changes from C to E (shorted CP to PE) it is possible that the positive side is
+                // shortly in state D. The state D transition should be ignored in this case. This check must be done
+                // before checking for the ventilation error to avoid false positives.
+                if (positive_side.current_state == types::cb_board_support::CPState::D &&
+                    negative_side.current_state == types::cb_board_support::CPState::E) {
+                    this->update_cp_state_internally(types::cb_board_support::CPState::E, negative_side,
+                                                     positive_side);
+                    this->publish_event({types::board_support_common::Event::E});
+                    continue;
+                }
+                // Check if a ventilation error has occurred
                 if (positive_side.current_state == types::cb_board_support::CPState::D) {
                     // in case we see a ventilation request, although we do not support it,
                     // we need to inform the upper layer
@@ -464,10 +480,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                     this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
                     continue;
                 }
-                if (this->ventilation_fault_reported) {
-                    this->clear_error("evse_board_support/VentilationNotAvailable");
-                    this->ventilation_fault_reported = false;
-                }
+
                 try {
                     types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
                     this->publish_event(tmp);
