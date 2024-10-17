@@ -378,6 +378,14 @@ evse_board_supportImpl::determine_cp_state(const types::cb_board_support::CPStat
         return types::cb_board_support::CPState::PilotFault;
     }
 
+    // In case CP state changes from C to E (shorted CP to PE) it is possible that the positive side is
+    // shortly in state D. The state D transition should be ignored in this case. This check must be done
+    // before checking for the ventilation error to avoid false positives.
+    if (cp_state_positive_side == types::cb_board_support::CPState::D &&
+        cp_state_negative_side == types::cb_board_support::CPState::E) {
+        return types::cb_board_support::CPState::E;
+    }
+
     return cp_state_positive_side;
 }
 
