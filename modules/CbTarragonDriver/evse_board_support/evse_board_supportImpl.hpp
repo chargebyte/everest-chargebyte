@@ -153,7 +153,12 @@ private:
     std::thread contactor_handling_thread;
 
     /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
-    bool cp_state_changed(struct cp_state_signal_side& signal_side);
+    bool check_for_cp_state_changes(struct cp_state_signal_side& signal_side);
+
+    /// @brief Helper to determine the CP state based on the measured voltages
+    types::cb_board_support::CPState determine_cp_state(const types::cb_board_support::CPState& cp_state_positive_side,
+                                                        const types::cb_board_support::CPState& cp_state_negative_side,
+                                                        const double& duty_cycle);
 
     /// @brief Disable/suspend the CP observation thread.
     void disable_cp_observation(void);
