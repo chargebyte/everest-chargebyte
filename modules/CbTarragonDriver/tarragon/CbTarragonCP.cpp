@@ -91,19 +91,7 @@ types::cb_board_support::CPState CbTarragonCP::voltage_to_state(int voltage,
     if (voltage >= 2000 /* mV */) /* 2 V <= x < 4 V */
         return types::cb_board_support::CPState::D;
 
-    if (voltage >= 1000 /* mV */) { /* 1 V <= x < 2 V */
-        switch (previous_state) {
-        case types::cb_board_support::CPState::A:
-        case types::cb_board_support::CPState::B:
-        case types::cb_board_support::CPState::C:
-        case types::cb_board_support::CPState::D:
-            return types::cb_board_support::CPState::D;
-        default:
-            return types::cb_board_support::CPState::E;
-        }
-    }
-
-    if (voltage >= -1000 /* mV */) /* -1 V <= x < 1 V */
+    if (voltage >= -1000 /* mV */) /* -1 V <= x < 2 V */
         return types::cb_board_support::CPState::E;
 
     if (voltage >= -2000 /* mV */) { /* -2 V <= x < -1 V (not standard) */
