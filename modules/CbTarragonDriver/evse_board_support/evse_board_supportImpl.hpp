@@ -160,6 +160,11 @@ private:
                                                         const types::cb_board_support::CPState& cp_state_negative_side,
                                                         const double& duty_cycle);
 
+    /// @brief Helper to check for CP errors
+    static void check_for_cp_errors(const types::cb_board_support::CPState& current_cp_state,
+                                    const cp_state_signal_side& negative_side,
+                                    const cp_state_signal_side& positive_side);
+
     /// @brief Disable/suspend the CP observation thread.
     void disable_cp_observation(void);
 

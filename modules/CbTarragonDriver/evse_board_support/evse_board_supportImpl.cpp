@@ -381,6 +381,12 @@ evse_board_supportImpl::determine_cp_state(const types::cb_board_support::CPStat
     return cp_state_positive_side;
 }
 
+void evse_board_supportImpl::check_for_cp_errors(const types::cb_board_support::CPState& current_cp_state,
+                                                        const cp_state_signal_side& negative_side,
+                                                        const cp_state_signal_side& positive_side) {
+
+}
+
 void evse_board_supportImpl::cp_observation_worker(void) {
     double previous_duty_cycle {100.0};
     // both sides of the CP level
@@ -429,6 +435,8 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         // Determine current CP state based on positive, negative and duty cycle
         types::cb_board_support::CPState current_cp_state = determine_cp_state(
             positive_side.current_state, negative_side.current_state, this->pwm_controller.get_duty_cycle());
+
+        // check_for_cp_errors(current_cp_state, negative_side, positive_side);
 
         // Check for CP errors
         if (current_cp_state == types::cb_board_support::CPState::PilotFault) {
