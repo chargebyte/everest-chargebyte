@@ -381,10 +381,51 @@ evse_board_supportImpl::determine_cp_state(const types::cb_board_support::CPStat
     return cp_state_positive_side;
 }
 
-void evse_board_supportImpl::check_for_cp_errors(const types::cb_board_support::CPState& current_cp_state,
-                                                        const cp_state_signal_side& negative_side,
-                                                        const cp_state_signal_side& positive_side) {
+bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
+                                                 const types::cb_board_support::CPState& current_cp_state,
+                                                 const double& duty_cycle,
+                                                 const cp_state_signal_side& negative_side,
+                                                 const cp_state_signal_side& positive_side) {
+    bool is_error {false};
+    // Check for CP errors
+    // Check if a diode fault has occurred
+    if (current_cp_state == types::cb_board_support::CPState::PilotFault) {
+        // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
+        //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
+        //                     possible to detect a diode fault
+        if (CbTarragonPWM::is_nominal_duty_cycle(duty_cycle) &&
+            (positive_side.voltage > 2000) && (abs(positive_side.voltage + negative_side.voltage) <= 1200)) {
+            if (cp_errors.diode_fault.is_active == false) {
+                cp_errors.diode_fault.is_active = true;
+                is_error = true;
+            }
+        }
+    }
 
+    // Check for CP short circuit
+    // If 100 % duty cycle:  If a state transitition to E is detected
+    // If nominal duty cycle: If positive side below 2V and the difference between the absolute values of the voltages
+    //                        from negative and positive is smaller or equal then 1,2V
+    // If 0 % duty cycle: If negative side above -10V
+    if (((duty_cycle == 100.0) && (positive_side.voltage < 2000)) ||
+        ((CbTarragonPWM::is_nominal_duty_cycle(duty_cycle)) && (positive_side.voltage < 2000) && (abs(positive_side.voltage + negative_side.voltage) <= 1200) ) ||
+        (duty_cycle == 0.0) && (negative_side.voltage > -10000)) {
+        if (cp_errors.pilot_fault.is_active == false) {
+            cp_errors.pilot_fault.is_active = true;
+            is_error = true;
+        }
+    }
+
+    // Check for ventilation fault
+    // CP state D is not supported
+    if (positive_side.current_state == types::cb_board_support::CPState::D) {
+        if (cp_errors.ventilation_fault.is_active == false) {
+            cp_errors.ventilation_fault.is_active = true;
+            is_error = true;
+        }
+    }
+
+    return is_error;
 }
 
 void evse_board_supportImpl::cp_observation_worker(void) {

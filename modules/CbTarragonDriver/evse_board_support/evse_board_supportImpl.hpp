@@ -36,6 +36,18 @@ struct cp_state_signal_side {
     /// @brief the voltage of the just completed measurement
     int voltage;
 };
+
+struct cp_state_errors {
+    everest_error diode_fault = {"evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High, false};
+    everest_error pilot_fault = {"evse_board_support/MREC14PilotFault", "", "Pilot fault detected.", Everest::error::Severity::High, false};
+    everest_error ventilation_fault = {"evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.", Everest::error::Severity::High, false};
+
+    std::array<std::reference_wrapper<everest_error>, 3>  errors = {diode_fault, pilot_fault, ventilation_fault};
+
+    auto begin() { return errors.begin(); }
+    auto end() { return errors.end(); }
+};
+
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -161,7 +173,9 @@ private:
                                                         const double& duty_cycle);
 
     /// @brief Helper to check for CP errors
-    static void check_for_cp_errors(const types::cb_board_support::CPState& current_cp_state,
+    static bool check_for_cp_errors(cp_state_errors& cp_errors,
+                                    const types::cb_board_support::CPState& current_cp_state,
+                                    const double& duty_cycle,
                                     const cp_state_signal_side& negative_side,
                                     const cp_state_signal_side& positive_side);
 
