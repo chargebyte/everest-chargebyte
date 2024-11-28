@@ -37,10 +37,20 @@ struct cp_state_signal_side {
     int voltage;
 };
 
+struct everest_error {
+    std::string type;
+    std::string sub_type;
+    std::string message;
+    Everest::error::Severity severity;
+    bool is_active;
+    bool is_reported;
+};
+
 struct cp_state_errors {
-    everest_error diode_fault = {"evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High, false};
-    everest_error pilot_fault = {"evse_board_support/MREC14PilotFault", "", "Pilot fault detected.", Everest::error::Severity::High, false};
-    everest_error ventilation_fault = {"evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.", Everest::error::Severity::High, false};
+    // Note: New error must be added to the errors array below 
+    everest_error diode_fault {"evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High, false, false};
+    everest_error pilot_fault {"evse_board_support/MREC14PilotFault", "", "Pilot fault detected.", Everest::error::Severity::High, false, false};
+    everest_error ventilation_fault {"evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.", Everest::error::Severity::High, false, false};
 
     std::array<std::reference_wrapper<everest_error>, 3>  errors = {diode_fault, pilot_fault, ventilation_fault};
 
@@ -102,6 +112,9 @@ private:
                                     const struct cp_state_signal_side& negative_side,
                                     const struct cp_state_signal_side& positive_side);
 
+    /// @brief Store CP state errors
+    cp_state_errors cp_errors {};
+
     /// @brief Hardware Capabilities
     types::evse_board_support::HardwareCapabilities hw_capabilities;
 
@@ -139,15 +152,6 @@ private:
     /// @brief Flag to remember whether we already published a proximity error
     std::atomic_bool pp_fault_reported {false};
 
-    /// @brief Flag to remember whether we already published a control pilot error
-    std::atomic_bool pilot_fault_reported {false};
-
-    /// @brief Flag to remember whether we already published a diode error
-    std::atomic_bool diode_fault_reported {false};
-
-    /// @brief Flag to remember whether we already published a ventilation error
-    std::atomic_bool ventilation_fault_reported {false};
-
     /// @brief Mutex to enable/disable PP observation thread
     std::mutex pp_observation_lock;
 
@@ -171,6 +175,10 @@ private:
     types::cb_board_support::CPState determine_cp_state(const types::cb_board_support::CPState& cp_state_positive_side,
                                                         const types::cb_board_support::CPState& cp_state_negative_side,
                                                         const double& duty_cycle);
+
+    /// @brief Helper to raise errors
+    template <std::size_t N>
+    void process_everest_errors(const std::array<std::reference_wrapper<everest_error>, N>& errors);
 
     /// @brief Helper to check for CP errors
     static bool check_for_cp_errors(cp_state_errors& cp_errors,

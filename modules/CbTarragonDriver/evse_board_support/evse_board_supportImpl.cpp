@@ -33,9 +33,6 @@ void evse_board_supportImpl::init() {
     // just for clarity
     this->termination_requested = false;
     this->pp_fault_reported = false;
-    this->pilot_fault_reported = false;
-    this->diode_fault_reported = false;
-    this->ventilation_fault_reported = false;
 
     // Configure hardware capabilities
     this->hw_capabilities.max_current_A_import = 32;
@@ -394,10 +391,14 @@ bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
         //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
         //                     possible to detect a diode fault
         if (CbTarragonPWM::is_nominal_duty_cycle(duty_cycle) &&
-            (positive_side.voltage > 2000) && (abs(positive_side.voltage + negative_side.voltage) <= 1200)) {
+            (positive_side.voltage > 2000 /* mV */) &&
+            (abs(positive_side.voltage + negative_side.voltage) <= 1200 /* mV */)) {
             if (cp_errors.diode_fault.is_active == false) {
                 cp_errors.diode_fault.is_active = true;
                 is_error = true;
+            }
+            else {
+                cp_errors.diode_fault.is_active = false;
             }
         }
     }
@@ -407,12 +408,17 @@ bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
     // If nominal duty cycle: If positive side below 2V and the difference between the absolute values of the voltages
     //                        from negative and positive is smaller or equal then 1,2V
     // If 0 % duty cycle: If negative side above -10V
-    if (((duty_cycle == 100.0) && (positive_side.voltage < 2000)) ||
-        ((CbTarragonPWM::is_nominal_duty_cycle(duty_cycle)) && (positive_side.voltage < 2000) && (abs(positive_side.voltage + negative_side.voltage) <= 1200) ) ||
-        (duty_cycle == 0.0) && (negative_side.voltage > -10000)) {
+    if (((duty_cycle == 100.0) && (positive_side.voltage < 2000 /* mV */)) ||
+        ((CbTarragonPWM::is_nominal_duty_cycle(duty_cycle)) && (positive_side.voltage < 2000 /* mV */) &&
+        (abs(positive_side.voltage + negative_side.voltage) <= 1200 /* mV */) ) ||
+        ((duty_cycle == 0.0) && (negative_side.voltage > -10000 /* mV */))) {
         if (cp_errors.pilot_fault.is_active == false) {
             cp_errors.pilot_fault.is_active = true;
             is_error = true;
+        }
+        /* Only clear CP short error in case of CPState::A (Unplugged) */
+        else if (positive_side.voltage >= 11000 /* mV */) {
+            cp_errors.pilot_fault.is_active = false;
         }
     }
 
@@ -423,9 +429,31 @@ bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
             cp_errors.ventilation_fault.is_active = true;
             is_error = true;
         }
+        else {
+            cp_errors.ventilation_fault.is_active = false;
+        }
     }
 
     return is_error;
+}
+
+template <std::size_t N>
+void evse_board_supportImpl::process_everest_errors(const std::array<std::reference_wrapper<everest_error>, N>&
+                                                    errors) {
+    // Interate over all errors and raise them if they are active, otherwise clear them if they are reported
+    for (const auto& error : errors) {
+        auto& error_ref = error.get();
+        if (error_ref.is_active) {
+            Everest::error::Error error_object = this->error_factory->create_error(
+                error_ref.type, error_ref.sub_type, error_ref.message, error_ref.severity);
+            this->raise_error(error_object);
+            error_ref.is_reported = true;
+        }
+        else if (error_ref.is_reported) {
+            this->clear_error(error_ref.type);
+            error_ref.is_reported = false;
+        }
+    }
 }
 
 void evse_board_supportImpl::cp_observation_worker(void) {
@@ -477,63 +505,12 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         types::cb_board_support::CPState current_cp_state = determine_cp_state(
             positive_side.current_state, negative_side.current_state, this->pwm_controller.get_duty_cycle());
 
-        // check_for_cp_errors(current_cp_state, negative_side, positive_side);
-
         // Check for CP errors
-        if (current_cp_state == types::cb_board_support::CPState::PilotFault) {
-            // Check if a Diode fault has occurred
-            // A diode fault is detected if the nominal duty cycle is set and the negative side of
-            // the CP is not in state F (-12V)
-            bool is_diode_fault = (this->pwm_controller.is_nominal_duty_cycle() &&
-                                  negative_side.current_state != types::cb_board_support::CPState::F);
-            if (this->diode_fault_reported == false && is_diode_fault) {
-                this->diode_fault_reported = true;
-                this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side,
-                                                 positive_side);
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High);
-                this->raise_error(error_object);
-            }
-            // Check if a ventilation error has occurred. In case we see a ventilation request,
-            // although we do not support it, we need to inform the upper layer
-            if (this->ventilation_fault_reported == false &&
-                positive_side.current_state == types::cb_board_support::CPState::D) {
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.",
-                    Everest::error::Severity::High);
-                this->raise_error(error_object);
-                this->ventilation_fault_reported = true;
-                this->publish_event({types::board_support_common::Event::D});
-                this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
-            }
-            // All other pilot faults
-            if (this->pilot_fault_reported == false && is_diode_fault == false &&
-                (positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
-                negative_side.current_state == types::cb_board_support::CPState::PilotFault)) {
-                Everest::error::Error error_object =
-                    this->error_factory->create_error("evse_board_support/MREC14PilotFault", "",
-                                                      "Pilot fault detected.", Everest::error::Severity::High);
-                this->raise_error(error_object);
-                this->pilot_fault_reported = true;
-                this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side,
-                                                 positive_side);
-            }
-            continue;
-        }
-
-        // If no error has occured, clear raised erros
-        if (this->diode_fault_reported) {
-            this->clear_error("evse_board_support/DiodeFault");
-            this->diode_fault_reported = false;
-        }
-        if (this->pilot_fault_reported) {
-            this->clear_error("evse_board_support/MREC14PilotFault");
-            this->pilot_fault_reported = false;
-        }
-        if (this->ventilation_fault_reported) {
-            this->clear_error("evse_board_support/VentilationNotAvailable");
-            this->ventilation_fault_reported = false;
-        }
+        check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(),
+                            negative_side, positive_side);
+        
+        // Process all EVerest CP errors
+        process_everest_errors(this->cp_errors.errors);
 
         // Normal CP state change
         try {
