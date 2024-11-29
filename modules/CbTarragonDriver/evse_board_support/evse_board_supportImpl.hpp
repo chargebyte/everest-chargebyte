@@ -49,10 +49,11 @@ struct everest_error {
 struct cp_state_errors {
     // Note: New error must be added to the errors array below 
     everest_error diode_fault {"evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High, false, false};
-    everest_error pilot_fault {"evse_board_support/MREC14PilotFault", "", "Pilot fault detected.", Everest::error::Severity::High, false, false};
+    everest_error pilot_fault {"evse_board_support/MREC14PilotFault", "", "CP voltage is out of range.", Everest::error::Severity::High, false, false};
+    everest_error cp_short_fault {"evse_board_support/MREC14PilotFault", "", "CP short fault detected.", Everest::error::Severity::High, false, false};
     everest_error ventilation_fault {"evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.", Everest::error::Severity::High, false, false};
 
-    std::array<std::reference_wrapper<everest_error>, 3>  errors = {diode_fault, pilot_fault, ventilation_fault};
+    std::array<std::reference_wrapper<everest_error>, 4>  errors = {diode_fault, pilot_fault, cp_short_fault, ventilation_fault};
 
     auto begin() { return errors.begin(); }
     auto end() { return errors.end(); }
@@ -182,7 +183,7 @@ private:
 
     /// @brief Helper to check for CP errors
     static bool check_for_cp_errors(cp_state_errors& cp_errors,
-                                    const types::cb_board_support::CPState& current_cp_state,
+                                    types::cb_board_support::CPState& current_cp_state,
                                     const double& duty_cycle,
                                     const cp_state_signal_side& negative_side,
                                     const cp_state_signal_side& positive_side);

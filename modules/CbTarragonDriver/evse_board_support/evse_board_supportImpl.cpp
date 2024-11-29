@@ -379,14 +379,13 @@ evse_board_supportImpl::determine_cp_state(const types::cb_board_support::CPStat
 }
 
 bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
-                                                 const types::cb_board_support::CPState& current_cp_state,
+                                                 types::cb_board_support::CPState& current_cp_state,
                                                  const double& duty_cycle,
                                                  const cp_state_signal_side& negative_side,
                                                  const cp_state_signal_side& positive_side) {
     bool is_error {false};
     // Check for CP errors
     // Check if a diode fault has occurred
-    if (current_cp_state == types::cb_board_support::CPState::PilotFault) {
         // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
         //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
         //                     possible to detect a diode fault
@@ -400,6 +399,17 @@ bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
             else {
                 cp_errors.diode_fault.is_active = false;
             }
+    }
+    // If no diode fault is detected and the PilotFault is active, we assume the CP state out of range
+    else if (negative_side.current_state == types::cb_board_support::CPState::PilotFault ||
+             positive_side.current_state == types::cb_board_support::CPState::PilotFault) {
+        if (cp_errors.pilot_fault.is_active == false) {
+            cp_errors.pilot_fault.is_active = true;
+            is_error = true;
+            current_cp_state = types::cb_board_support::CPState::PilotFault;
+        }
+        else {
+            cp_errors.pilot_fault.is_active = false;
         }
     }
 
@@ -412,13 +422,14 @@ bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
         ((CbTarragonPWM::is_nominal_duty_cycle(duty_cycle)) && (positive_side.voltage < 2000 /* mV */) &&
         (abs(positive_side.voltage + negative_side.voltage) <= 1200 /* mV */) ) ||
         ((duty_cycle == 0.0) && (negative_side.voltage > -10000 /* mV */))) {
-        if (cp_errors.pilot_fault.is_active == false) {
-            cp_errors.pilot_fault.is_active = true;
+        if (cp_errors.cp_short_fault.is_active == false) {
+            cp_errors.cp_short_fault.is_active = true;
             is_error = true;
+            current_cp_state = types::cb_board_support::CPState::E;
         }
         /* Only clear CP short error in case of CPState::A (Unplugged) */
         else if (positive_side.voltage >= 11000 /* mV */) {
-            cp_errors.pilot_fault.is_active = false;
+            cp_errors.cp_short_fault.is_active = false;
         }
     }
 
