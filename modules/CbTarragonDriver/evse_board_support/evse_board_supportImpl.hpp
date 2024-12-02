@@ -173,8 +173,8 @@ private:
     bool check_for_cp_state_changes(struct cp_state_signal_side& signal_side);
 
     /// @brief Helper to determine the CP state based on the measured voltages
-    types::cb_board_support::CPState determine_cp_state(const types::cb_board_support::CPState& cp_state_positive_side,
-                                                        const types::cb_board_support::CPState& cp_state_negative_side,
+    types::cb_board_support::CPState determine_cp_state(const cp_state_signal_side& cp_state_positive_side,
+                                                        const cp_state_signal_side& cp_state_negative_side,
                                                         const double& duty_cycle);
 
     /// @brief Helper to raise errors

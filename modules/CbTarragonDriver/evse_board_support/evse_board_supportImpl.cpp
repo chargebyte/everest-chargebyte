@@ -358,24 +358,22 @@ bool evse_board_supportImpl::check_for_cp_state_changes(struct cp_state_signal_s
 }
 
 types::cb_board_support::CPState 
-evse_board_supportImpl::determine_cp_state(const types::cb_board_support::CPState& cp_state_positive_side,
-                                           const types::cb_board_support::CPState& cp_state_negative_side, const double& duty_cycle) {
+evse_board_supportImpl::determine_cp_state(const cp_state_signal_side& cp_state_positive_side,
+                                           const cp_state_signal_side& cp_state_negative_side,
+                                           const double& duty_cycle) {
     // In case we drive state F (0% PWM), then we cannot trust the peak detectors
     if (duty_cycle == 0.0) {
         return types::cb_board_support::CPState::F;
     }
 
-    if (cp_state_positive_side == types::cb_board_support::CPState::PilotFault ||
-        cp_state_negative_side == types::cb_board_support::CPState::PilotFault) {
-        return types::cb_board_support::CPState::PilotFault;
+    // Check for CP errors
+    types::cb_board_support::CPState current_cp_state = cp_state_positive_side.current_state;
+    if (check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(), 
+                            cp_state_negative_side, cp_state_positive_side)) {
+        return current_cp_state;
     }
 
-    if (this->pwm_controller.is_nominal_duty_cycle() && 
-        cp_state_negative_side != types::cb_board_support::CPState::F) {
-        return types::cb_board_support::CPState::PilotFault;
-    }
-
-    return cp_state_positive_side;
+    return cp_state_positive_side.current_state;
 }
 
 bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
@@ -386,19 +384,19 @@ bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
     bool is_error {false};
     // Check for CP errors
     // Check if a diode fault has occurred
-        // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
-        //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
-        //                     possible to detect a diode fault
-        if (CbTarragonPWM::is_nominal_duty_cycle(duty_cycle) &&
-            (positive_side.voltage > 2000 /* mV */) &&
-            (abs(positive_side.voltage + negative_side.voltage) <= 1200 /* mV */)) {
-            if (cp_errors.diode_fault.is_active == false) {
-                cp_errors.diode_fault.is_active = true;
-                is_error = true;
-            }
-            else {
-                cp_errors.diode_fault.is_active = false;
-            }
+    // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
+    //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
+    //                     possible to detect a diode fault
+    if (CbTarragonPWM::is_nominal_duty_cycle(duty_cycle) &&
+        (positive_side.voltage > 2000 /* mV */) &&
+        (abs(positive_side.voltage + negative_side.voltage) <= 1200 /* mV */)) {
+        if (cp_errors.diode_fault.is_active == false) {
+            cp_errors.diode_fault.is_active = true;
+            is_error = true;
+        }
+        else {
+            cp_errors.diode_fault.is_active = false;
+        }
     }
     // If no diode fault is detected and the PilotFault is active, we assume the CP state out of range
     else if (negative_side.current_state == types::cb_board_support::CPState::PilotFault ||
@@ -501,7 +499,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             this->cp_controller.voltage_to_state(negative_side.voltage, negative_side.current_state);
         cp_state_changed |= this->check_for_cp_state_changes(negative_side);
 
-        // at this point, the current_state member was already updated by the cp_state_changed methods
+        // at this point, the current_state member was already updated by the check_for_cp_state_changes methods
 
         // check whether we see a change of the duty cycle
         duty_cycle_changed = previous_duty_cycle != this->pwm_controller.get_duty_cycle();
@@ -512,14 +510,10 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             continue;
         }
 
-        // Determine current CP state based on positive, negative and duty cycle
-        types::cb_board_support::CPState current_cp_state = determine_cp_state(
-            positive_side.current_state, negative_side.current_state, this->pwm_controller.get_duty_cycle());
+        // Determine current CP state based on positive, negative side and duty cycle
+        types::cb_board_support::CPState current_cp_state = determine_cp_state(positive_side, negative_side,
+                                                                               this->pwm_controller.get_duty_cycle());
 
-        // Check for CP errors
-        check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(),
-                            negative_side, positive_side);
-        
         // Process all EVerest CP errors
         process_everest_errors(this->cp_errors.errors);
 
