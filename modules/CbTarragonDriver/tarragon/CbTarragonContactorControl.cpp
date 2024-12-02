@@ -13,10 +13,12 @@ CbTarragonContactorControl::CbTarragonContactorControl(void) {
 
 CbTarragonContactorControl::CbTarragonContactorControl(
     const std::string& relay_1_name, const std::string& relay_1_actuator_gpio_line_name,
-    const std::string& relay_1_feedback_gpio_line_name, const std::string& contactor_1_feedback_type,
-    const std::string& relay_2_name, const std::string& relay_2_actuator_gpio_line_name,
-    const std::string& relay_2_feedback_gpio_line_name, const std::string& contactor_2_feedback_type) :
-    relay_1(relay_1_name, relay_1_actuator_gpio_line_name, contactor_1_feedback_type, relay_1_feedback_gpio_line_name),
+    const std::string& relay_1_feedback_gpio_line_name, const unsigned int relay_1_gpio_debounce_us,
+    const std::string& contactor_1_feedback_type, const std::string& relay_2_name,
+    const std::string& relay_2_actuator_gpio_line_name, const std::string& relay_2_feedback_gpio_line_name,
+    const unsigned int relay_2_gpio_debounce_us, const std::string& contactor_2_feedback_type) :
+    relay_1(relay_1_name, relay_1_actuator_gpio_line_name, contactor_1_feedback_type, relay_1_feedback_gpio_line_name,
+            relay_1_gpio_debounce_us),
     contactor_1_feedback_type(contactor_1_feedback_type) {
 
     EVLOG_info << "Primary contactor feedback type: '" << this->contactor_1_feedback_type << "'";
@@ -30,7 +32,7 @@ CbTarragonContactorControl::CbTarragonContactorControl(
     // software that utilizes the relay to its need.
     if (relay_2_name == "R2/S2") {
         this->relay_2 = CbTarragonRelay(relay_2_name, relay_2_actuator_gpio_line_name, contactor_2_feedback_type,
-                                        relay_2_feedback_gpio_line_name);
+                                        relay_2_feedback_gpio_line_name, relay_2_gpio_debounce_us);
 
         this->contactor_2_feedback_type = contactor_2_feedback_type;
         EVLOG_info << "Secondary contactor feedback type: '" << this->contactor_2_feedback_type << "'";

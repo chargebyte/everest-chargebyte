@@ -12,7 +12,8 @@ CbTarragonRelay::CbTarragonRelay(void) {
 }
 
 CbTarragonRelay::CbTarragonRelay(const std::string& relay_name, const std::string& actuator_gpio_line_name,
-                                 const std::string& feedback_type, const std::string& feedback_gpio_line_name) {
+                                 const std::string& feedback_type, const std::string& feedback_gpio_line_name,
+                                 const unsigned int feedback_gpio_debounce_us) {
     bool actuator_active_low {false};
     bool feedback_active_low {false};
 
@@ -43,12 +44,20 @@ CbTarragonRelay::CbTarragonRelay(const std::string& relay_name, const std::strin
                                                                        .set_active_low(actuator_active_low)));
 
     if (this->feedback_type != CbContactorFeedbackType::NONE) {
-        this->feedback =
-            std::make_unique<gpiod::line_request>(get_gpioline_by_name(feedback_gpio_line_name, this->relay_name,
-                                                                       gpiod::line_settings()
-                                                                           .set_direction(gpiod::line::direction::INPUT)
-                                                                           .set_edge_detection(gpiod::line::edge::BOTH)
-                                                                           .set_active_low(feedback_active_low)));
+        gpiod::line_settings line_settings;
+
+        line_settings.set_direction(gpiod::line::direction::INPUT);
+        line_settings.set_edge_detection(gpiod::line::edge::BOTH);
+        line_settings.set_active_low(feedback_active_low);
+
+        // passing a debounce interval of zero allows to by-pass the whole configuration
+        if (feedback_gpio_debounce_us) {
+            std::chrono::microseconds period(feedback_gpio_debounce_us);
+            line_settings.set_debounce_period(period);
+        }
+
+        this->feedback = std::make_unique<gpiod::line_request>(
+            get_gpioline_by_name(feedback_gpio_line_name, this->relay_name, line_settings));
     }
 }
 
