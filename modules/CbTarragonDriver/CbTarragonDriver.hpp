@@ -27,9 +27,11 @@ struct Conf {
     std::string relay_1_name;
     std::string relay_1_actuator_gpio_line_name;
     std::string relay_1_feedback_gpio_line_name;
+    int relay_1_feedback_gpio_debounce_us;
     std::string relay_2_name;
     std::string relay_2_actuator_gpio_line_name;
     std::string relay_2_feedback_gpio_line_name;
+    int relay_2_feedback_gpio_debounce_us;
     std::string cp_rst_neg_peak_gpio_line_name;
     std::string cp_neg_peak_adc_device;
     std::string cp_neg_peak_adc_channel;

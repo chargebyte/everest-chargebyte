@@ -26,8 +26,11 @@ public:
     /// feedback).
     /// @param feedback_gpio_line_name The name of the GPIO line to which the feedback/sense signal of relay 1 is
     /// connected to.
+    /// @param feedback_gpio_debounce_us The debounce period which should be configured for the feedback GPIO (in [us]).
+    /// Pass a value of zero to skip any configuration.
     CbTarragonRelay(const std::string& relay_name, const std::string& actuator_gpio_line_name,
-                    const std::string& feedback_type, const std::string& feedback_gpio_line_name);
+                    const std::string& feedback_type, const std::string& feedback_gpio_line_name,
+                    const unsigned int feedback_gpio_debounce_us);
 
     /// @brief Set the timestamp of the last contactor state change from closed to open
     void set_last_contactor_open_ts(std::chrono::time_point<std::chrono::steady_clock> timestamp);

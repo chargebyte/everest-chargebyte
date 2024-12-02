@@ -44,6 +44,12 @@ config:
       The GPIO line name to which the feedback/sense signal is connected to
     type: string
     default: RELAY_1_SENSE
+  relay_1_feedback_gpio_debounce_us:
+    description: >-
+      The debounce period in microseconds which should be configured for the GPIO.
+      Use zero to skip any debounce period configuration.
+    type: integer
+    default: 10000
   relay_2_name:
     description:  >-
       Name of the second relay and its feedback as labeled on hardware. This relay is
@@ -60,6 +66,12 @@ config:
       The GPIO line name to which the feedback/sense signal is connected to
     type: string
     default: RELAY_2_SENSE
+  relay_2_feedback_gpio_debounce_us:
+    description: >-
+      The debounce period in microseconds which should be configured for the GPIO.
+      Use zero to skip any debounce period configuration.
+    type: integer
+    default: 10000
   cp_rst_neg_peak_gpio_line_name:
     description: The GPIO line name of reset pin for negative peak ADC
     type: string

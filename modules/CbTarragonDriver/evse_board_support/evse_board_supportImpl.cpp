@@ -73,9 +73,10 @@ void evse_board_supportImpl::init() {
     // Relay and contactor handling
     this->contactor_controller = CbTarragonContactorControl(
         this->mod->config.relay_1_name, this->mod->config.relay_1_actuator_gpio_line_name,
-        this->mod->config.relay_1_feedback_gpio_line_name, this->mod->config.contactor_1_feedback_type,
-        this->mod->config.relay_2_name, this->mod->config.relay_2_actuator_gpio_line_name,
-        this->mod->config.relay_2_feedback_gpio_line_name, this->mod->config.contactor_2_feedback_type);
+        this->mod->config.relay_1_feedback_gpio_line_name, this->mod->config.relay_1_feedback_gpio_debounce_us,
+        this->mod->config.contactor_1_feedback_type, this->mod->config.relay_2_name,
+        this->mod->config.relay_2_actuator_gpio_line_name, this->mod->config.relay_2_feedback_gpio_line_name,
+        this->mod->config.relay_2_feedback_gpio_debounce_us, this->mod->config.contactor_2_feedback_type);
 
     // set the contactor handling related flags and timeout
     this->contactor_feedback_timeout = 200ms;
