@@ -13,4 +13,4 @@ target_include_directories(chargesom PRIVATE ${LIBCBUART_INCLUDE_DIR} ${GENERATE
 
 add_dependencies(chargesom generate_cpp_files)
 
-target_link_libraries(chargesom PRIVATE libcbuart Pal::Sigslot)
+target_link_libraries(chargesom PRIVATE libcbuart Pal::Sigslot nlohmann_json::nlohmann_json)
