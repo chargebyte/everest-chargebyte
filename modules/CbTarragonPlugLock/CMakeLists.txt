@@ -23,7 +23,7 @@ configure_file(VERSION.in VERSION @ONLY)
 
 target_include_directories(${MODULE_NAME}
     PRIVATE
-        ${UTILS_INCLUDE_DIR}
+        ${LINUX_HW_INCLUDE_DIR}
         ${PLUGLOCK_INCLUDE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
 )

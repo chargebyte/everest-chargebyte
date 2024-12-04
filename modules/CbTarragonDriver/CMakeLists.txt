@@ -25,9 +25,12 @@ target_link_libraries(${MODULE_NAME}
     PRIVATE
         tarragon
 )
+
+get_property(LINUX_HW_INCLUDE_DIR GLOBAL PROPERTY LINUX_HW_INCLUDE_DIR)
+
 target_include_directories(${MODULE_NAME}
     PRIVATE
-        ${UTILS_INCLUDE_DIR}
+        ${LINUX_HW_INCLUDE_DIR}
         ${TARRAGON_INCLUDE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
 )
