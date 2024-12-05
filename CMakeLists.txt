@@ -4,7 +4,7 @@ project(everest-chargebyte VERSION 0.16.0
     DESCRIPTION "chargebyte's Hardware EVerest Modules"
     LANGUAGES C CXX)
 
-find_package(everest-cmake 0.1 REQUIRED
+find_package(everest-cmake 0.4 REQUIRED
     COMPONENTS bundling
     PATHS ../everest-cmake
 )
@@ -14,9 +14,6 @@ find_package(PkgConfig REQUIRED)
 
 # search for libgpiod
 pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
-
-# gpiod utils
-add_subdirectory("utils")
 
 # options
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy" OFF)
@@ -30,6 +27,9 @@ if(NOT DISABLE_EDM)
 else()
     find_package(everest-core REQUIRED)
 endif()
+
+# gpiod utils
+add_subdirectory("utils")
 
 # make custom interfaces and types visible
 ev_add_project()

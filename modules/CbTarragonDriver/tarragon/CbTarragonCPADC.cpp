@@ -41,7 +41,7 @@ int CbTarragonCPADC::get_value(void) {
     return this->calc_voltage(this->adc.get_value());
 }
 
-int CbTarragonCPADC::calc_voltage(int adc_value) const {
+int CbTarragonCPADC::calc_voltage(int adc_value) {
     // first scale value to ADC range
     int v_int = adc_value * 3300 / 4095;
 

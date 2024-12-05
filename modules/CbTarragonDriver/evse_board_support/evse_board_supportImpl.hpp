@@ -22,42 +22,7 @@
 #include <CbTarragonPWM.hpp>
 #include <CbTarragonPP.hpp>
 #include <CbTarragonContactorControl.hpp>
-
-struct cp_state_signal_side {
-    /// @brief previous state is what we measured before the last round
-    types::cb_board_support::CPState previous_state;
-
-    /// @brief current state is what we measured in the last round
-    types::cb_board_support::CPState current_state;
-
-    /// @brief measured state is what we just measured in this round
-    types::cb_board_support::CPState measured_state;
-
-    /// @brief the voltage of the just completed measurement
-    int voltage;
-};
-
-struct everest_error {
-    std::string type;
-    std::string sub_type;
-    std::string message;
-    Everest::error::Severity severity;
-    bool is_active;
-    bool is_reported;
-};
-
-struct cp_state_errors {
-    // Note: New error must be added to the errors array below 
-    everest_error diode_fault {"evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High, false, false};
-    everest_error pilot_fault {"evse_board_support/MREC14PilotFault", "", "CP voltage is out of range.", Everest::error::Severity::High, false, false};
-    everest_error cp_short_fault {"evse_board_support/MREC14PilotFault", "", "CP short fault detected.", Everest::error::Severity::High, false, false};
-    everest_error ventilation_fault {"evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.", Everest::error::Severity::High, false, false};
-
-    std::array<std::reference_wrapper<everest_error>, 4>  errors = {diode_fault, pilot_fault, cp_short_fault, ventilation_fault};
-
-    auto begin() { return errors.begin(); }
-    auto end() { return errors.end(); }
-};
+#include <CPUtils.hpp>
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
@@ -110,11 +75,11 @@ private:
 
     /// @brief Helper to remember and log the current CP state
     void update_cp_state_internally(types::cb_board_support::CPState state,
-                                    const struct cp_state_signal_side& negative_side,
-                                    const struct cp_state_signal_side& positive_side);
+                                    const CPUtils::cp_state_signal_side& negative_side,
+                                    const CPUtils::cp_state_signal_side& positive_side);
 
     /// @brief Store CP state errors
-    cp_state_errors cp_errors {};
+    CPUtils::cp_state_errors cp_errors {};
 
     /// @brief Hardware Capabilities
     types::evse_board_support::HardwareCapabilities hw_capabilities;
@@ -169,24 +134,10 @@ private:
     /// @brief Contactor handling thread handle
     std::thread contactor_handling_thread;
 
-    /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
-    bool check_for_cp_state_changes(struct cp_state_signal_side& signal_side);
-
     /// @brief Helper to determine the CP state based on the measured voltages
-    types::cb_board_support::CPState determine_cp_state(const cp_state_signal_side& cp_state_positive_side,
-                                                        const cp_state_signal_side& cp_state_negative_side,
+    types::cb_board_support::CPState determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
+                                                        const CPUtils::cp_state_signal_side& cp_state_negative_side,
                                                         const double& duty_cycle);
-
-    /// @brief Helper to raise errors
-    template <std::size_t N>
-    void process_everest_errors(const std::array<std::reference_wrapper<everest_error>, N>& errors);
-
-    /// @brief Helper to check for CP errors
-    static bool check_for_cp_errors(cp_state_errors& cp_errors,
-                                    types::cb_board_support::CPState& current_cp_state,
-                                    const double& duty_cycle,
-                                    const cp_state_signal_side& negative_side,
-                                    const cp_state_signal_side& positive_side);
 
     /// @brief Disable/suspend the CP observation thread.
     void disable_cp_observation(void);

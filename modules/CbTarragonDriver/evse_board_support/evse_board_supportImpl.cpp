@@ -97,8 +97,8 @@ void evse_board_supportImpl::set_emergency_state(bool is_emergency) {
 }
 
 void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
-                                                        const struct cp_state_signal_side& negative_side,
-                                                        const struct cp_state_signal_side& positive_side) {
+                                                        const CPUtils::cp_state_signal_side& negative_side,
+                                                        const CPUtils::cp_state_signal_side& positive_side) {
     if (this->cp_current_state == state)
         return;
 
@@ -332,34 +332,9 @@ void evse_board_supportImpl::enable_cp_observation(void) {
     }
 }
 
-bool evse_board_supportImpl::check_for_cp_state_changes(struct cp_state_signal_side& signal_side) {
-    bool rv {false};
-
-    // CP state is only detected if the new state is different from the previous one (first condition).
-    // Additionally, to filter simple disturbances, a new state must be detected twice before notifying it (second
-    // condition). For that, we need at least two CP state measurements (third condition)
-
-    if (signal_side.previous_state != signal_side.measured_state &&
-        signal_side.current_state == signal_side.measured_state) {
-
-        // update the previous state
-        signal_side.previous_state = signal_side.current_state;
-        rv = true;
-
-    } else if (signal_side.measured_state == signal_side.previous_state &&
-               signal_side.measured_state != signal_side.current_state) {
-        EVLOG_warning << "CP state change from " << signal_side.previous_state << " to " << signal_side.current_state
-                      << " suppressed";
-    }
-
-    signal_side.current_state = signal_side.measured_state;
-
-    return rv;
-}
-
 types::cb_board_support::CPState 
-evse_board_supportImpl::determine_cp_state(const cp_state_signal_side& cp_state_positive_side,
-                                           const cp_state_signal_side& cp_state_negative_side,
+evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
+                                           const CPUtils::cp_state_signal_side& cp_state_negative_side,
                                            const double& duty_cycle) {
     // In case we drive state F (0% PWM), then we cannot trust the peak detectors
     if (duty_cycle == 0.0) {
@@ -368,7 +343,7 @@ evse_board_supportImpl::determine_cp_state(const cp_state_signal_side& cp_state_
 
     // Check for CP errors
     types::cb_board_support::CPState current_cp_state = cp_state_positive_side.current_state;
-    if (check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(), 
+    if (CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(), 
                             cp_state_negative_side, cp_state_positive_side)) {
         return current_cp_state;
     }
@@ -376,105 +351,16 @@ evse_board_supportImpl::determine_cp_state(const cp_state_signal_side& cp_state_
     return cp_state_positive_side.current_state;
 }
 
-bool evse_board_supportImpl::check_for_cp_errors(cp_state_errors& cp_errors,
-                                                 types::cb_board_support::CPState& current_cp_state,
-                                                 const double& duty_cycle,
-                                                 const cp_state_signal_side& negative_side,
-                                                 const cp_state_signal_side& positive_side) {
-    bool is_error {false};
-    // Check for CP errors
-    // Check if a diode fault has occurred
-    // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
-    //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
-    //                     possible to detect a diode fault
-    if (CbTarragonPWM::is_nominal_duty_cycle(duty_cycle) &&
-        (positive_side.voltage > 2000 /* mV */) &&
-        (abs(positive_side.voltage + negative_side.voltage) <= 1200 /* mV */)) {
-        if (cp_errors.diode_fault.is_active == false) {
-            cp_errors.diode_fault.is_active = true;
-            is_error = true;
-        }
-        else {
-            cp_errors.diode_fault.is_active = false;
-        }
-    }
-    // If no diode fault is detected and the PilotFault is active, we assume the CP state out of range
-    else if (negative_side.current_state == types::cb_board_support::CPState::PilotFault ||
-             positive_side.current_state == types::cb_board_support::CPState::PilotFault) {
-        if (cp_errors.pilot_fault.is_active == false) {
-            cp_errors.pilot_fault.is_active = true;
-            is_error = true;
-            current_cp_state = types::cb_board_support::CPState::PilotFault;
-        }
-        else {
-            cp_errors.pilot_fault.is_active = false;
-        }
-    }
-
-    // Check for CP short circuit
-    // If 100 % duty cycle:  If a state transitition to E is detected
-    // If nominal duty cycle: If positive side below 2V and the difference between the absolute values of the voltages
-    //                        from negative and positive is smaller or equal then 1,2V
-    // If 0 % duty cycle: If negative side above -10V
-    if (((duty_cycle == 100.0) && (positive_side.voltage < 2000 /* mV */)) ||
-        ((CbTarragonPWM::is_nominal_duty_cycle(duty_cycle)) && (positive_side.voltage < 2000 /* mV */) &&
-        (abs(positive_side.voltage + negative_side.voltage) <= 1200 /* mV */) ) ||
-        ((duty_cycle == 0.0) && (negative_side.voltage > -10000 /* mV */))) {
-        if (cp_errors.cp_short_fault.is_active == false) {
-            cp_errors.cp_short_fault.is_active = true;
-            is_error = true;
-            current_cp_state = types::cb_board_support::CPState::E;
-        }
-        /* Only clear CP short error in case of CPState::A (Unplugged) */
-        else if (positive_side.voltage >= 11000 /* mV */) {
-            cp_errors.cp_short_fault.is_active = false;
-        }
-    }
-
-    // Check for ventilation fault
-    // CP state D is not supported
-    if (positive_side.current_state == types::cb_board_support::CPState::D) {
-        if (cp_errors.ventilation_fault.is_active == false) {
-            cp_errors.ventilation_fault.is_active = true;
-            is_error = true;
-        }
-        else {
-            cp_errors.ventilation_fault.is_active = false;
-        }
-    }
-
-    return is_error;
-}
-
-template <std::size_t N>
-void evse_board_supportImpl::process_everest_errors(const std::array<std::reference_wrapper<everest_error>, N>&
-                                                    errors) {
-    // Interate over all errors and raise them if they are active, otherwise clear them if they are reported
-    for (const auto& error : errors) {
-        auto& error_ref = error.get();
-        if (error_ref.is_active) {
-            Everest::error::Error error_object = this->error_factory->create_error(
-                error_ref.type, error_ref.sub_type, error_ref.message, error_ref.severity);
-            this->raise_error(error_object);
-            error_ref.is_reported = true;
-        }
-        else if (error_ref.is_reported) {
-            this->clear_error(error_ref.type);
-            error_ref.is_reported = false;
-        }
-    }
-}
-
 void evse_board_supportImpl::cp_observation_worker(void) {
     double previous_duty_cycle {100.0};
     // both sides of the CP level
-    struct cp_state_signal_side positive_side {
+    CPUtils::cp_state_signal_side positive_side {
         types::cb_board_support::CPState::PilotFault, types::cb_board_support::CPState::PilotFault,
-            types::cb_board_support::CPState::PilotFault, 0
+        types::cb_board_support::CPState::PilotFault, 0
     };
-    struct cp_state_signal_side negative_side {
+    CPUtils::cp_state_signal_side negative_side {
         types::cb_board_support::CPState::PilotFault, types::cb_board_support::CPState::PilotFault,
-            types::cb_board_support::CPState::PilotFault, 0
+        types::cb_board_support::CPState::PilotFault, 0
     };
 
     EVLOG_info << "Control Pilot Observation Thread started";
@@ -490,14 +376,12 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         this->cp_controller.get_values(positive_side.voltage, negative_side.voltage);
 
         // positive signal side: map to CP state and check for changes
-        positive_side.measured_state =
-            this->cp_controller.voltage_to_state(positive_side.voltage, positive_side.current_state);
-        cp_state_changed |= this->check_for_cp_state_changes(positive_side);
+        positive_side.measured_state = CPUtils::voltage_to_state(positive_side.voltage, positive_side.current_state);
+        cp_state_changed |= CPUtils::check_for_cp_state_changes(positive_side);
 
         // negative signal side: map to CP state and check for changes
-        negative_side.measured_state =
-            this->cp_controller.voltage_to_state(negative_side.voltage, negative_side.current_state);
-        cp_state_changed |= this->check_for_cp_state_changes(negative_side);
+        negative_side.measured_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.current_state);
+        cp_state_changed |=  CPUtils::check_for_cp_state_changes(negative_side);
 
         // at this point, the current_state member was already updated by the check_for_cp_state_changes methods
 
@@ -515,7 +399,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
                                                                                this->pwm_controller.get_duty_cycle());
 
         // Process all EVerest CP errors
-        process_everest_errors(this->cp_errors.errors);
+        CPUtils::process_everest_errors(*this, this->cp_errors.errors);
 
         // Normal CP state change
         try {
