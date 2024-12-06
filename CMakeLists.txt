@@ -50,3 +50,8 @@ if(CMAKE_RUN_CLANG_TIDY)
     message("Enabling clang-tidy")
     set(CMAKE_CXX_CLANG_TIDY clang-tidy)
 endif()
+
+option(BUILD_CB_TESTING "Run unit tests" OFF)
+if(BUILD_CB_TESTING)
+    add_subdirectory(tests)
+endif()
