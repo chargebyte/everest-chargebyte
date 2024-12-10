@@ -39,6 +39,8 @@ Make sure to follow the instructions written [everest-core](https://github.com/E
 Some modules depend on [libgpiod](git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git). However, this cannot be installed on Ubuntu with a package manager because the modules depend on a newer version of libgpiod which Ubuntu does not provide (2.0.1). Therefore, the libgpiod should be installed manually.
 
 ```bash
+sudo apt-get update
+sudo apt-get install autoconf-archive
 git clone git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git
 cd libgpiod/
 git checkout v2.0.1
@@ -77,4 +79,49 @@ Finally, to build the modules, execute the following commands:
 mkdir build # inside everest-chargebyte
 cd build
 make install -j$(nproc)
+```
+
+## Testing
+
+First of all you need to install GTest
+
+```bash
+
+sudo apt update
+sudo apt install libgtest-dev
+
+```
+
+You might run into some problems regarding running/compiling the tests. A quick fix is as follows
+
+```bash
+
+sudo apt install libgpiod-dev libgpiod2
+
+```
+
+To run the tests, you need to run cmake and turn on the option of compiling tests
+
+```bash
+
+mkdir build # inside everest-chargebyte-internal
+
+cd build
+
+cmake -DBUILD_CB_TESTING=1 ..
+
+make -j$(nproc)
+
+```
+
+Under the 'build' directory, change the directory to the path were the tests are compiled and use CTest
+
+```bash
+
+cd tests/modules/CbTarragonDriver
+
+ctest -N # To know how many tests are captured
+
+ctest -rerun-failed --output-on-failure # to run the tests and re-run the failed cases verbosely
+
 ```
