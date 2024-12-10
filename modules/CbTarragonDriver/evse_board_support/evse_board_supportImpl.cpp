@@ -343,8 +343,12 @@ evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& 
 
     // Check for CP errors
     types::cb_board_support::CPState current_cp_state = cp_state_positive_side.current_state;
+    if (cp_state_positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
+        cp_state_negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
+        current_cp_state = types::cb_board_support::CPState::PilotFault;
+    }  
     if (CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(), 
-                            cp_state_negative_side, cp_state_positive_side)) {
+                            cp_state_negative_side.voltage, cp_state_positive_side.voltage)) {
         return current_cp_state;
     }
 

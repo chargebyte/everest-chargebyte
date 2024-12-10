@@ -5,6 +5,11 @@
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
 
 namespace CPUtils {
+    /// @brief Maximum voltage difference between CP+ and CP- for a CP short/diode fault
+    static const uint16_t CP_ERROR_VOLTAGE_MAX_DIFF {1200 /*mV*/};
+    /// @brief Lower threshold for CP state D
+    static const uint16_t CP_STATE_D_LOWER_THRESHOLD {2000 /*mV*/};
+
     /// @brief Struct to hold the state of the CP signal
     struct cp_state_signal_side {
         /// @brief previous state is what we measured before the last round
@@ -59,8 +64,8 @@ namespace CPUtils {
     bool check_for_cp_errors(cp_state_errors& cp_errors,
                              types::cb_board_support::CPState& current_cp_state,
                              const double& duty_cycle,
-                             const cp_state_signal_side& negative_side,
-                             const cp_state_signal_side& positive_side);
+                             const int& voltage_neg_side,
+                             const int& voltage_pos_side);
 
     /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
     bool check_for_cp_state_changes(struct cp_state_signal_side& signal_side);
@@ -71,13 +76,13 @@ namespace CPUtils {
         // Interate over all errors and raise them if they are active, otherwise clear them if they are reported
         for (const auto& error : errors) {
             auto& error_ref = error.get();
-            if (error_ref.is_active) {
+            if (error_ref.is_active && error_ref.is_reported == false) {
                 Everest::error::Error error_object = obj.error_factory->create_error(
                     error_ref.type, error_ref.sub_type, error_ref.message, error_ref.severity);
                 obj.raise_error(error_object);
                 error_ref.is_reported = true;
             }
-            else if (error_ref.is_reported) {
+            else if (error_ref.is_active == false && error_ref.is_reported) {
                 obj.clear_error(error_ref.type);
                 error_ref.is_reported = false;
             }
