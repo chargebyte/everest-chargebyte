@@ -175,9 +175,23 @@ TEST(CPUtilsTest, check_for_cp_errors_CP_short_fault) {
     EXPECT_TRUE(cp_errors.cp_short_fault.is_active);
 
     // Clear CP short fault upper boundary
-    // Conditions: should only be cleared if EV is disconnected (11V < U_CP+ < 13V)
     current_cp_state = CPState::C;
     is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 50, 0 /*mV*/, 7000 /*mV*/);
+    EXPECT_FALSE(is_error);
+    EXPECT_FALSE(cp_errors.cp_short_fault.is_active);
+
+    // Trigger CP short fault. Both sides configured to 0V
+    current_cp_state = CPState::E;
+    is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 50, 0 /*mV*/, 0 /*mV*/);
+    EXPECT_TRUE(is_error);
+    EXPECT_FALSE(cp_errors.diode_fault.is_active);
+    EXPECT_FALSE(cp_errors.pilot_fault.is_active);
+    EXPECT_FALSE(cp_errors.ventilation_fault.is_active);
+    EXPECT_TRUE(cp_errors.cp_short_fault.is_active);
+
+    // Clear CP short in CP state B
+    current_cp_state = CPState::B;
+    is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 50, 0 /*mV*/, 9000 /*mV*/);
     EXPECT_FALSE(is_error);
     EXPECT_FALSE(cp_errors.cp_short_fault.is_active);
 }
