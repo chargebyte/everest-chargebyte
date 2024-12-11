@@ -13,7 +13,7 @@ target_sources(linux_hw
         "SysfsDevice.cpp"
 )
 
-target_link_libraries(linux_hw PRIVATE ${LIBGPIOD_LIBRARIES})
+target_link_libraries(linux_hw PUBLIC ${LIBGPIOD_LIBRARIES})
 
 target_include_directories(linux_hw PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -20,7 +20,7 @@ target_include_directories(cp PUBLIC
 )
 
 target_link_libraries(cp
-    PRIVATE
+    PUBLIC
         nlohmann_json::nlohmann_json
         everest::framework
 )
