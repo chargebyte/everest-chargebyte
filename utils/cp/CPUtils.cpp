@@ -93,7 +93,7 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
     //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
     //                     possible to detect a diode fault
     // Clear the diode fault error only if the CP is disconnected (11V < U_CP+ < 13V), otherwise a swing between diode
-    // fault and no diode is possbile if the duty cycle changes to 0% or 100%.
+    // fault and no diode is possible if the duty cycle changes to 0% or 100%.
     bool is_disconnected = current_cp_state == types::cb_board_support::CPState::A;
 
     if (cp_errors.diode_fault.is_active && is_disconnected) {
@@ -152,7 +152,6 @@ bool CPUtils::check_for_cp_state_changes(struct cp_state_signal_side& signal_sid
     // CP state is only detected if the new state is different from the previous one (first condition).
     // Additionally, to filter simple disturbances, a new state must be detected twice before notifying it (second
     // condition). For that, we need at least two CP state measurements (third condition)
-
     if (signal_side.previous_state != signal_side.measured_state &&
         signal_side.current_state == signal_side.measured_state) {
 

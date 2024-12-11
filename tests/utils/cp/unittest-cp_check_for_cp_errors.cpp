@@ -130,7 +130,7 @@ TEST(CPUtilsTest, check_for_cp_errors_pilot_fault) {
 }
 
 /// @brief CPUtilsTest: check_for_cp_errors - CP short fault test cases
-/// @details Conditions: 100 % or 0% duty cycle:  If a state transitition to E is detected
+/// @details Conditions: 100 % or 0% duty cycle:  If a state transition to E is detected
 ///          Nominal duty cycle: If positive side below 2V and the difference between the absolute values
 ///          of the voltages from negative and positive is smaller or equal then 1,2V 
 TEST(CPUtilsTest, check_for_cp_errors_CP_short_fault) {
