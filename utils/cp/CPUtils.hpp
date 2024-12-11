@@ -77,6 +77,17 @@ namespace CPUtils {
         for (const auto& error : errors) {
             auto& error_ref = error.get();
             if (error_ref.is_active && error_ref.is_reported == false) {
+                bool is_sub_type_reported = false;
+                // Check if the sub_type is already reported, if so skip until the sub_type is cleared
+                for (const auto& error_1 : errors) {
+                    auto& error_ref_1 = error_1.get();
+                    if ((error_ref_1.sub_type == error_ref.sub_type) && error_ref_1.is_reported == true) {
+                        is_sub_type_reported = true;
+                    }
+                }
+                if (is_sub_type_reported) {
+                    continue; // Skip until the sub_type is cleared
+                }
                 Everest::error::Error error_object = obj.error_factory->create_error(
                     error_ref.type, error_ref.sub_type, error_ref.message, error_ref.severity);
                 obj.raise_error(error_object);
