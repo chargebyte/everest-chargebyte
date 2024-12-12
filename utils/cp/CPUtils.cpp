@@ -106,7 +106,7 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
 
     // Check for ventilation fault
     // CP state D is not supported
-    if (current_cp_state == types::cb_board_support::CPState::D) {
+    if (current_cp_state == types::cb_board_support::CPState::D && voltage_neg_side <= -10000) {
         cp_errors.ventilation_fault.is_active = true;
         is_error = true;
     }
