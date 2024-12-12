@@ -342,9 +342,9 @@ evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& 
     }
 
     // Check for CP errors
-    types::cb_board_support::CPState current_cp_state = cp_state_positive_side.current_state;
-    if (cp_state_positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
-        cp_state_negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
+    types::cb_board_support::CPState current_cp_state = cp_state_positive_side.measured_state_t1;
+    if (cp_state_positive_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault ||
+        cp_state_negative_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault) {
         current_cp_state = types::cb_board_support::CPState::PilotFault;
     }  
     if (CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(), 
@@ -352,7 +352,7 @@ evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& 
         return current_cp_state;
     }
 
-    return cp_state_positive_side.current_state;
+    return cp_state_positive_side.detected_state;
 }
 
 void evse_board_supportImpl::cp_observation_worker(void) {
@@ -380,12 +380,13 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         this->cp_controller.get_values(positive_side.voltage, negative_side.voltage);
 
         // positive signal side: map to CP state and check for changes
-        positive_side.measured_state = CPUtils::voltage_to_state(positive_side.voltage, positive_side.current_state);
-        cp_state_changed |= CPUtils::check_for_cp_state_changes(positive_side);
+        types::cb_board_support::CPState measured_cp_state;
+        measured_cp_state = CPUtils::voltage_to_state(positive_side.voltage, positive_side.measured_state_t1);
+        cp_state_changed |= CPUtils::check_for_cp_state_changes(positive_side, measured_cp_state);
 
         // negative signal side: map to CP state and check for changes
-        negative_side.measured_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.current_state);
-        cp_state_changed |=  CPUtils::check_for_cp_state_changes(negative_side);
+        measured_cp_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.measured_state_t1);
+        cp_state_changed |=  CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state);
 
         // at this point, the current_state member was already updated by the check_for_cp_state_changes methods
 

@@ -146,26 +146,25 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
     return is_error;
 }
 
-bool CPUtils::check_for_cp_state_changes(struct cp_state_signal_side& signal_side) {
+bool CPUtils::check_for_cp_state_changes(struct cp_state_signal_side& signal_side,
+                                         const types::cb_board_support::CPState& measured_cp_state) {
     bool rv {false};
-
-    // CP state is only detected if the new state is different from the previous one (first condition).
-    // Additionally, to filter simple disturbances, a new state must be detected twice before notifying it (second
-    // condition). For that, we need at least two CP state measurements (third condition)
-    if (signal_side.previous_state != signal_side.measured_state &&
-        signal_side.current_state == signal_side.measured_state) {
-
-        // update the previous state
-        signal_side.previous_state = signal_side.current_state;
-        rv = true;
-
-    } else if (signal_side.measured_state == signal_side.previous_state &&
-               signal_side.measured_state != signal_side.current_state) {
-        EVLOG_warning << "CP state change from " << signal_side.previous_state << " to " << signal_side.current_state
+    // CP state change is only detected if measured state is equal to the previous measured state and
+    // the actually detected state is not equal to the measured state
+    if ((signal_side.measured_state_t1 == measured_cp_state) &&
+        (signal_side.detected_state != measured_cp_state)) {
+            signal_side.detected_state = measured_cp_state;
+            rv = true;
+    // Otherwise, try to filter single disturbances by checking if the second measured state is surrounded
+    // by two equal states (e.g. A -> B -> A)
+    } else if ((measured_cp_state == signal_side.measured_state_t0) &&
+               (measured_cp_state != signal_side.measured_state_t1)) {
+        EVLOG_warning << "CP state change from " << signal_side.measured_state_t0 << " to " << signal_side.measured_state_t1
                       << " suppressed";
     }
-
-    signal_side.current_state = signal_side.measured_state;
+    // Update measured states
+    signal_side.measured_state_t0 = signal_side.measured_state_t1;
+    signal_side.measured_state_t1 = measured_cp_state;
 
     return rv;
 }

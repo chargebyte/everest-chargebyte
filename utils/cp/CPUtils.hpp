@@ -12,14 +12,14 @@ namespace CPUtils {
 
     /// @brief Struct to hold the state of the CP signal
     struct cp_state_signal_side {
-        /// @brief previous state is what we measured before the last round
-        types::cb_board_support::CPState previous_state;
+        /// @brief Is the measured state after two rounds of measurements
+        types::cb_board_support::CPState measured_state_t0;
 
-        /// @brief current state is what we measured in the last round
-        types::cb_board_support::CPState current_state;
+        /// @brief Is the measured state after one round of measurements
+        types::cb_board_support::CPState measured_state_t1;
 
-        /// @brief measured state is what we just measured in this round
-        types::cb_board_support::CPState measured_state;
+        /// @brief Is the current detected state, resulted from the measured states
+        types::cb_board_support::CPState detected_state;
 
         /// @brief the voltage of the just completed measurement
         int voltage;
@@ -73,7 +73,8 @@ namespace CPUtils {
                              const int& voltage_pos_side);
 
     /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
-    bool check_for_cp_state_changes(struct cp_state_signal_side& signal_side);
+    bool check_for_cp_state_changes(struct cp_state_signal_side& signal_side,
+                                    const types::cb_board_support::CPState& measured_cp_state);
 
     /// @brief Helper to raise errors
     template <typename T, std::size_t N>
