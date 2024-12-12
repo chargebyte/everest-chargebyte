@@ -99,12 +99,10 @@ void evse_board_supportImpl::set_emergency_state(bool is_emergency) {
 void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
                                                         const CPUtils::cp_state_signal_side& negative_side,
                                                         const CPUtils::cp_state_signal_side& positive_side) {
-    if (this->cp_current_state == state)
-        return;
-
     EVLOG_info << "CP state change from " << this->cp_current_state << " to " << state << ", "
                << "U_CP+: " << positive_side.voltage << " mV, "
-               << "U_CP-: " << negative_side.voltage << " mV";
+               << "U_CP-: " << negative_side.voltage << " mV, "
+               << "PWM: " << std::fixed << std::setprecision(2) << this->pwm_controller.get_duty_cycle() << "%)";
     this->cp_current_state = state;
 }
 
@@ -335,7 +333,7 @@ void evse_board_supportImpl::enable_cp_observation(void) {
 types::cb_board_support::CPState 
 evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
                                            const CPUtils::cp_state_signal_side& cp_state_negative_side,
-                                           const double& duty_cycle) {
+                                           const double& duty_cycle, bool& is_cp_error) {
     // In case we drive state F (0% PWM), then we cannot trust the peak detectors
     if (duty_cycle == 0.0) {
         return types::cb_board_support::CPState::F;
@@ -346,9 +344,10 @@ evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& 
     if (cp_state_positive_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault ||
         cp_state_negative_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault) {
         current_cp_state = types::cb_board_support::CPState::PilotFault;
-    }  
-    if (CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(), 
-                            cp_state_negative_side.voltage, cp_state_positive_side.voltage)) {
+    }
+    is_cp_error = CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(), 
+                                               cp_state_negative_side.voltage, cp_state_positive_side.voltage);
+    if (is_cp_error) {
         return current_cp_state;
     }
 
@@ -400,8 +399,10 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         }
 
         // Determine current CP state based on positive, negative side and duty cycle
+        bool is_cp_error {false};
         types::cb_board_support::CPState current_cp_state = determine_cp_state(positive_side, negative_side,
-                                                                               this->pwm_controller.get_duty_cycle());
+                                                                               this->pwm_controller.get_duty_cycle(),
+                                                                               is_cp_error);
 
         // Process all EVerest CP errors
         CPUtils::process_everest_errors(*this, this->cp_errors.errors);
@@ -410,7 +411,9 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         try {
             types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
             this->publish_event(tmp);
-            this->update_cp_state_internally(current_cp_state, negative_side, positive_side);
+            if ((current_cp_state != this->cp_current_state) || is_cp_error) {
+                this->update_cp_state_internally(current_cp_state, negative_side, positive_side);
+            }
         } catch (std::runtime_error& e) {
             // Should never happen, when all invalid states are handled correctly
             EVLOG_warning << e.what();
