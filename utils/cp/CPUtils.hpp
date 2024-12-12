@@ -37,11 +37,16 @@ namespace CPUtils {
 
     /// @brief Struct to hold the different CP errors
     struct cp_state_errors {
-        // Note: New error must be added to the errors array below 
-        everest_error diode_fault {"evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High, false, false};
-        everest_error pilot_fault {"evse_board_support/MREC14PilotFault", "", "CP voltage is out of range.", Everest::error::Severity::High, false, false};
-        everest_error cp_short_fault {"evse_board_support/MREC14PilotFault", "", "CP short fault detected.", Everest::error::Severity::High, false, false};
-        everest_error ventilation_fault {"evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.", Everest::error::Severity::High, false, false};
+        // Note: New error must be added to the errors array below. Please ensure if the error type is already defined,
+        //       a unique sub type must be provided.
+        everest_error diode_fault {"evse_board_support/DiodeFault", "",
+                                   "Diode fault detected.", Everest::error::Severity::High, false, false};
+        everest_error pilot_fault {"evse_board_support/MREC14PilotFault", "CPOutOfRange",
+                                   "CP voltage is out of range.", Everest::error::Severity::High, false, false};
+        everest_error cp_short_fault {"evse_board_support/MREC14PilotFault", "CPShortFault",
+                                      "CP short fault detected.", Everest::error::Severity::High, false, false};
+        everest_error ventilation_fault {"evse_board_support/VentilationNotAvailable", "",
+                                         "Ventilation fault detected.", Everest::error::Severity::High, false, false};
 
         std::array<std::reference_wrapper<everest_error>, 4> errors = {diode_fault, pilot_fault, cp_short_fault, ventilation_fault};
 
@@ -77,17 +82,6 @@ namespace CPUtils {
         for (const auto& error : errors) {
             auto& error_ref = error.get();
             if (error_ref.is_active && error_ref.is_reported == false) {
-                bool is_sub_type_reported = false;
-                // Check if the sub_type is already reported, if so skip until the sub_type is cleared
-                for (const auto& error_1 : errors) {
-                    auto& error_ref_1 = error_1.get();
-                    if ((error_ref_1.sub_type == error_ref.sub_type) && error_ref_1.is_reported == true) {
-                        is_sub_type_reported = true;
-                    }
-                }
-                if (is_sub_type_reported) {
-                    continue; // Skip until the sub_type is cleared
-                }
                 Everest::error::Error error_object = obj.error_factory->create_error(
                     error_ref.type, error_ref.sub_type, error_ref.message, error_ref.severity);
                 obj.raise_error(error_object);
