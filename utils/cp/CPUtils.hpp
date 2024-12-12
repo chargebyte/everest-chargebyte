@@ -88,7 +88,7 @@ namespace CPUtils {
                 error_ref.is_reported = true;
             }
             else if (error_ref.is_active == false && error_ref.is_reported) {
-                obj.clear_error(error_ref.type);
+                obj.clear_error(error_ref.type, error_ref.sub_type);
                 error_ref.is_reported = false;
             }
         }
