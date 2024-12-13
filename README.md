@@ -104,7 +104,7 @@ To run the tests, you need to run cmake and turn on the option of compiling test
 
 ```bash
 
-mkdir build # inside everest-chargebyte-internal
+mkdir build # inside everest-chargebyte
 
 cd build
 
@@ -114,7 +114,7 @@ make -j$(nproc)
 
 ```
 
-Under the 'build' directory, change the directory to the path were the tests are compiled and use CTest
+Under the 'build' directory, change the directory to the path where the tests are compiled and use CTest
 
 ```bash
 
