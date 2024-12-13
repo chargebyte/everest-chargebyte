@@ -196,6 +196,7 @@ void evse_board_supportImpl::handle_evse_replug(int& value) {
 types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
     // acquire lock to guard against possible background changes done by the observation thread
     std::lock_guard<std::mutex> lock(this->pp_observation_lock);
+    types::board_support_common::Ampacity old_ampacity = this->pp_ampacity.ampacity;
 
     // pre-init to None
     this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
@@ -210,7 +211,9 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
         int voltage = 0;
         this->pp_ampacity.ampacity = this->pp_controller.get_ampacity(voltage);
 
-        EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity << " (U_PP: " << voltage << " mV)";
+        if (old_ampacity != this->pp_ampacity.ampacity) {
+            EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity << " (U_PP: " << voltage << " mV)";
+        }
 
         if (this->pp_fault_reported)
             this->clear_error("evse_board_support/MREC23ProximityFault");
