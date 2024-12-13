@@ -65,6 +65,18 @@ namespace CPUtils {
         return 0.0 < duty_cycle && duty_cycle < 100.0;
     }
 
+    /// @brief Helper to check for CP short errors
+    bool is_cp_short_fault(const double& duty_cycle, const int& voltage_neg_side, const int& voltage_pos_side);
+
+    /// @brief Helper to check for ventilation errors
+    bool is_ventilation_fault(const types::cb_board_support::CPState& current_cp_state, const int& voltage_neg_side);
+
+    /// @brief Helper to check for CP short errors
+    bool is_diode_fault(const double& duty_cycle, const int& voltage_neg_side, const int& voltage_pos_side);
+
+    /// @brief Helper to check for Pilot fault errors
+    bool is_pilot_fault(const types::cb_board_support::CPState& current_cp_state);
+
     /// @brief Helper to check for CP errors
     bool check_for_cp_errors(cp_state_errors& cp_errors,
                              types::cb_board_support::CPState& current_cp_state,

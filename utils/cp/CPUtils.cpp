@@ -81,21 +81,47 @@ types::cb_board_support::CPState CPUtils::voltage_to_state(int voltage,
     return types::cb_board_support::CPState::PilotFault; /* < -13 V */
 }
 
+bool CPUtils::is_cp_short_fault(const double& duty_cycle, const int& voltage_neg_side, const int& voltage_pos_side) {
+    // Check for CP short circuit
+    // If 100 % or 0% duty cycle: If a state transitition to E is detected
+    // If nominal duty cycle: If positive side below 2V and the difference between the absolute values of the voltages
+    //                        from negative and positive is smaller or equal then 1,2V
+    return (((duty_cycle == 100.0 || duty_cycle == 0.0) && (voltage_pos_side < CP_STATE_D_LOWER_THRESHOLD) &&
+            (voltage_neg_side > -10000 /* mV */)) || ((is_nominal_duty_cycle(duty_cycle)) &&
+            (voltage_pos_side < CP_STATE_D_LOWER_THRESHOLD) &&
+            (abs(voltage_pos_side + voltage_neg_side) <= CP_ERROR_VOLTAGE_MAX_DIFF)));
+}
+
+bool CPUtils::is_ventilation_fault(const types::cb_board_support::CPState& current_cp_state, const int& voltage_neg_side) {
+    // Check for ventilation fault
+    // CP state D is not supported
+    return (current_cp_state == types::cb_board_support::CPState::D && voltage_neg_side <= -10000);
+}
+
+bool CPUtils::is_diode_fault(const double& duty_cycle, const int& voltage_neg_side, const int& voltage_pos_side) {
+    // Check if a diode fault has occurred
+    // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
+    //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
+    //                     possible to detect a diode fault
+    return ((is_nominal_duty_cycle(duty_cycle) && (voltage_pos_side > CP_STATE_D_LOWER_THRESHOLD) && 
+            (abs(voltage_pos_side + voltage_neg_side) <= CP_ERROR_VOLTAGE_MAX_DIFF)));
+}
+
+bool CPUtils::is_pilot_fault(const types::cb_board_support::CPState& current_cp_state) {
+    // Check for pilot fault
+    // If the CP state is out of range, a pilot fault is detected. The pilot fault is cleared if the CP state is
+    // changes back to a valid state. Only notify a pilot fault if no diode fault is detected.
+    return (current_cp_state == types::cb_board_support::CPState::PilotFault);
+}
+
 bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
                                   types::cb_board_support::CPState& current_cp_state,
                                   const double& duty_cycle,
                                   const int& voltage_neg_side,
                                   const int& voltage_pos_side) {
     bool is_error {false};
-    // Check for CP errors
-    // Check for CP short circuit
-    // If 100 % or 0% duty cycle:  If a state transitition to E is detected
-    // If nominal duty cycle: If positive side below 2V and the difference between the absolute values of the voltages
-    //                        from negative and positive is smaller or equal then 1,2V
-    if (((duty_cycle == 100.0 || duty_cycle == 0.0) && (voltage_pos_side < CP_STATE_D_LOWER_THRESHOLD) &&
-        (voltage_neg_side > -10000 /* mV */)) || ((is_nominal_duty_cycle(duty_cycle)) &&
-        (voltage_pos_side < CP_STATE_D_LOWER_THRESHOLD) &&
-        (abs(voltage_pos_side + voltage_neg_side) <= CP_ERROR_VOLTAGE_MAX_DIFF))) {
+    // Check for CP short fault
+    if (is_cp_short_fault(duty_cycle, voltage_neg_side, voltage_pos_side)) {
         cp_errors.cp_short_fault.is_active = true;
         is_error = true;
         current_cp_state = types::cb_board_support::CPState::E;
@@ -105,8 +131,7 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
     }
 
     // Check for ventilation fault
-    // CP state D is not supported
-    if (current_cp_state == types::cb_board_support::CPState::D && voltage_neg_side <= -10000) {
+    if (is_ventilation_fault(current_cp_state, voltage_neg_side)) {
         cp_errors.ventilation_fault.is_active = true;
         is_error = true;
     }
@@ -114,28 +139,26 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
         cp_errors.ventilation_fault.is_active = false;
     }
 
-    // Check if a diode fault has occurred
-    // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
-    //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
-    //                     possible to detect a diode fault
-    // Clear the diode fault error only if the CP is disconnected (11V < U_CP+ < 13V), otherwise a swing between diode
-    // fault and no diode is possible if the duty cycle changes to 0% or 100%.
-    bool is_disconnected = current_cp_state == types::cb_board_support::CPState::A;
+    // Check for diode fault
+    // Check if the state is disconnected. This is necessary to clear the diode fault
+    bool is_disconnected = (current_cp_state == types::cb_board_support::CPState::A);
 
+    // Clear the diode fault error only if the CP is disconnected (11V < U_CP+ < 13V), otherwise a swing between diode
+    // fault and non diode fault is possible if the duty cycle changes between 100% and nominal duty cycle.
     if (cp_errors.diode_fault.is_active && is_disconnected) {
         cp_errors.diode_fault.is_active = false;
-
     }
-    else if ((is_nominal_duty_cycle(duty_cycle) && (voltage_pos_side > CP_STATE_D_LOWER_THRESHOLD) && 
-             (abs(voltage_pos_side + voltage_neg_side) <= CP_ERROR_VOLTAGE_MAX_DIFF)) ||
-             cp_errors.diode_fault.is_active) {
+    else if ((cp_errors.diode_fault.is_active == false) &&
+               is_diode_fault(duty_cycle, voltage_neg_side, voltage_pos_side)) {
         cp_errors.diode_fault.is_active = true;
         is_error = true;
     }
+    // Set error if diode fault is already active
+    else if (cp_errors.diode_fault.is_active) {
+        is_error = true;
+    }
     // Check for pilot fault
-    // If the CP state is out of range, a pilot fault is detected. The pilot fault is cleared if the CP state is
-    // changes back to a valid state. Only notify a pilot fault if no diode fault is detected.
-    else if (current_cp_state == types::cb_board_support::CPState::PilotFault) {
+    else if (is_pilot_fault(current_cp_state)) {
         cp_errors.pilot_fault.is_active = true;
         is_error = true;
     }
