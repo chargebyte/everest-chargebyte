@@ -84,18 +84,27 @@ types::cb_board_support::CPState CPUtils::voltage_to_state(int voltage,
 bool CPUtils::is_cp_short_fault(const double& duty_cycle, const int& voltage_neg_side, const int& voltage_pos_side) {
     // Check for CP short circuit
     // If 100 % or 0% duty cycle: If a state transitition to E is detected
+    if ((duty_cycle == 100.0 || duty_cycle == 0.0) &&
+        (voltage_pos_side < CP_STATE_D_LOWER_THRESHOLD) &&
+        (voltage_neg_side > -10000 /* mV */)) {
+        return true;
+    }
     // If nominal duty cycle: If positive side below 2V and the difference between the absolute values of the voltages
     //                        from negative and positive is smaller or equal then 1,2V
-    return (((duty_cycle == 100.0 || duty_cycle == 0.0) && (voltage_pos_side < CP_STATE_D_LOWER_THRESHOLD) &&
-            (voltage_neg_side > -10000 /* mV */)) || ((is_nominal_duty_cycle(duty_cycle)) &&
-            (voltage_pos_side < CP_STATE_D_LOWER_THRESHOLD) &&
-            (abs(voltage_pos_side + voltage_neg_side) <= CP_ERROR_VOLTAGE_MAX_DIFF)));
+    if (is_nominal_duty_cycle(duty_cycle) &&
+        (voltage_pos_side < CP_STATE_D_LOWER_THRESHOLD) &&
+        (abs(voltage_pos_side + voltage_neg_side) <= CP_ERROR_VOLTAGE_MAX_DIFF)) {
+        return true;
+    }
+
+    return false;
 }
 
 bool CPUtils::is_ventilation_fault(const types::cb_board_support::CPState& current_cp_state, const int& voltage_neg_side) {
     // Check for ventilation fault
     // CP state D is not supported
-    return (current_cp_state == types::cb_board_support::CPState::D && voltage_neg_side <= -10000);
+    return (current_cp_state == types::cb_board_support::CPState::D &&
+            voltage_neg_side <= -10000);
 }
 
 bool CPUtils::is_diode_fault(const double& duty_cycle, const int& voltage_neg_side, const int& voltage_pos_side) {
@@ -103,14 +112,14 @@ bool CPUtils::is_diode_fault(const double& duty_cycle, const int& voltage_neg_si
     // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
     //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
     //                     possible to detect a diode fault
-    return ((is_nominal_duty_cycle(duty_cycle) && (voltage_pos_side > CP_STATE_D_LOWER_THRESHOLD) && 
+    return ((is_nominal_duty_cycle(duty_cycle) &&
+            (voltage_pos_side > CP_STATE_D_LOWER_THRESHOLD) && 
             (abs(voltage_pos_side + voltage_neg_side) <= CP_ERROR_VOLTAGE_MAX_DIFF)));
 }
 
 bool CPUtils::is_pilot_fault(const types::cb_board_support::CPState& current_cp_state) {
     // Check for pilot fault
-    // If the CP state is out of range, a pilot fault is detected. The pilot fault is cleared if the CP state is
-    // changes back to a valid state. Only notify a pilot fault if no diode fault is detected.
+    // If the CP state is out of range, a pilot fault is detected.
     return (current_cp_state == types::cb_board_support::CPState::PilotFault);
 }
 
@@ -158,6 +167,8 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
         is_error = true;
     }
     // Check for pilot fault
+    // The pilot fault is cleared if the CP state is changes back to a valid state.
+    // Only notify a pilot fault if no diode fault is detected.
     else if (is_pilot_fault(current_cp_state)) {
         cp_errors.pilot_fault.is_active = true;
         is_error = true;
