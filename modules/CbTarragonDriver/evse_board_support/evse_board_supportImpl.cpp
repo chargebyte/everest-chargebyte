@@ -333,7 +333,7 @@ void evse_board_supportImpl::enable_cp_observation(void) {
     }
 }
 
-types::cb_board_support::CPState 
+types::cb_board_support::CPState
 evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
                                            const CPUtils::cp_state_signal_side& cp_state_negative_side,
                                            const double& duty_cycle, bool& is_cp_error) {
@@ -348,7 +348,7 @@ evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& 
         cp_state_negative_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault) {
         current_cp_state = types::cb_board_support::CPState::PilotFault;
     }
-    is_cp_error = CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(), 
+    is_cp_error = CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(),
                                                cp_state_negative_side.voltage, cp_state_positive_side.voltage);
     if (is_cp_error) {
         return current_cp_state;
@@ -360,14 +360,12 @@ evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& 
 void evse_board_supportImpl::cp_observation_worker(void) {
     double previous_duty_cycle {100.0};
     // both sides of the CP level
-    CPUtils::cp_state_signal_side positive_side {
-        types::cb_board_support::CPState::PilotFault, types::cb_board_support::CPState::PilotFault,
-        types::cb_board_support::CPState::PilotFault, 0
-    };
-    CPUtils::cp_state_signal_side negative_side {
-        types::cb_board_support::CPState::PilotFault, types::cb_board_support::CPState::PilotFault,
-        types::cb_board_support::CPState::PilotFault, 0
-    };
+    CPUtils::cp_state_signal_side positive_side {types::cb_board_support::CPState::PilotFault,
+                                                 types::cb_board_support::CPState::PilotFault,
+                                                 types::cb_board_support::CPState::PilotFault, 0};
+    CPUtils::cp_state_signal_side negative_side {types::cb_board_support::CPState::PilotFault,
+                                                 types::cb_board_support::CPState::PilotFault,
+                                                 types::cb_board_support::CPState::PilotFault, 0};
 
     EVLOG_info << "Control Pilot Observation Thread started";
 
@@ -388,7 +386,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
 
         // negative signal side: map to CP state and check for changes
         measured_cp_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.measured_state_t1);
-        cp_state_changed |=  CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state);
+        cp_state_changed |= CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state);
 
         // at this point, the current_state member was already updated by the check_for_cp_state_changes methods
 
@@ -403,9 +401,8 @@ void evse_board_supportImpl::cp_observation_worker(void) {
 
         // Determine current CP state based on positive, negative side and duty cycle
         bool is_cp_error {false};
-        types::cb_board_support::CPState current_cp_state = determine_cp_state(positive_side, negative_side,
-                                                                               this->pwm_controller.get_duty_cycle(),
-                                                                               is_cp_error);
+        types::cb_board_support::CPState current_cp_state =
+            determine_cp_state(positive_side, negative_side, this->pwm_controller.get_duty_cycle(), is_cp_error);
 
         // Process all EVerest CP errors
         CPUtils::process_everest_errors(*this, this->cp_errors.errors);

@@ -41,4 +41,3 @@ void CbTarragonCP::get_values(int& positive_value, int& negative_value) {
     positive_value = this->pos_adc.get_value();
     negative_value = this->neg_adc.get_value();
 }
-
