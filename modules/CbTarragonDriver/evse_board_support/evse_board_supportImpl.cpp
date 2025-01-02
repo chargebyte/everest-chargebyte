@@ -409,14 +409,16 @@ void evse_board_supportImpl::cp_observation_worker(void) {
 
         // Normal CP state change
         try {
-            types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
-            this->publish_event(tmp);
-            if ((current_cp_state != this->cp_current_state) || is_cp_error) {
-                this->update_cp_state_internally(current_cp_state, negative_side, positive_side);
+            if (current_cp_state != types::cb_board_support::CPState::PilotFault) {
+                const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
+                this->publish_event(tmp);
             }
         } catch (std::runtime_error& e) {
             // Should never happen, when all invalid states are handled correctly
             EVLOG_warning << e.what();
+        }
+        if ((current_cp_state != this->cp_current_state) || is_cp_error) {
+            this->update_cp_state_internally(current_cp_state, negative_side, positive_side);
         }
     }
 
