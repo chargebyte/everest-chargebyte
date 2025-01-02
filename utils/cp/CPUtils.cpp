@@ -166,10 +166,11 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
     else if (cp_errors.diode_fault.is_active) {
         is_error = true;
     }
+
     // Check for pilot fault
-    // The pilot fault is cleared if the CP state is changes back to a valid state.
+    // The pilot fault is cleared if the CP state is changed back to a valid state.
     // Only notify a pilot fault if no diode fault is detected.
-    else if (is_pilot_fault(current_cp_state)) {
+    if (not cp_errors.diode_fault.is_active && is_pilot_fault(current_cp_state)) {
         cp_errors.pilot_fault.is_active = true;
         is_error = true;
     }
