@@ -107,13 +107,15 @@ bool CPUtils::is_ventilation_fault(const types::cb_board_support::CPState& curre
             voltage_neg_side <= -10000);
 }
 
-bool CPUtils::is_diode_fault(const double& duty_cycle, const int& voltage_neg_side, const int& voltage_pos_side) {
+bool CPUtils::is_diode_fault(const types::cb_board_support::CPState& current_cp_state, const double& duty_cycle,
+                             const int& voltage_neg_side, const int& voltage_pos_side) {
     // Check if a diode fault has occurred
     // nominal duty cycle: If positive side above 2V and the difference between the absolute values of the voltages
     //                     from negative and positive is smaller or equal then 1,2V 0% & 100% duty cycle: not
     //                     possible to detect a diode fault
     return ((is_nominal_duty_cycle(duty_cycle) &&
-            (voltage_pos_side > CP_STATE_D_LOWER_THRESHOLD) && 
+            (voltage_pos_side > CP_STATE_D_LOWER_THRESHOLD) &&
+            (current_cp_state != types::cb_board_support::CPState::A) &&
             (abs(voltage_pos_side + voltage_neg_side) <= CP_ERROR_VOLTAGE_MAX_DIFF)));
 }
 
@@ -158,7 +160,7 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
         cp_errors.diode_fault.is_active = false;
     }
     else if ((cp_errors.diode_fault.is_active == false) &&
-               is_diode_fault(duty_cycle, voltage_neg_side, voltage_pos_side)) {
+               is_diode_fault(current_cp_state, duty_cycle, voltage_neg_side, voltage_pos_side)) {
         cp_errors.diode_fault.is_active = true;
         is_error = true;
     }

@@ -72,7 +72,8 @@ namespace CPUtils {
     bool is_ventilation_fault(const types::cb_board_support::CPState& current_cp_state, const int& voltage_neg_side);
 
     /// @brief Helper to check for CP short errors
-    bool is_diode_fault(const double& duty_cycle, const int& voltage_neg_side, const int& voltage_pos_side);
+    bool is_diode_fault(const types::cb_board_support::CPState& current_cp_state, const double& duty_cycle,
+                        const int& voltage_neg_side, const int& voltage_pos_side);
 
     /// @brief Helper to check for Pilot fault errors
     bool is_pilot_fault(const types::cb_board_support::CPState& current_cp_state);

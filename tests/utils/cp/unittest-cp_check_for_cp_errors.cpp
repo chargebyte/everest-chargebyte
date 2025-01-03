@@ -99,6 +99,13 @@ TEST(CPUtilsTest, check_for_cp_errors_diode_fault) {
     is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 50, 0 /*mV*/, 13000 /*mV*/);
     EXPECT_FALSE(is_error);
     EXPECT_FALSE(cp_errors.diode_fault.is_active);
+
+    // Try to trigger diode fault in CP state A. This should not lead to an error, 
+    // because in A we assume the EV is disconnected
+    current_cp_state = CPState::A;
+    is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 50, -12000 /*mV*/, 13000 /*mV*/);
+    EXPECT_FALSE(is_error);
+    EXPECT_FALSE(cp_errors.diode_fault.is_active);
 }
 
 /// @brief  CPUtilsTest: check_for_cp_errors - Pilot fault test cases
