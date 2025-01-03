@@ -71,7 +71,7 @@ TEST(CPUtilsTest, check_for_cp_errors_diode_fault) {
     // Clear diode fault down boundary
     // Conditions: Should only be cleared if EV is disconnected (11V < U_CP+ < 13V)
     current_cp_state = CPState::A;
-    is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 50, 0 /*mV*/, 11000 /*mV*/);
+    is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 100, 0 /*mV*/, 11000 /*mV*/);
     EXPECT_FALSE(is_error);
     EXPECT_FALSE(cp_errors.diode_fault.is_active);
 
@@ -96,7 +96,7 @@ TEST(CPUtilsTest, check_for_cp_errors_diode_fault) {
 
     // Clear diode fault with CP state A
     current_cp_state = CPState::A;
-    is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 50, 0 /*mV*/, 13000 /*mV*/);
+    is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 100, 0 /*mV*/, 13000 /*mV*/);
     EXPECT_FALSE(is_error);
     EXPECT_FALSE(cp_errors.diode_fault.is_active);
 
