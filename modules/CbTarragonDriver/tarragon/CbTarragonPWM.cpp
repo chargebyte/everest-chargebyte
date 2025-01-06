@@ -9,6 +9,8 @@
 #include <PWM.hpp>
 #include <PWMChip.hpp>
 #include <gpiodUtils.hpp>
+#include <CPUtils.hpp>
+
 #include "CbTarragonPWM.hpp"
 
 CbTarragonPWM::CbTarragonPWM(void) {
@@ -54,8 +56,7 @@ void CbTarragonPWM::set_duty_cycle(double duty_cycle) {
 }
 
 bool CbTarragonPWM::is_nominal_duty_cycle() const {
-    double current_duty_cycle = this->get_duty_cycle();
-    return 0.0 < current_duty_cycle && current_duty_cycle < 100.0;
+    return CPUtils::is_nominal_duty_cycle(this->get_duty_cycle());
 }
 
 bool CbTarragonPWM::is_enabled(void) {

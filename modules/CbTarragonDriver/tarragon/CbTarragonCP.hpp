@@ -42,10 +42,6 @@ public:
     /// @param negative_value Reference which will be updated with the current value of the negative side (in mV).
     void get_values(int& positive_value, int& negative_value);
 
-    /// @brief Helper to map a measured voltage to a CP state (takes hysteresis into account)
-    types::cb_board_support::CPState voltage_to_state(int voltage,
-                                                      types::cb_board_support::CPState previous_state) const;
-
 private:
     /// @brief The ADC for positive side of the CP signal.
     CbTarragonCPADC pos_adc;

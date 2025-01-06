@@ -22,20 +22,8 @@
 #include <CbTarragonPWM.hpp>
 #include <CbTarragonPP.hpp>
 #include <CbTarragonContactorControl.hpp>
+#include <CPUtils.hpp>
 
-struct cp_state_signal_side {
-    /// @brief previous state is what we measured before the last round
-    types::cb_board_support::CPState previous_state;
-
-    /// @brief current state is what we measured in the last round
-    types::cb_board_support::CPState current_state;
-
-    /// @brief measured state is what we just measured in this round
-    types::cb_board_support::CPState measured_state;
-
-    /// @brief the voltage of the just completed measurement
-    int voltage;
-};
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -87,8 +75,11 @@ private:
 
     /// @brief Helper to remember and log the current CP state
     void update_cp_state_internally(types::cb_board_support::CPState state,
-                                    const struct cp_state_signal_side& negative_side,
-                                    const struct cp_state_signal_side& positive_side);
+                                    const CPUtils::cp_state_signal_side& negative_side,
+                                    const CPUtils::cp_state_signal_side& positive_side);
+
+    /// @brief Store CP state errors
+    CPUtils::cp_state_errors cp_errors {};
 
     /// @brief Hardware Capabilities
     types::evse_board_support::HardwareCapabilities hw_capabilities;
@@ -127,15 +118,6 @@ private:
     /// @brief Flag to remember whether we already published a proximity error
     std::atomic_bool pp_fault_reported {false};
 
-    /// @brief Flag to remember whether we already published a control pilot error
-    std::atomic_bool pilot_fault_reported {false};
-
-    /// @brief Flag to remember whether we already published a diode error
-    std::atomic_bool diode_fault_reported {false};
-
-    /// @brief Flag to remember whether we already published a ventilation error
-    std::atomic_bool ventilation_fault_reported {false};
-
     /// @brief Mutex to enable/disable PP observation thread
     std::mutex pp_observation_lock;
 
@@ -152,8 +134,10 @@ private:
     /// @brief Contactor handling thread handle
     std::thread contactor_handling_thread;
 
-    /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
-    bool cp_state_changed(struct cp_state_signal_side& signal_side);
+    /// @brief Helper to determine the CP state based on the measured voltages
+    types::cb_board_support::CPState determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
+                                                        const CPUtils::cp_state_signal_side& cp_state_negative_side,
+                                                        const double& duty_cycle, bool& is_cp_error);
 
     /// @brief Disable/suspend the CP observation thread.
     void disable_cp_observation(void);

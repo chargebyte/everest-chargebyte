@@ -33,9 +33,6 @@ void evse_board_supportImpl::init() {
     // just for clarity
     this->termination_requested = false;
     this->pp_fault_reported = false;
-    this->pilot_fault_reported = false;
-    this->diode_fault_reported = false;
-    this->ventilation_fault_reported = false;
 
     // Configure hardware capabilities
     this->hw_capabilities.max_current_A_import = 32;
@@ -100,14 +97,12 @@ void evse_board_supportImpl::set_emergency_state(bool is_emergency) {
 }
 
 void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
-                                                        const struct cp_state_signal_side& negative_side,
-                                                        const struct cp_state_signal_side& positive_side) {
-    if (this->cp_current_state == state)
-        return;
-
+                                                        const CPUtils::cp_state_signal_side& negative_side,
+                                                        const CPUtils::cp_state_signal_side& positive_side) {
     EVLOG_info << "CP state change from " << this->cp_current_state << " to " << state << ", "
                << "U_CP+: " << positive_side.voltage << " mV, "
-               << "U_CP-: " << negative_side.voltage << " mV";
+               << "U_CP-: " << negative_side.voltage << " mV, "
+               << "PWM: " << std::fixed << std::setprecision(2) << this->pwm_controller.get_duty_cycle() << "%)";
     this->cp_current_state = state;
 }
 
@@ -201,6 +196,7 @@ void evse_board_supportImpl::handle_evse_replug(int& value) {
 types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
     // acquire lock to guard against possible background changes done by the observation thread
     std::lock_guard<std::mutex> lock(this->pp_observation_lock);
+    types::board_support_common::Ampacity old_ampacity = this->pp_ampacity.ampacity;
 
     // pre-init to None
     this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
@@ -215,7 +211,9 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
         int voltage = 0;
         this->pp_ampacity.ampacity = this->pp_controller.get_ampacity(voltage);
 
-        EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity << " (U_PP: " << voltage << " mV)";
+        if (old_ampacity != this->pp_ampacity.ampacity) {
+            EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity << " (U_PP: " << voltage << " mV)";
+        }
 
         if (this->pp_fault_reported)
             this->clear_error("evse_board_support/MREC23ProximityFault");
@@ -335,42 +333,39 @@ void evse_board_supportImpl::enable_cp_observation(void) {
     }
 }
 
-bool evse_board_supportImpl::cp_state_changed(struct cp_state_signal_side& signal_side) {
-    bool rv {false};
-
-    // CP state is only detected if the new state is different from the previous one (first condition).
-    // Additionally, to filter simple disturbances, a new state must be detected twice before notifying it (second
-    // condition). For that, we need at least two CP state measurements (third condition)
-
-    if (signal_side.previous_state != signal_side.measured_state &&
-        signal_side.current_state == signal_side.measured_state) {
-
-        // update the previous state
-        signal_side.previous_state = signal_side.current_state;
-        rv = true;
-
-    } else if (signal_side.measured_state == signal_side.previous_state &&
-               signal_side.measured_state != signal_side.current_state) {
-        EVLOG_warning << "CP state change from " << signal_side.previous_state << " to " << signal_side.current_state
-                      << " suppressed";
+types::cb_board_support::CPState
+evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
+                                           const CPUtils::cp_state_signal_side& cp_state_negative_side,
+                                           const double& duty_cycle, bool& is_cp_error) {
+    // In case we drive state F (0% PWM), then we cannot trust the peak detectors
+    if (duty_cycle == 0.0) {
+        return types::cb_board_support::CPState::F;
     }
 
-    signal_side.current_state = signal_side.measured_state;
+    // Check for CP errors
+    types::cb_board_support::CPState current_cp_state = cp_state_positive_side.measured_state_t1;
+    if (cp_state_positive_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault ||
+        cp_state_negative_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault) {
+        current_cp_state = types::cb_board_support::CPState::PilotFault;
+    }
+    is_cp_error = CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(),
+                                               cp_state_negative_side.voltage, cp_state_positive_side.voltage);
+    if (is_cp_error) {
+        return current_cp_state;
+    }
 
-    return rv;
+    return cp_state_positive_side.detected_state;
 }
 
 void evse_board_supportImpl::cp_observation_worker(void) {
     double previous_duty_cycle {100.0};
     // both sides of the CP level
-    struct cp_state_signal_side positive_side {
-        types::cb_board_support::CPState::PilotFault, types::cb_board_support::CPState::PilotFault,
-            types::cb_board_support::CPState::PilotFault, 0
-    };
-    struct cp_state_signal_side negative_side {
-        types::cb_board_support::CPState::PilotFault, types::cb_board_support::CPState::PilotFault,
-            types::cb_board_support::CPState::PilotFault, 0
-    };
+    CPUtils::cp_state_signal_side positive_side {types::cb_board_support::CPState::PilotFault,
+                                                 types::cb_board_support::CPState::PilotFault,
+                                                 types::cb_board_support::CPState::PilotFault, 0};
+    CPUtils::cp_state_signal_side negative_side {types::cb_board_support::CPState::PilotFault,
+                                                 types::cb_board_support::CPState::PilotFault,
+                                                 types::cb_board_support::CPState::PilotFault, 0};
 
     EVLOG_info << "Control Pilot Observation Thread started";
 
@@ -385,98 +380,45 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         this->cp_controller.get_values(positive_side.voltage, negative_side.voltage);
 
         // positive signal side: map to CP state and check for changes
-        positive_side.measured_state =
-            this->cp_controller.voltage_to_state(positive_side.voltage, positive_side.current_state);
-        cp_state_changed |= this->cp_state_changed(positive_side);
+        types::cb_board_support::CPState measured_cp_state;
+        measured_cp_state = CPUtils::voltage_to_state(positive_side.voltage, positive_side.measured_state_t1);
+        cp_state_changed |= CPUtils::check_for_cp_state_changes(positive_side, measured_cp_state);
 
         // negative signal side: map to CP state and check for changes
-        negative_side.measured_state =
-            this->cp_controller.voltage_to_state(negative_side.voltage, negative_side.current_state);
-        cp_state_changed |= this->cp_state_changed(negative_side);
+        measured_cp_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.measured_state_t1);
+        cp_state_changed |= CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state);
 
-        // at this point, the current_state member was already updated by the cp_state_changed methods
+        // at this point, the current_state member was already updated by the check_for_cp_state_changes methods
 
         // check whether we see a change of the duty cycle
         duty_cycle_changed = previous_duty_cycle != this->pwm_controller.get_duty_cycle();
         previous_duty_cycle = this->pwm_controller.get_duty_cycle();
 
-        // if there was actually a change -> tell it to upper layers
-        if (cp_state_changed || duty_cycle_changed) {
-            // A diode fault is detected if the nominal duty cycle is set and the negative side of
-            // the CP is not in state F (-12V)
-            if (this->pwm_controller.is_nominal_duty_cycle() &&
-                negative_side.current_state != types::cb_board_support::CPState::F) {
-                if (!this->diode_fault_reported) {
-                    this->diode_fault_reported = true;
-                    this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side,
-                                                     positive_side);
-                    Everest::error::Error error_object = this->error_factory->create_error(
-                        "evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High);
-                    this->raise_error(error_object);
-                }
-                continue;
-            }
+        // If nothing has changed, start a new measurement
+        if (duty_cycle_changed == false && cp_state_changed == false) {
+            continue;
         }
 
-        if (cp_state_changed) {
-            // in case we drive state F, then we cannot trust the peak detectors
-            if (this->pwm_controller.get_duty_cycle() == 0.0) {
-                types::board_support_common::BspEvent tmp {types::board_support_common::Event::F};
+        // Determine current CP state based on positive, negative side and duty cycle
+        bool is_cp_error {false};
+        types::cb_board_support::CPState current_cp_state =
+            determine_cp_state(positive_side, negative_side, this->pwm_controller.get_duty_cycle(), is_cp_error);
+
+        // Process all EVerest CP errors
+        CPUtils::process_everest_errors(*this, this->cp_errors.errors);
+
+        // Normal CP state change
+        try {
+            if (current_cp_state != types::cb_board_support::CPState::PilotFault) {
+                const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
                 this->publish_event(tmp);
-                this->update_cp_state_internally(types::cb_board_support::CPState::F, negative_side, positive_side);
-                continue;
             }
-            // normal CP state change
-            if (positive_side.current_state != this->cp_current_state) {
-                // in case we see a pilot fault, we need to inform the upper layer
-                if (positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
-                    negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
-                    if (this->pilot_fault_reported == false) {
-                        Everest::error::Error error_object =
-                            this->error_factory->create_error("evse_board_support/MREC14PilotFault", "",
-                                                              "Pilot fault detected.", Everest::error::Severity::High);
-                        this->raise_error(error_object);
-                        this->pilot_fault_reported = true;
-                        this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, negative_side,
-                                                         positive_side);
-                    }
-                    continue;
-                }
-                // Before checking for ventilation error, we need to clear other errors if they were reported before
-                if (this->diode_fault_reported) {
-                    this->clear_error("evse_board_support/DiodeFault");
-                    this->diode_fault_reported = false;
-                }
-                if (this->pilot_fault_reported) {
-                    this->clear_error("evse_board_support/MREC14PilotFault");
-                    this->pilot_fault_reported = false;
-                }
-                // check if a ventilation error has occurred
-                if (positive_side.current_state == types::cb_board_support::CPState::D) {
-                    // in case we see a ventilation request, although we do not support it,
-                    // we need to inform the upper layer
-                    Everest::error::Error error_object = this->error_factory->create_error(
-                        "evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.",
-                        Everest::error::Severity::High);
-                    this->raise_error(error_object);
-                    this->ventilation_fault_reported = true;
-                    this->publish_event({types::board_support_common::Event::D});
-                    this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
-                    continue;
-                }
-                if (this->ventilation_fault_reported) {
-                    this->clear_error("evse_board_support/VentilationNotAvailable");
-                    this->ventilation_fault_reported = false;
-                }
-                try {
-                    types::board_support_common::BspEvent tmp = cpstate_to_bspevent(positive_side.current_state);
-                    this->publish_event(tmp);
-                    this->update_cp_state_internally(positive_side.current_state, negative_side, positive_side);
-                } catch (std::runtime_error& e) {
-                    // Should never happen, when all invalid states are handled correctly
-                    EVLOG_warning << e.what();
-                }
-            }
+        } catch (std::runtime_error& e) {
+            // Should never happen, when all invalid states are handled correctly
+            EVLOG_warning << e.what();
+        }
+        if ((current_cp_state != this->cp_current_state) || is_cp_error) {
+            this->update_cp_state_internally(current_cp_state, negative_side, positive_side);
         }
     }
 

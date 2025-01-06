@@ -44,16 +44,15 @@ public:
     /// @return The current value in mV.
     int get_value(void);
 
+    /// @brief  Convert a raw ADC value into a voltage
+    /// @param  adc_value The raw ADC value as obtained from the IIO ADC.
+    /// @return A voltage value in mV.
+    static int calc_voltage(int adc_value);
+
 private:
     /// @brief The underlying IIO ADC instance.
     IIOADC adc;
 
     /// @brief The GPIO line to reset the peak detector circuit.
     std::unique_ptr<gpiod::line_request> peak_detector_reset;
-
-protected:
-    /// @brief  Convert a raw ADC value into a voltage
-    /// @param  adc_value The raw ADC value as obtained from the IIO ADC.
-    /// @return A voltage value in mV.
-    int calc_voltage(int adc_value) const;
 };

@@ -7,7 +7,7 @@ target_sources(${MODULE_NAME}
 
 target_link_libraries(${MODULE_NAME}
     PRIVATE
-        utils
+        utils::linux_hw
 )
 
 get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)

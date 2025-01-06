@@ -9,8 +9,17 @@ target_sources(chargesom
 
 get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
 
-target_include_directories(chargesom PRIVATE ${LIBCBUART_INCLUDE_DIR} ${GENERATED_INCLUDE_DIR})
+target_include_directories(chargesom
+    PRIVATE 
+        ${LIBCBUART_INCLUDE_DIR}
+        ${GENERATED_INCLUDE_DIR}
+)
 
 add_dependencies(chargesom generate_cpp_files)
 
-target_link_libraries(chargesom PRIVATE libcbuart Pal::Sigslot)
+target_link_libraries(chargesom
+    PRIVATE
+        libcbuart
+        Pal::Sigslot
+        nlohmann_json::nlohmann_json
+)
