@@ -24,6 +24,7 @@ struct Conf {
     std::string connector_type;
     std::string contactor_1_feedback_type;
     std::string contactor_2_feedback_type;
+    std::string switch_3ph1ph_wiring;
     std::string relay_1_name;
     std::string relay_1_actuator_gpio_line_name;
     std::string relay_1_feedback_gpio_line_name;
