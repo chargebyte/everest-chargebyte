@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
 
+#include <iomanip>
+#include <sstream>
+#include <string>
 #include <generated/types/cb_board_support.hpp>
 
 #include "evse_board_supportImpl.hpp"
@@ -143,9 +146,22 @@ void evse_board_supportImpl::handle_enable(bool& value) {
 }
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
+    std::stringstream amps_msg;
+    double amps;
+
     // pause CP observation to avoid race condition between this thread and the CP observation thread
     this->disable_cp_observation();
-    EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%";
+
+    // calculate the corresponding limit in Ampere, just for logging
+    if (value >= 85.0)
+        amps = (value - 64.0) * 2.5;
+    else
+        amps = value * 0.6;
+    if (10.0 <= value && value <= 96.0)
+        amps_msg << " (" << std::fixed << std::setprecision(1) << amps << " A)";
+
+    EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%"
+               << amps_msg.str();
     this->pwm_controller.set_duty_cycle(value);
     this->enable_cp_observation();
 }
