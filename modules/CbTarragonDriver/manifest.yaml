@@ -76,7 +76,7 @@ config:
       - nc
     default: none
   relay_1_name:
-    description: Name of the first the relay and its feedback as labeled on hardware
+    description: Name of the first relay and its feedback as labeled on hardware
     type: string
     default: R1/S1
   relay_1_actuator_gpio_line_name:
@@ -84,12 +84,11 @@ config:
     type: string
     default: RELAY_1_ENABLE
   relay_1_feedback_gpio_line_name:
-    description:  >-
-      The GPIO line name to which the feedback/sense signal is connected to
+    description: The GPIO line name to which the feedback/sense signal is connected to
     type: string
     default: RELAY_1_SENSE
   relay_2_name:
-    description:  >-
+    description: >-
       Name of the second relay and its feedback as labeled on hardware. This relay is
       normally used for 3-phase operation. If this relay should be used for other
       purposes other than 3-phase operation, set the name to "none".
@@ -100,8 +99,7 @@ config:
     type: string
     default: RELAY_2_ENABLE
   relay_2_feedback_gpio_line_name:
-    description:  >-
-      The GPIO line name to which the feedback/sense signal is connected to
+    description: The GPIO line name to which the feedback/sense signal is connected to
     type: string
     default: RELAY_2_SENSE
   cp_rst_neg_peak_gpio_line_name:
