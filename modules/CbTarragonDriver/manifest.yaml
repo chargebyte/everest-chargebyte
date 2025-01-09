@@ -7,6 +7,50 @@ config:
       - IEC62196Type2Cable
       - IEC62196Type2Socket
     default: IEC62196Type2Socket
+  min_current_A_import:
+    description: The minimum HW current in amperes allowed for importing energy
+    type: number
+    default: 6
+  max_current_A_import:
+    description: The maximum HW current in amperes allowed for importing energy
+    type: number
+    default: 32
+  min_current_A_export:
+    description: The minimum HW current in amperes allowed for exporting energy
+    type: number
+    default: 6
+  max_current_A_export:
+    description: The maximum HW current in amperes allowed for exporting energy
+    type: number
+    default: 32
+  min_phase_count_import:
+    description: The minimum number of phases allowed for importing energy
+    type: integer
+    minimum: 1
+    maximum: 3
+    default: 1
+  max_phase_count_import:
+    description: The maximum number of phases allowed for importing energy
+    type: integer
+    minimum: 1
+    maximum: 3
+    default: 1
+  min_phase_count_export:
+    description: The minimum number of phases allowed for exporting energy
+    type: integer
+    minimum: 1
+    maximum: 3
+    default: 1
+  max_phase_count_export:
+    description: The maximum number of phases allowed for exporting energy
+    type: integer
+    minimum: 1
+    maximum: 3
+    default: 3
+  supports_changing_phases_during_charging:
+    description: Indicates whether the hardware supports phase switching during charging
+    type: boolean
+    default: false
   contactor_1_feedback_type:
     description: >-
       Defines the logic behind the feedback

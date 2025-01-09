@@ -22,6 +22,15 @@ namespace module {
 
 struct Conf {
     std::string connector_type;
+    double min_current_A_import;
+    double max_current_A_import;
+    double min_current_A_export;
+    double max_current_A_export;
+    int min_phase_count_import;
+    int max_phase_count_import;
+    int min_phase_count_export;
+    int max_phase_count_export;
+    bool supports_changing_phases_during_charging;
     std::string contactor_1_feedback_type;
     std::string contactor_2_feedback_type;
     std::string relay_1_name;
