@@ -75,7 +75,7 @@ public:
                                const std::string& contactor_2_feedback_type, bool switch_3ph1ph_enabled);
 
     /// @brief Get the state of one or both contactors ('actual' or 'target').
-    ContactorState get_state(StateType state);
+    ContactorState get_state(StateType state) const;
 
     /// @brief Set the target state of one or both contactors.
     /// @param target_state The desired contactor state (OPEN or CLOSED).
@@ -86,48 +86,48 @@ public:
     void set_actual_state(ContactorState actual_state);
 
     /// @brief Update the number of phases in operation.
-    void update_actual_phase_count(void);
+    void update_actual_phase_count();
 
     /// @brief Get the number of phases in operation.
     /// @return number of phases
     ///         (0 = Error: no phases in operation, 1 = 1-phase, 3 = 3-phase).
-    int get_actual_phase_count(void);
+    int get_actual_phase_count() const;
 
     /// @brief Get the target number of phases.
     /// @return number of phases
     ///         (1 = 1-phase, 3 = 3-phase).
-    int get_target_phase_count(void);
+    int get_target_phase_count() const;
 
     /// @brief Switch between 3-phase and 1-phase operation mode.
     /// @param use_3phases True if 3 phases shall be used, false otherwise.
     void switch_phase_count(bool use_3phases);
 
     /// @brief Return the timestamp at which a new state was set to the actuator
-    std::chrono::time_point<std::chrono::steady_clock> get_new_target_state_ts(void);
+    std::chrono::time_point<std::chrono::steady_clock> get_new_target_state_ts() const;
 
     /// @brief Return the status of the flag marking the start of observation
     ///        of the timestamp at which a new state was set to the actuator.
-    bool get_is_new_target_state_set(void);
+    bool get_is_new_target_state_set() const;
 
     /// @brief Reset the flag is_new_target_state_set.
-    void reset_is_new_target_state_set(void);
+    void reset_is_new_target_state_set();
 
     /// @brief Return the timestamp at which last actual state change from closed to
     ///        open has occurred.
-    std::chrono::time_point<std::chrono::steady_clock> get_last_actual_state_open_ts(void);
+    std::chrono::time_point<std::chrono::steady_clock> get_last_actual_state_open_ts() const;
 
     /// @brief Determine if switching on is allowed or not to prevent relay wear.
     /// @Return `true` if switch on allowed, `false` otherwise.
-    bool is_switch_on_allowed(void);
+    bool is_switch_on_allowed();
 
     /// @brief Return the value of the flag delay_contactor_close.
-    bool get_delay_contactor_close(void);
+    bool get_delay_contactor_close() const;
 
     /// @brief Reset the flag delay_contactor_close.
-    void reset_delay_contactor_close(void);
+    void reset_delay_contactor_close();
 
     /// @brief Determine if there exists contactor(s) error (0 or 1).
-    bool is_error_state(void);
+    bool is_error_state() const;
 
     /// @brief Wait for new events (GPIO interrupts) occurring on the relays feedback.
     /// @param duration The maximum duration to wait for events to occur.
@@ -136,7 +136,7 @@ public:
 
     /// @brief Wait for new events (GPIO interrupts) occurring on the relays feedback.
     /// @return '0' it is a contactor opened event, '1' if it is a contactor closed event.
-    bool read_events(void);
+    bool read_events();
 
 private:
     /// @brief Object representing the first relay on the Tarragon board.
@@ -181,3 +181,8 @@ private:
     /// @brief Return current state based on evaluation of current GPIOs.
     ContactorState get_current_state();
 };
+
+/// @brief Feeds a string representation of the given CbTarragonContactorControl
+///        instance into an output stream.
+/// @return A reference to the output stream operated on.
+std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControl& cc);

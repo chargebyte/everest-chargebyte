@@ -489,7 +489,7 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
             if (this->contactor_controller.is_error_state()) {
                 this->contactor_controller.set_actual_state(
                     this->contactor_controller.get_state(StateType::TARGET_STATE));
-                EVLOG_info << "Contactor state: " << this->contactor_controller.get_state(StateType::TARGET_STATE);
+                EVLOG_info << "Contactor state: " << this->contactor_controller;
 
                 // publish PowerOn or PowerOff event
                 types::board_support_common::Event tmp_event =
@@ -515,7 +515,7 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                 contactor_state != this->contactor_controller.get_state(StateType::ACTUAL_STATE)) {
                 // if the received state is equal to the expected state, set the actual state
                 this->contactor_controller.set_actual_state(contactor_state);
-                EVLOG_info << "Contactor state: " << this->contactor_controller.get_state(StateType::TARGET_STATE);
+                EVLOG_info << "Contactor state: " << this->contactor_controller;
 
                 // publish PowerOn or PowerOff event
                 types::board_support_common::Event tmp_event = (contactor_state == ContactorState::CONTACTOR_CLOSED)

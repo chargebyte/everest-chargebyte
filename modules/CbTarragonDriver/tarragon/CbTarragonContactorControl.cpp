@@ -82,7 +82,7 @@ ContactorState CbTarragonContactorControl::get_current_state() {
                : ContactorState::CONTACTOR_OPEN;
 }
 
-ContactorState CbTarragonContactorControl::get_state(StateType state) {
+ContactorState CbTarragonContactorControl::get_state(StateType state) const {
     if (state == StateType::ACTUAL_STATE)
         return this->actual_state;
     else if (state == StateType::TARGET_STATE)
@@ -168,7 +168,7 @@ void CbTarragonContactorControl::set_actual_state(ContactorState actual_state) {
     }
 }
 
-void CbTarragonContactorControl::update_actual_phase_count(void) {
+void CbTarragonContactorControl::update_actual_phase_count() {
     bool relay_1_feedback_state = this->relay_1.get_feedback_state();
     bool relay_2_feedback_state = this->relay_2.has_value() ? this->relay_2.value().get_feedback_state() : false;
 
@@ -182,11 +182,11 @@ void CbTarragonContactorControl::update_actual_phase_count(void) {
         this->actual_phase_count = 3;
 }
 
-int CbTarragonContactorControl::get_actual_phase_count(void) {
+int CbTarragonContactorControl::get_actual_phase_count() const {
     return this->actual_phase_count;
 }
 
-int CbTarragonContactorControl::get_target_phase_count(void) {
+int CbTarragonContactorControl::get_target_phase_count() const {
     return this->target_phase_count;
 }
 
@@ -197,23 +197,23 @@ void CbTarragonContactorControl::switch_phase_count(bool use_3phases) {
         this->target_phase_count = 1;
 }
 
-std::chrono::time_point<std::chrono::steady_clock> CbTarragonContactorControl::get_new_target_state_ts(void) {
+std::chrono::time_point<std::chrono::steady_clock> CbTarragonContactorControl::get_new_target_state_ts() const {
     return this->new_target_state_ts;
 }
 
-bool CbTarragonContactorControl::get_is_new_target_state_set(void) {
+bool CbTarragonContactorControl::get_is_new_target_state_set() const {
     return this->is_new_target_state_set;
 }
 
-void CbTarragonContactorControl::reset_is_new_target_state_set(void) {
+void CbTarragonContactorControl::reset_is_new_target_state_set() {
     this->is_new_target_state_set = false;
 }
 
-std::chrono::time_point<std::chrono::steady_clock> CbTarragonContactorControl::get_last_actual_state_open_ts(void) {
+std::chrono::time_point<std::chrono::steady_clock> CbTarragonContactorControl::get_last_actual_state_open_ts() const {
     return this->last_actual_state_open_ts;
 }
 
-bool CbTarragonContactorControl::is_switch_on_allowed(void) {
+bool CbTarragonContactorControl::is_switch_on_allowed() {
     bool allowed {true};
 
     // avoid very fast switching in order to ensure internal relay lifetime
@@ -227,15 +227,15 @@ bool CbTarragonContactorControl::is_switch_on_allowed(void) {
     return allowed;
 }
 
-bool CbTarragonContactorControl::get_delay_contactor_close(void) {
+bool CbTarragonContactorControl::get_delay_contactor_close() const {
     return this->delay_contactor_close;
 }
 
-void CbTarragonContactorControl::reset_delay_contactor_close(void) {
+void CbTarragonContactorControl::reset_delay_contactor_close() {
     this->delay_contactor_close = false;
 }
 
-bool CbTarragonContactorControl::is_error_state(void) {
+bool CbTarragonContactorControl::is_error_state() const {
     if (this->actual_state != this->target_state)
         return true;
 
@@ -263,7 +263,7 @@ bool CbTarragonContactorControl::wait_for_events(std::chrono::milliseconds durat
     return event_occurred;
 }
 
-bool CbTarragonContactorControl::read_events(void) {
+bool CbTarragonContactorControl::read_events() {
     gpiod::edge_event::event_type event;
     bool contactor_state = 0;
 
@@ -287,20 +287,26 @@ bool CbTarragonContactorControl::read_events(void) {
 }
 
 std::ostream& operator<<(std::ostream& os, const ContactorState& state) {
-    std::string mapped_state;
-
     switch (state) {
     case ContactorState::CONTACTOR_CLOSED:
-        mapped_state = "CLOSED";
+        os << "CLOSED";
         break;
     case ContactorState::CONTACTOR_OPEN:
-        mapped_state = "OPEN";
+        os << "OPEN";
         break;
     default:
-        mapped_state = "UNKNOWN";
+        os << "UNKNOWN";
         break;
     }
+    return os;
+}
 
-    os << mapped_state;
+std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControl& cc) {
+    ContactorState state{cc.get_state(StateType::ACTUAL_STATE)};
+
+    os << state;
+    if (state == ContactorState::CONTACTOR_CLOSED)
+        os << " (phases: " << cc.get_actual_phase_count() << ")";
+
     return os;
 }
