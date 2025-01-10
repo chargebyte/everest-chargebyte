@@ -7,6 +7,14 @@ config:
       - IEC62196Type2Cable
       - IEC62196Type2Socket
     default: IEC62196Type2Socket
+  min_current_A:
+    description: The minimum current in ampere which can be imported/exported.
+    type: number
+    default: 6
+  max_current_A:
+    description: The maximum current in ampere which can be imported/exported.
+    type: number
+    default: 80
   contactor_1_feedback_type:
     description: >-
       Defines the logic behind the feedback

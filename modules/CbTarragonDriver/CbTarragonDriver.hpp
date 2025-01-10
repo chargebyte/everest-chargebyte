@@ -22,6 +22,8 @@ namespace module {
 
 struct Conf {
     std::string connector_type;
+    double min_current_A;
+    double max_current_A;
     std::string contactor_1_feedback_type;
     std::string contactor_2_feedback_type;
     std::string switch_3ph1ph_wiring;

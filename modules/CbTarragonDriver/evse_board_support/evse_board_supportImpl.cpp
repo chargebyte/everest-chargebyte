@@ -37,11 +37,13 @@ void evse_board_supportImpl::init() {
     this->termination_requested = false;
     this->pp_fault_reported = false;
 
-    // configure hardware capabilities
-    this->hw_capabilities.max_current_A_import = 32;
-    this->hw_capabilities.min_current_A_import = 6;
-    this->hw_capabilities.max_current_A_export = 32;
-    this->hw_capabilities.min_current_A_export = 6;
+    // configure hardware capabilities: use user-configurable settings for flexibility
+    // but use the same value for import and export - there seems to be no reason for AC
+    // that these values differ for import and export
+    this->hw_capabilities.min_current_A_import = this->mod->config.min_current_A;
+    this->hw_capabilities.max_current_A_import = this->mod->config.max_current_A;
+    this->hw_capabilities.min_current_A_export = this->mod->config.min_current_A;
+    this->hw_capabilities.max_current_A_export = this->mod->config.max_current_A;
 
     // check whether the configuration allows to enable phase-count switching support:
     // - 'switch_3ph1ph_wiring' must not be 'none'
