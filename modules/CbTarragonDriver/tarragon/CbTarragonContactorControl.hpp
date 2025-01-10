@@ -30,6 +30,15 @@ enum class StateType {
 /// the opening or closing of a contactor in a charging station, and the feedback representing the state of
 /// the contactor can be read and analyzed through the board. This class simplifies the relay control,
 /// allowing for handling both single and three-phase operations.
+/// For phase-count switching setups, only the so called 'serial' wiring setup is supported.
+/// This means, that the primary contactor (controlled via relay 1) either switches all 3 phases or
+/// at least the first one, and the secondary contactor switches phase 2 and 3. But the important aspect
+/// here is that the secondary contactor is first switch on, and switched off last, while the primary
+/// contactor is switch on last, and switched off first. The sequence is required to present a consistent
+/// "theses phase are available" view to the car - in other words, the phases do not arrive with a
+/// time lag at the car.
+/// Note on the implementation: in case phase-count switching is not enabled, we interally handle this
+/// as single phase mode (because in this case, the real-world number of phases does not matter).
 ///
 class CbTarragonContactorControl {
 
@@ -54,6 +63,8 @@ public:
     /// microseconds. Pass zero to skip the configuration of any debounce period.
     /// @param contactor_2_feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close,
     /// none = no feedback).
+    /// @param switch_3ph1ph_enabled True whether relay 2 should be used for phase switching, relay 2 is ignored
+    /// otherwise.
     CbTarragonContactorControl(const std::string& relay_1_name, const std::string& relay_1_actuator_gpio_line_name,
                                const std::string& relay_1_feedback_gpio_line_name,
                                const unsigned int relay_1_gpio_debounce_us,
@@ -61,10 +72,7 @@ public:
                                const std::string& relay_2_actuator_gpio_line_name,
                                const std::string& relay_2_feedback_gpio_line_name,
                                const unsigned int relay_2_gpio_debounce_us,
-                               const std::string& contactor_2_feedback_type);
-
-    /// @brief Get the state of one or both contactors (OPEN or CLOSED).
-    ContactorState get_state(void);
+                               const std::string& contactor_2_feedback_type, bool switch_3ph1ph_enabled);
 
     /// @brief Get the state of one or both contactors ('actual' or 'target').
     ContactorState get_state(StateType state);
@@ -90,14 +98,9 @@ public:
     ///         (1 = 1-phase, 3 = 3-phase).
     int get_target_phase_count(void);
 
-    /// @brief Get the maximum number of phases to operate with.
-    /// @return number of phases (1 = 1-phase, 3 = 3-phase).
-    int get_max_phase_count(void);
-
-    /// @brief Set the maximum number of phases to operate with.
-    /// @param new_max_phase_count The new number of phases to work with
-    ///                           (1 = 1-phase, 3 = 3-phase).
-    void set_max_phase_count(int new_max_phase_count);
+    /// @brief Switch between 3-phase and 1-phase operation mode.
+    /// @param use_3phases True if 3 phases shall be used, false otherwise.
+    void switch_phase_count(bool use_3phases);
 
     /// @brief Return the timestamp at which a new state was set to the actuator
     std::chrono::time_point<std::chrono::steady_clock> get_new_target_state_ts(void);
@@ -122,10 +125,6 @@ public:
 
     /// @brief Reset the flag delay_contactor_close.
     void reset_delay_contactor_close(void);
-
-    /// @brief Determine if phase switching should start.
-    /// @param phase_target The number of phases to switch to (1 = 1-phase, 3 = 3-phase).
-    void start_phase_switching_while_charging(int phase_target);
 
     /// @brief Determine if there exists contactor(s) error (0 or 1).
     bool is_error_state(void);
@@ -161,16 +160,10 @@ private:
     ContactorState target_state;
 
     /// @brief Number of phases in operation (1 or 3).
-    int actual_phase_count;
+    int actual_phase_count {0};
 
     /// @brief Desired number of phases (1 or 3).
-    int target_phase_count;
-
-    /// @brief Maximum permissible number of phases to operate with (1 or 3).
-    int max_phase_count;
-
-    /// @brief Flag to start phase switching sequence.
-    bool start_phase_switching;
+    int target_phase_count {3};
 
     /// @brief Timestamp at which a new state was set to the actuator.
     std::chrono::time_point<std::chrono::steady_clock> new_target_state_ts;
@@ -184,4 +177,7 @@ private:
 
     /// @brief Flag to determine if closing the contactor should be delayed.
     bool delay_contactor_close;
+
+    /// @brief Return current state based on evaluation of current GPIOs.
+    ContactorState get_current_state();
 };

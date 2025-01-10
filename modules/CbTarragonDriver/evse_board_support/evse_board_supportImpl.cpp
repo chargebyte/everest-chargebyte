@@ -37,16 +37,22 @@ void evse_board_supportImpl::init() {
     this->termination_requested = false;
     this->pp_fault_reported = false;
 
-    // Configure hardware capabilities
+    // configure hardware capabilities
     this->hw_capabilities.max_current_A_import = 32;
-    this->hw_capabilities.min_current_A_import = 0;
-    this->hw_capabilities.max_phase_count_import = 3;
-    this->hw_capabilities.min_phase_count_import = 1;
+    this->hw_capabilities.min_current_A_import = 6;
     this->hw_capabilities.max_current_A_export = 32;
-    this->hw_capabilities.min_current_A_export = 0;
+    this->hw_capabilities.min_current_A_export = 6;
+
+    // check whether the configuration allows to enable phase-count switching support:
+    // - 'switch_3ph1ph_wiring' must not be 'none'
+    bool support_3ph1ph = this->mod->config.switch_3ph1ph_wiring != "none";
+
+    this->hw_capabilities.supports_changing_phases_during_charging = support_3ph1ph;
+    this->hw_capabilities.max_phase_count_import = 3;
+    this->hw_capabilities.min_phase_count_import = support_3ph1ph ? 1 : 3;
     this->hw_capabilities.max_phase_count_export = 3;
-    this->hw_capabilities.min_phase_count_export = 1;
-    this->hw_capabilities.supports_changing_phases_during_charging = false;
+    this->hw_capabilities.min_phase_count_export = support_3ph1ph ? 1 : 3;
+
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
@@ -79,7 +85,8 @@ void evse_board_supportImpl::init() {
         this->mod->config.relay_1_feedback_gpio_line_name, this->mod->config.relay_1_feedback_gpio_debounce_us,
         this->mod->config.contactor_1_feedback_type, this->mod->config.relay_2_name,
         this->mod->config.relay_2_actuator_gpio_line_name, this->mod->config.relay_2_feedback_gpio_line_name,
-        this->mod->config.relay_2_feedback_gpio_debounce_us, this->mod->config.contactor_2_feedback_type);
+        this->mod->config.relay_2_feedback_gpio_debounce_us, this->mod->config.contactor_2_feedback_type,
+        support_3ph1ph);
 
     // set the contactor handling related flags and timeout
     this->contactor_feedback_timeout = 200ms;
@@ -201,8 +208,10 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
-    // your code for cmd ac_switch_three_phases_while_charging goes here
-    (void)value;
+    EVLOG_info << "handle_ac_switch_three_phases_while_charging: switching to " << (value ? "3-phase" : "1-phase")
+               << " mode";
+
+    this->contactor_controller.switch_phase_count(value);
 }
 
 void evse_board_supportImpl::handle_evse_replug(int& value) {
