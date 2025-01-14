@@ -33,11 +33,11 @@ enum class StateType {
 /// For phase-count switching setups, only the so called 'serial' wiring setup is supported.
 /// This means, that the primary contactor (controlled via relay 1) either switches all 3 phases or
 /// at least the first one, and the secondary contactor switches phase 2 and 3. But the important aspect
-/// here is that the secondary contactor is first switch on, and switched off last, while the primary
-/// contactor is switch on last, and switched off first. The sequence is required to present a consistent
-/// "theses phase are available" view to the car - in other words, the phases do not arrive with a
+/// here is that the secondary contactor is first switched on, and switched off last, while the primary
+/// contactor is switched on last, and switched off first. The sequence is required to present a consistent
+/// "these phases are available" view to the car - in other words, the phases do not arrive with a
 /// time lag at the car.
-/// Note on the implementation: in case phase-count switching is not enabled, we interally handle this
+/// Note on the implementation: in case phase-count switching is not enabled, we internally handle this
 /// as single phase mode (because in this case, the real-world number of phases does not matter).
 ///
 class CbTarragonContactorControl {

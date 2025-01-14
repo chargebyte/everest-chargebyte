@@ -41,7 +41,7 @@ CbTarragonContactorControl::CbTarragonContactorControl(
             EVLOG_warning << "The secondary contactor has the feedback pin not connected. This is not recommended.";
     }
 
-    // if phase-count switching is enable, we default to 3-phase operation
+    // if phase-count switching is enabled, we default to 3-phase operation
     this->target_phase_count = switch_3ph1ph_enabled ? 3 : 1;
 
     // initialize the actual state by reading the GPIO feedback
@@ -73,7 +73,7 @@ ContactorState CbTarragonContactorControl::get_current_state() {
     }
 
     // reaching this line means: phase-count switching setup
-    // so not having the second relay configured is error -> report us UNKNOWN
+    // so not having the second relay configured is error -> report as UNKNOWN
     if (!this->relay_2.has_value())
         return ContactorState::CONTACTOR_UNKNOWN;
 

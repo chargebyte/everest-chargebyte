@@ -8,11 +8,18 @@ config:
       - IEC62196Type2Socket
     default: IEC62196Type2Socket
   min_current_A:
-    description: The minimum current in ampere which can be imported/exported.
+    description: >-
+      The minimum current in ampere which can be imported/exported. The default value
+      of 6 A corresponds to the lowest value which is technically possible to signal
+      by the IEC 61851 standard via PWM.
     type: number
     default: 6
   max_current_A:
-    description: The maximum current in ampere which can be imported/exported.
+    description: >-
+      The maximum current in ampere which can be imported/exported. Here too,
+      the default corresponds to the maximum value which is possible to signal
+      with the IEC 61851 standard. The value should be adjusted if there is no
+      other limitating value/instance which represents the physical charger limits.
     type: number
     default: 80
   contactor_1_feedback_type:
@@ -49,7 +56,7 @@ config:
       In 'serial' setups, the secondary contactor is closed before the primary
       contactor, and the primary contactor is opened before the secondary one.
       This ensures that the desired phases are offered to the vehicle at the same time.
-      In 'mutual' setups, the primary contactor switch all available phases while the
+      In 'mutual' setups, the primary contactor switches all available phases while the
       secondary contactor only switches a single phase. Both contactors are wired
       parallel, so that only exactly one contactor must be switched on at the same time.
       See user guide for wiring schematics and details.
@@ -74,7 +81,7 @@ config:
     default: RELAY_1_SENSE
   relay_1_feedback_gpio_debounce_us:
     description: >-
-      The debounce period in microseconds which should be configured for the GPIO.
+      The debounce period in microseconds which should be configured for the feedback GPIO.
       Use zero to skip any debounce period configuration.
     type: integer
     default: 10000
@@ -93,7 +100,7 @@ config:
     default: RELAY_2_SENSE
   relay_2_feedback_gpio_debounce_us:
     description: >-
-      The debounce period in microseconds which should be configured for the GPIO.
+      The debounce period in microseconds which should be configured for the feedback GPIO.
       Use zero to skip any debounce period configuration.
     type: integer
     default: 10000
