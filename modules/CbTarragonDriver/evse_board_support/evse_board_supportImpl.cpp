@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
 
+#include <iomanip>
+#include <sstream>
+#include <string>
 #include <generated/types/cb_board_support.hpp>
 
 #include "evse_board_supportImpl.hpp"
@@ -34,16 +37,24 @@ void evse_board_supportImpl::init() {
     this->termination_requested = false;
     this->pp_fault_reported = false;
 
-    // Configure hardware capabilities
-    this->hw_capabilities.max_current_A_import = 32;
-    this->hw_capabilities.min_current_A_import = 0;
+    // configure hardware capabilities: use user-configurable settings for flexibility
+    // but use the same value for import and export - there seems to be no reason for AC
+    // that these values differ for import and export
+    this->hw_capabilities.min_current_A_import = this->mod->config.min_current_A;
+    this->hw_capabilities.max_current_A_import = this->mod->config.max_current_A;
+    this->hw_capabilities.min_current_A_export = this->mod->config.min_current_A;
+    this->hw_capabilities.max_current_A_export = this->mod->config.max_current_A;
+
+    // check whether the configuration allows to enable phase-count switching support:
+    // - 'switch_3ph1ph_wiring' must not be 'none'
+    bool support_3ph1ph = this->mod->config.switch_3ph1ph_wiring != "none";
+
+    this->hw_capabilities.supports_changing_phases_during_charging = support_3ph1ph;
     this->hw_capabilities.max_phase_count_import = 3;
-    this->hw_capabilities.min_phase_count_import = 1;
-    this->hw_capabilities.max_current_A_export = 32;
-    this->hw_capabilities.min_current_A_export = 0;
+    this->hw_capabilities.min_phase_count_import = support_3ph1ph ? 1 : 3;
     this->hw_capabilities.max_phase_count_export = 3;
-    this->hw_capabilities.min_phase_count_export = 1;
-    this->hw_capabilities.supports_changing_phases_during_charging = false;
+    this->hw_capabilities.min_phase_count_export = support_3ph1ph ? 1 : 3;
+
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
@@ -73,9 +84,11 @@ void evse_board_supportImpl::init() {
     // Relay and contactor handling
     this->contactor_controller = CbTarragonContactorControl(
         this->mod->config.relay_1_name, this->mod->config.relay_1_actuator_gpio_line_name,
-        this->mod->config.relay_1_feedback_gpio_line_name, this->mod->config.contactor_1_feedback_type,
-        this->mod->config.relay_2_name, this->mod->config.relay_2_actuator_gpio_line_name,
-        this->mod->config.relay_2_feedback_gpio_line_name, this->mod->config.contactor_2_feedback_type);
+        this->mod->config.relay_1_feedback_gpio_line_name, this->mod->config.relay_1_feedback_gpio_debounce_us,
+        this->mod->config.contactor_1_feedback_type, this->mod->config.relay_2_name,
+        this->mod->config.relay_2_actuator_gpio_line_name, this->mod->config.relay_2_feedback_gpio_line_name,
+        this->mod->config.relay_2_feedback_gpio_debounce_us, this->mod->config.contactor_2_feedback_type,
+        support_3ph1ph);
 
     // set the contactor handling related flags and timeout
     this->contactor_feedback_timeout = 200ms;
@@ -142,9 +155,22 @@ void evse_board_supportImpl::handle_enable(bool& value) {
 }
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
+    std::stringstream amps_msg;
+    double amps;
+
     // pause CP observation to avoid race condition between this thread and the CP observation thread
     this->disable_cp_observation();
-    EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%";
+
+    // calculate the corresponding limit in Ampere, just for logging
+    if (value >= 85.0)
+        amps = (value - 64.0) * 2.5;
+    else
+        amps = value * 0.6;
+    if (10.0 <= value && value <= 96.0)
+        amps_msg << " (" << std::fixed << std::setprecision(1) << amps << " A)";
+
+    EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%"
+               << amps_msg.str();
     this->pwm_controller.set_duty_cycle(value);
     this->enable_cp_observation();
 }
@@ -184,8 +210,10 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
-    // your code for cmd ac_switch_three_phases_while_charging goes here
-    (void)value;
+    EVLOG_info << "handle_ac_switch_three_phases_while_charging: switching to " << (value ? "3-phase" : "1-phase")
+               << " mode";
+
+    this->contactor_controller.switch_phase_count(value);
 }
 
 void evse_board_supportImpl::handle_evse_replug(int& value) {
@@ -461,7 +489,7 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
             if (this->contactor_controller.is_error_state()) {
                 this->contactor_controller.set_actual_state(
                     this->contactor_controller.get_state(StateType::TARGET_STATE));
-                EVLOG_info << "Contactor state: " << this->contactor_controller.get_state(StateType::TARGET_STATE);
+                EVLOG_info << "Contactor state: " << this->contactor_controller;
 
                 // publish PowerOn or PowerOff event
                 types::board_support_common::Event tmp_event =
@@ -487,7 +515,7 @@ void evse_board_supportImpl::contactor_handling_worker(void) {
                 contactor_state != this->contactor_controller.get_state(StateType::ACTUAL_STATE)) {
                 // if the received state is equal to the expected state, set the actual state
                 this->contactor_controller.set_actual_state(contactor_state);
-                EVLOG_info << "Contactor state: " << this->contactor_controller.get_state(StateType::TARGET_STATE);
+                EVLOG_info << "Contactor state: " << this->contactor_controller;
 
                 // publish PowerOn or PowerOff event
                 types::board_support_common::Event tmp_event = (contactor_state == ContactorState::CONTACTOR_CLOSED)

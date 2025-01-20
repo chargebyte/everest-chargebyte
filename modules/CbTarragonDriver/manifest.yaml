@@ -7,6 +7,21 @@ config:
       - IEC62196Type2Cable
       - IEC62196Type2Socket
     default: IEC62196Type2Socket
+  min_current_A:
+    description: >-
+      The minimum current in ampere which can be imported/exported. The default value
+      of 6 A corresponds to the lowest value which is technically possible to signal
+      by the IEC 61851 standard via PWM.
+    type: number
+    default: 6
+  max_current_A:
+    description: >-
+      The maximum current in ampere which can be imported/exported. Here too,
+      the default corresponds to the maximum value which is possible to signal
+      with the IEC 61851 standard. The value should be adjusted if there is no
+      other limitating value/instance which represents the physical charger limits.
+    type: number
+    default: 80
   contactor_1_feedback_type:
     description: >-
       Defines the logic behind the feedback
@@ -31,8 +46,28 @@ config:
       - no
       - nc
     default: none
+  switch_3ph1ph_wiring:
+    description: >-
+      Tells the implementation which wiring configuration for phase-count
+      switching is used:
+      - 'none': no phase-count switching setup
+      - 'serial': the secondary contactor is wired in series to the primary contactor
+      - 'mutual': the secondary contactor is wired in parallel to the primary contactor
+      In 'serial' setups, the secondary contactor is closed before the primary
+      contactor, and the primary contactor is opened before the secondary one.
+      This ensures that the desired phases are offered to the vehicle at the same time.
+      In 'mutual' setups, the primary contactor switches all available phases while the
+      secondary contactor only switches a single phase. Both contactors are wired
+      parallel, so that only exactly one contactor must be switched on at the same time.
+      See user guide for wiring schematics and details.
+    type: string
+    enum:
+      - none
+      - serial
+      - mutual
+    default: none
   relay_1_name:
-    description: Name of the first the relay and its feedback as labeled on hardware
+    description: Name of the first relay and its feedback as labeled on hardware
     type: string
     default: R1/S1
   relay_1_actuator_gpio_line_name:
@@ -40,15 +75,18 @@ config:
     type: string
     default: RELAY_1_ENABLE
   relay_1_feedback_gpio_line_name:
-    description:  >-
+    description: >-
       The GPIO line name to which the feedback/sense signal is connected to
     type: string
     default: RELAY_1_SENSE
+  relay_1_feedback_gpio_debounce_us:
+    description: >-
+      The debounce period in microseconds which should be configured for the feedback GPIO.
+      Use zero to skip any debounce period configuration.
+    type: integer
+    default: 10000
   relay_2_name:
-    description:  >-
-      Name of the second relay and its feedback as labeled on hardware. This relay is
-      normally used for 3-phase operation. If this relay should be used for other
-      purposes other than 3-phase operation, set the name to "none".
+    description: Name of the second relay and its feedback as labeled on hardware
     type: string
     default: R2/S2
   relay_2_actuator_gpio_line_name:
@@ -60,6 +98,12 @@ config:
       The GPIO line name to which the feedback/sense signal is connected to
     type: string
     default: RELAY_2_SENSE
+  relay_2_feedback_gpio_debounce_us:
+    description: >-
+      The debounce period in microseconds which should be configured for the feedback GPIO.
+      Use zero to skip any debounce period configuration.
+    type: integer
+    default: 10000
   cp_rst_neg_peak_gpio_line_name:
     description: The GPIO line name of reset pin for negative peak ADC
     type: string
