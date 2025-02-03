@@ -148,10 +148,9 @@ private:
     /**
      * @brief Sets the system time to the given \p timepoint .
      *
-     * @param timepoint
-     * @return bool
+     * @param timepoint a std::chrono::time_point
      */
-    bool setSystemTime(const std::chrono::time_point<date::utc_clock>& timepoint);
+    void setSystemTime(const std::chrono::time_point<date::utc_clock>& timepoint);
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
