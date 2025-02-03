@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <systemd/sd-bus.h>
 #include <thread>
 #include <vector>
 
@@ -174,6 +175,56 @@ void systemImpl::check_update_marker() {
         }
         fs::remove(MARKER_FILE_PATH);
     }
+}
+
+bool systemImpl::setSystemTime(const std::chrono::time_point<date::utc_clock>& timepoint) {
+    // we ignore:
+    // - enabling or checking of NTP support
+    // - checking the time difference
+    // we do only:
+    // - set the system time with the simplest and most straight-forward method
+    //   (SDBus)
+    // - return a success indicator
+    __attribute__((cleanup(sd_bus_error_free))) sd_bus_error sd_error = SD_BUS_ERROR_NULL;
+    __attribute__((cleanup(sd_bus_unrefp))) sd_bus* bus = NULL;
+    const char* bus_timedate_destination = "org.freedesktop.timedate1";
+    const char* bus_timedate_path = "/org/freedesktop/timedate1";
+    const char* bus_timedate_interface = "org.freedesktop.timedate1";
+    constexpr bool relative = false;
+    constexpr bool interactive = false;
+    int rv;
+
+    const auto timepoint_us = std::chrono::time_point_cast<std::chrono::microseconds>(timepoint);
+    const auto usec_utc = timepoint_us.time_since_epoch(); // FIXME .count()
+
+    rv = sd_bus_default_system(&bus);
+    if (rv < 0) {
+        // FIXME: throw std::strerror(errno) instead of bool return
+        return false;
+    }
+
+    rv = sd_bus_call_method(bus, bus_timedate_destination, bus_timedate_path, bus_timedate_interface, "SetTime",
+                            &sd_error, NULL, "xbb", usec_utc, relative, interactive);
+    if (rv < 0) {
+        // FIXME: throw std::strerror(errno) instead of bool return
+        return false;
+    }
+
+    rv = sd_bus_flush(bus);
+    if (rv < 0) {
+        // FIXME: throw std::strerror(errno) instead of bool return
+        return false;
+    }
+
+    sd_bus_close(bus);
+
+    if (sd_bus_error_is_set(&sd_error)) {
+        /* TODO we might return/show the error string here from the error object */
+        // FIXME: throw std::strerror(errno) instead of bool return
+        return false;
+    }
+
+    return true;
 }
 
 void systemImpl::standard_firmware_update(const types::system::FirmwareUpdateRequest& firmware_update_request) {
@@ -690,18 +741,21 @@ void systemImpl::handle_reset(types::system::ResetType& type, bool& scheduled) {
 }
 
 bool systemImpl::handle_set_system_time(std::string& timestamp) {
-    int exit_code = 1;
+    int rv = 1;
 
     // FIXME: Time is set on every Heartbeat due to milliseconds differences. This needs a proper fix
     static bool time_is_set = false;
 
     if (!time_is_set && (timestamp != Everest::Date::to_rfc3339(date::utc_clock::now()))) {
         EVLOG_debug << "Setting system time to: " << timestamp;
-        exit_code = boost::process::system("/bin/date", "--set", timestamp);
+        // convert RFC3339 time to std::chrono::time_point
+        const auto timepoint = Everest::Date::from_rfc3339(timestamp);
+        // pass time to system
+        rv = setSystemTime(timepoint);
         time_is_set = true;
     }
 
-    return (exit_code == 0);
+    return (rv == 0);
 };
 
 types::system::BootReason systemImpl::handle_get_boot_reason() {

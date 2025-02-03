@@ -144,6 +144,14 @@ private:
      *  notifies the upper layer that the firmware update was successfully installed.
      */
     void check_update_marker();
+
+    /**
+     * @brief Sets the system time to the given \p timepoint .
+     *
+     * @param timepoint
+     * @return bool
+     */
+    bool setSystemTime(const std::chrono::time_point<date::utc_clock>& timepoint);
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
