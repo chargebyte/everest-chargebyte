@@ -216,8 +216,11 @@ void systemImpl::setSystemTime(const std::chrono::time_point<date::utc_clock>& t
     sd_bus_close(bus);
 
     if (sd_bus_error_is_set(&sd_error)) {
-        /* TODO we might return/show the error string here from the error object */
-        throw std::system_error(errno, std::generic_category(), "SDBus operation returned an error");
+        std::stringstream ss;
+        ss << "SDBus operation returned an error named '" << sd_error.name << "', message: '" << sd_error.message
+           << "'";
+        // EIO is a random choice
+        throw std::system_error(EIO, std::generic_category(), ss.str());
     }
 }
 
