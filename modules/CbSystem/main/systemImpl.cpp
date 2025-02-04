@@ -738,22 +738,25 @@ void systemImpl::handle_reset(types::system::ResetType& type, bool& scheduled) {
 }
 
 bool systemImpl::handle_set_system_time(std::string& timestamp) {
-    // FIXME: Time is set on every Heartbeat due to milliseconds differences. This needs a proper fix
-    static bool time_is_set = false;
+    const auto new_timepoint = Everest::Date::from_rfc3339(timestamp);
+    const auto time_deviation =
+        std::chrono::duration_cast<std::chrono::milliseconds>(new_timepoint - date::utc_clock::now());
+    // do not adjust small differences
+    const auto diff_ms = std::abs(time_deviation.count());
+    if (diff_ms < this->MIN_TIMESTAMP_DEVIATION) {
+        EVLOG_debug << "Skipped setting system time to: " << timestamp << ", difference is: " << std::to_string(diff_ms)
+                    << " ms";
+        return true;
+    }
 
-    if (!time_is_set && (timestamp != Everest::Date::to_rfc3339(date::utc_clock::now()))) {
-        EVLOG_debug << "Setting system time to: " << timestamp;
-        // convert RFC3339 time to std::chrono::time_point
-        const auto timepoint = Everest::Date::from_rfc3339(timestamp);
-        // pass time to system
-        try {
-            setSystemTime(timepoint);
-            time_is_set = true;
-        }
-        catch (const std::system_error& e) {
-            EVLOG_error << "System error setting time: [" << e.code() << "] " << e.what();
-            return false;
-        }
+    EVLOG_debug << "Setting system time to: " << timestamp;
+
+    // pass time to system
+    try {
+        setSystemTime(new_timepoint);
+    } catch (const std::system_error& e) {
+        EVLOG_error << "System error setting time: [" << e.code() << "] " << e.what();
+        return false;
     }
 
     return true;
