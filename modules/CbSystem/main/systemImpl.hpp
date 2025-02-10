@@ -84,7 +84,7 @@ private:
     Everest::SteadyTimer signed_firmware_update_download_timer;
     Everest::SteadyTimer signed_firmware_update_install_timer;
 
-    const int MIN_TIMESTAMP_DEVIATION {500};
+    const int MIN_TIMESTAMP_DEVIATION {2000};
 
     /**
      * @brief Executes a standard firmware update using the given \p firmware_update_request
