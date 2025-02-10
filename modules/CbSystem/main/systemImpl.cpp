@@ -194,8 +194,11 @@ void systemImpl::setSystemTime(const std::chrono::time_point<date::utc_clock>& t
     constexpr bool interactive = false;
     int rv;
 
-    const auto timepoint_us = std::chrono::time_point_cast<std::chrono::microseconds>(timepoint);
-    const auto usec_utc = timepoint_us.time_since_epoch();
+    // date::utc_clock takes leap seconds into consideration, the SDBus system clock does not
+    // so convert to eliminate to 28 seconds difference
+    const auto timepoint_sys_clock = date::clock_cast<std::chrono::system_clock>(timepoint);
+    const auto timepoint_sys_clock_us = std::chrono::time_point_cast<std::chrono::microseconds>(timepoint_sys_clock);
+    const auto usec_utc_sys = timepoint_sys_clock_us.time_since_epoch().count();
 
     rv = sd_bus_default_system(&bus);
     if (rv < 0) {
@@ -203,7 +206,7 @@ void systemImpl::setSystemTime(const std::chrono::time_point<date::utc_clock>& t
     }
 
     rv = sd_bus_call_method(bus, bus_timedate_destination, bus_timedate_path, bus_timedate_interface, "SetTime",
-                            &sd_error, NULL, "xbb", usec_utc, relative, interactive);
+                            &sd_error, NULL, "xbb", usec_utc_sys, relative, interactive);
     if (rv < 0) {
         throw std::system_error(errno, std::generic_category(), "Could not call SDBus method");
     }
