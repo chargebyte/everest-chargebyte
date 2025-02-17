@@ -3,7 +3,7 @@
 . "${1}"
 
 echo "$DOWNLOADING"
-curl --location --progress-bar --fail --connect-timeout "$CONNECTION_TIMEOUT" "${2}" -o "${3}"
+curl --location --progress-bar --ssl --fail --connect-timeout "$CONNECTION_TIMEOUT" "${2}" -o "${3}"
 curl_exit_code=$?
 sleep 2
 
