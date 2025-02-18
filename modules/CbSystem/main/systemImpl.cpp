@@ -200,6 +200,7 @@ void systemImpl::setSystemTime(const std::chrono::time_point<date::utc_clock>& t
 
     rv = sd_bus_default_system(&bus);
     if (rv < 0) {
+        sd_bus_close(bus);
         throw std::system_error(errno, std::generic_category(), "Could not initialize SDBus");
     }
 
@@ -209,11 +210,13 @@ void systemImpl::setSystemTime(const std::chrono::time_point<date::utc_clock>& t
     rv = sd_bus_call_method(bus, bus_timedate_destination, bus_timedate_path, bus_timedate_interface, "SetTime",
                             &sd_error, NULL, sb_bus_types, usec_utc_sys, relative, interactive);
     if (rv < 0) {
+        sd_bus_close(bus);
         throw std::system_error(errno, std::generic_category(), "Could not call SDBus method");
     }
 
     rv = sd_bus_flush(bus);
     if (rv < 0) {
+        sd_bus_close(bus);
         throw std::system_error(errno, std::generic_category(), "Could not flush SDBus");
     }
 
