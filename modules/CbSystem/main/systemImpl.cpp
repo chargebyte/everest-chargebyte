@@ -760,7 +760,7 @@ bool systemImpl::handle_set_system_time(std::string& timestamp) {
 
     // pass time to system
     try {
-        setSystemTime(new_timepoint);
+        this->setSystemTime(new_timepoint);
     } catch (const std::system_error& e) {
         EVLOG_error << "System error setting time: [" << e.code() << "] " << e.what();
         return false;
