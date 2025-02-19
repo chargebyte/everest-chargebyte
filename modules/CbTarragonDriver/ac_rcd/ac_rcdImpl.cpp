@@ -15,7 +15,7 @@ void ac_rcdImpl::init() {
         EVLOG_info << "RCM GPIO: " << this->mod->config.rcm_fault_gpio_line_name;
         EVLOG_info << "RCM GPIO polarity: " << (this->mod->config.rcm_fault_active_low ? "active_low" : "active_high");
 
-        this->rcm_controller =
+        this->mod->rcm_controller =
             CbTarragonRCM(this->mod->config.rcm_fault_gpio_line_name, this->mod->config.rcm_fault_active_low);
     }
 }
@@ -50,9 +50,9 @@ void ac_rcdImpl::rcm_observation_worker(void) {
     std::this_thread::sleep_for(1s);
 
     while (!this->termination_requested) {
-        this->rcm_controller.wait_for_rcm_event(1s);
+        this->mod->rcm_controller.wait_for_rcm_event(1s);
 
-        if (this->rcm_controller.is_rcm_tripped() && !this->rcm_tripped) {
+        if (this->mod->rcm_controller.is_rcm_tripped() && !this->rcm_tripped) {
             // signal emergency state to evse_board_support interface for open the contactor immediately
             module::evse_board_support::evse_board_supportImpl::set_emergency_state(true);
             this->rcm_tripped = true;
@@ -62,7 +62,7 @@ void ac_rcdImpl::rcm_observation_worker(void) {
             EVLOG_info << "RCM tripped";
         }
 
-        if (!this->rcm_controller.is_rcm_tripped() && this->rcm_tripped) {
+        if (!this->mod->rcm_controller.is_rcm_tripped() && this->rcm_tripped) {
             this->rcm_tripped = false;
             EVLOG_info << "RCM not tripped";
             // signal released emergency state to evse_board_support interface

@@ -21,6 +21,7 @@
 #include <string>
 #include <CbTarragonRelay.hpp>
 #include <CbTarragonContactorControl.hpp>
+#include <CbTarragonRCM.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -78,6 +79,9 @@ public:
 
     /// @brief Relay and contactor control
     std::unique_ptr<CbTarragonContactorControl> contactor_controller;
+
+    /// @brief Member variable for holding RCM controller instance
+    CbTarragonRCM rcm_controller;
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
