@@ -87,33 +87,8 @@ void evse_board_supportImpl::init() {
     // Proximity Pilot state observation
     this->pp_controller = CbTarragonPP(this->mod->config.pp_adc_device, this->mod->config.pp_adc_channel);
 
-    // Relay and contactor handling
-    if (this->mod->config.switch_3ph1ph_wiring == "none") {
-        // per definition we use the relay 1 as primary/only relay
-        auto nh_relay = this->mod->relays.extract(this->mod->config.relay_1_name);
-
-        this->contactor_controller = std::make_unique<CbTarragonContactorControlSimple>(
-            std::move(nh_relay.mapped()), this->mod->config.contactor_1_feedback_type);
-
-    } else if (this->mod->config.switch_3ph1ph_wiring == "serial") {
-        // per definition we use the relay 1 as primary relay (all phases)
-        // and relay 2 as secondary relay (phases 2 and 3)
-        auto nh_primary = this->mod->relays.extract(this->mod->config.relay_1_name);
-        auto nh_secondary = this->mod->relays.extract(this->mod->config.relay_2_name);
-
-        this->contactor_controller = std::make_unique<CbTarragonContactorControlSerial>(
-            std::move(nh_primary.mapped()), this->mod->config.contactor_1_feedback_type,
-            std::move(nh_secondary.mapped()), this->mod->config.contactor_2_feedback_type);
-    } else if (this->mod->config.switch_3ph1ph_wiring == "mutual") {
-        // per definition we use the relay 1 as primary relay (3ph) and relay 2 as secondary relay (1ph)
-        auto nh_3ph = this->mod->relays.extract(this->mod->config.relay_1_name);
-        auto nh_1ph = this->mod->relays.extract(this->mod->config.relay_2_name);
-
-        this->contactor_controller = std::make_unique<CbTarragonContactorControlMutual>(
-            std::move(nh_3ph.mapped()), this->mod->config.contactor_1_feedback_type, std::move(nh_1ph.mapped()),
-            this->mod->config.contactor_2_feedback_type);
-    }
-    this->contactor_controller->on_error.connect(
+    // connect contactor controller signals
+    this->mod->contactor_controller->on_error.connect(
         [&](const std::string& source, bool desired_state, types::cb_board_support::ContactorState actual_state) {
             // An error occurred while switching - i.e. feedback does not match our expected new state.
             // This fault is critical as it might be a sign of a hardware issue, therefore
@@ -133,7 +108,7 @@ void evse_board_supportImpl::init() {
                 EVLOG_error << errmsg.str();
             }
         });
-    this->contactor_controller->on_unexpected_change.connect(
+    this->mod->contactor_controller->on_unexpected_change.connect(
         [&](const std::string& source, types::cb_board_support::ContactorState seen_state) {
             // A spurious change on the feedback line should not happen and is unexpected.
             // This fault is critical as it might be a sign of a hardware issue, therefore
@@ -164,8 +139,8 @@ void evse_board_supportImpl::ready() {
     // in case of error, otherwise the stream is left untouched
     errmsg << "Initial contactor feedback check failed for ";
 
-    // let's check the current contactor state and raise a contactor fault in case there is anything unexpected
-    if (this->contactor_controller->is_inconsistent_state(errmsg)) {
+    // Let's check the current contactor state and raise a contactor fault in case there is anything unexpected
+    if (this->mod->contactor_controller->is_inconsistent_state(errmsg)) {
         // raise a contactor fault if it was not done before
         if (!this->contactor_fault_reported.exchange(true)) {
             EVLOG_error << errmsg.str()
@@ -266,7 +241,7 @@ void evse_board_supportImpl::handle_pwm_F() {
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
     // this method is called very often, even the contactor state is already matching the desired one
     // so let's use a little helper to control the log noise a little bit
-    bool log_as_info = value.allow_power_on != this->contactor_controller->get_state();
+    bool log_as_info = value.allow_power_on != this->mod->contactor_controller->get_state();
 
     if (value.allow_power_on && this->cp_current_state == types::cb_board_support::CPState::PilotFault) {
         EVLOG_warning << "Power on rejected due to detected pilot fault";
@@ -291,7 +266,7 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
                     << " the contactor";
 
     if (value.allow_power_on) {
-        auto delay = this->contactor_controller->get_closing_delay_left();
+        auto delay = this->mod->contactor_controller->get_closing_delay_left();
         if (delay > 0ms) {
             std::chrono::duration<double> seconds = std::chrono::duration_cast<std::chrono::duration<double>>(delay);
 
@@ -299,11 +274,11 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
                           << std::setprecision(1) << seconds.count() << "s";
         }
     }
-    if (this->contactor_controller->switch_state(value.allow_power_on)) {
+    if (this->mod->contactor_controller->switch_state(value.allow_power_on)) {
         if (log_as_info)
-            EVLOG_info << "Current state: " << *this->contactor_controller;
+            EVLOG_info << "Current state: " << *this->mod->contactor_controller;
         else
-            EVLOG_debug << "Current state: " << *this->contactor_controller;
+            EVLOG_debug << "Current state: " << *this->mod->contactor_controller;
 
         // publish PowerOn or PowerOff event
         types::board_support_common::Event tmp_event = value.allow_power_on
@@ -319,7 +294,7 @@ void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& 
     EVLOG_info << "handle_ac_switch_three_phases_while_charging: switching to " << (value ? "3-phase" : "1-phase")
                << " mode";
 
-    this->contactor_controller->switch_phase_count(value);
+    this->mod->contactor_controller->switch_phase_count(value);
 }
 
 void evse_board_supportImpl::handle_evse_replug(int& value) {

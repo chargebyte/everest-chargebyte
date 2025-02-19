@@ -96,9 +96,6 @@ private:
     /// @brief Control Pilot generation
     CbTarragonPWM pwm_controller;
 
-    /// @brief Relay and contactor control
-    std::unique_ptr<CbTarragonContactorControl> contactor_controller;
-
     /// @brief Flag to remember whether we already published a contactor fault.
     std::atomic_bool contactor_fault_reported {false};
 

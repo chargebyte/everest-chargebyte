@@ -19,7 +19,8 @@
 #include <map>
 #include <memory>
 #include <string>
-#include "CbTarragonRelay.hpp"
+#include <CbTarragonRelay.hpp>
+#include <CbTarragonContactorControl.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -74,6 +75,10 @@ public:
 
     /// @brief Map with platform relays
     std::map<std::string, std::unique_ptr<CbTarragonRelay>> relays;
+
+    /// @brief Relay and contactor control
+    std::unique_ptr<CbTarragonContactorControl> contactor_controller;
+
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
