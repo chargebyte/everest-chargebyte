@@ -9,7 +9,13 @@
 using namespace std::chrono_literals;
 
 bool CbTarragonContactorControl::switch_contactor(CbTarragonContactor& contactor, bool on, bool wait_for_feedback) {
-    bool rv = contactor.switch_state(on, wait_for_feedback);
+    bool rv;
+
+    // reject power on in case emergency flag is set
+    if (this->is_emergency && on)
+        return false;
+
+    rv = contactor.switch_state(on, wait_for_feedback);
 
     if (!rv) {
         // Note: we failed to switch, that means we've 'seen' still the old state

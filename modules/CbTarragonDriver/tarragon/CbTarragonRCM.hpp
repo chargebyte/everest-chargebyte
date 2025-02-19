@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
+#include <memory>
 #include <string>
 #include <gpiod.hpp>
-#include <memory>
+#include <sigslot/signal.hpp>
 
 class CbTarragonRCM {
 
@@ -23,6 +24,10 @@ public:
     /// @brief Wait for an RCM event to occur.
     /// @param timeout The maximum time to wait for the event in nanoseconds.
     void wait_for_rcm_event(const std::chrono::nanoseconds& timeout);
+
+    /// @brief Signal used to inform RCM state changes. The passed bool is true if RCM is tripped,
+    ///        false otherwise.
+    sigslot::signal<bool> on_change;
 
 private:
     /// @brief The GPIO handle of the used RCM fault pin.

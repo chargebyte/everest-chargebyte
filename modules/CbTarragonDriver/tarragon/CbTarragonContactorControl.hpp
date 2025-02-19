@@ -54,6 +54,11 @@ public:
     /// @brief Signal used to inform about unexpected state changes on the feedback GPIO(s).
     sigslot::signal<const std::string&, types::cb_board_support::ContactorState> on_unexpected_change;
 
+    /// @brief Remembers whether an emergency state was detected and thus contactor closing must be prevented.
+    ///        This could e.g. be RCD error. It should be true as long as an emergency state is present,
+    ///        false otherwise.
+    std::atomic_bool is_emergency {false};
+
     /// @brief Feeds a string representation of the given CbTarragonContactorControl
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.

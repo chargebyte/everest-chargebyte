@@ -53,6 +53,29 @@ void CbTarragonDriver::init() {
 
     invoke_init(*p_evse_board_support);
     invoke_init(*p_ac_rcd);
+
+    // now that the interface inits are done, we still need to ensure that RCM faults open the contactor
+    if (this->config.rcm_enable) {
+        this->rcm_controller.on_change.connect([&](bool rcm_tripped) {
+            // remember to prevent closing again
+            this->contactor_controller->is_emergency = rcm_tripped;
+
+            if (rcm_tripped) {
+                // open the contactor without waiting for EvseManager
+                this->contactor_controller->open();
+
+                // also publish PowerOff event
+                types::board_support_common::Event tmp_event = types::board_support_common::Event::PowerOff;
+                types::board_support_common::BspEvent tmp {tmp_event};
+                this->p_evse_board_support->publish_event(tmp);
+            }
+
+            if (rcm_tripped)
+                EVLOG_warning << "RCM fault occurred";
+            else
+                EVLOG_info << "RCM fault released";
+        });
+    }
 }
 
 void CbTarragonDriver::ready() {

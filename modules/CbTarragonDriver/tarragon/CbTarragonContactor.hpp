@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <memory>
