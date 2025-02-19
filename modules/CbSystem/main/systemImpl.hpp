@@ -14,6 +14,7 @@
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
+#include <chrono>
 #include <filesystem>
 
 #include <everest/timer.hpp>
@@ -83,8 +84,6 @@ private:
     Everest::SteadyTimer standard_update_firmware_timer;
     Everest::SteadyTimer signed_firmware_update_download_timer;
     Everest::SteadyTimer signed_firmware_update_install_timer;
-
-    const int MIN_TIMESTAMP_DEVIATION {2000};
 
     /**
      * @brief Executes a standard firmware update using the given \p firmware_update_request

@@ -21,6 +21,9 @@ namespace module {
 namespace main {
 
 namespace fs = std::filesystem;
+using namespace std::literals::chrono_literals;
+
+const std::chrono::milliseconds min_clock_deviation = 2s;
 
 const std::string CONSTANTS = "constants.env";
 const std::string DIAGNOSTICS_UPLOADER = "diagnostics_uploader.sh";
@@ -745,14 +748,13 @@ void systemImpl::handle_reset(types::system::ResetType& type, bool& scheduled) {
 }
 
 bool systemImpl::handle_set_system_time(std::string& timestamp) {
-    const auto new_timepoint = Everest::Date::from_rfc3339(timestamp);
-    const auto time_deviation =
-        std::chrono::duration_cast<std::chrono::milliseconds>(new_timepoint - date::utc_clock::now());
+    const auto timepoint = Everest::Date::from_rfc3339(timestamp);
     // do not adjust small differences
-    const auto diff_ms = std::abs(time_deviation.count());
-    if (diff_ms < this->MIN_TIMESTAMP_DEVIATION) {
-        EVLOG_debug << "Skipped setting system time to: " << timestamp << ", difference is: " << std::to_string(diff_ms)
-                    << " ms";
+    const std::chrono::milliseconds sys_clock_diff =
+        std::chrono::duration_cast<std::chrono::milliseconds>(timepoint - date::utc_clock::now());
+    if (std::chrono::abs(sys_clock_diff) < min_clock_deviation) {
+        EVLOG_debug << "Skipped setting system time to: " << timestamp
+                    << ", difference is: " << std::to_string(sys_clock_diff.count()) << " ms";
         return true;
     }
 
@@ -760,7 +762,7 @@ bool systemImpl::handle_set_system_time(std::string& timestamp) {
 
     // pass time to system
     try {
-        this->setSystemTime(new_timepoint);
+        this->setSystemTime(timepoint);
     } catch (const std::system_error& e) {
         EVLOG_error << "System error setting time: [" << e.code() << "] " << e.what();
         return false;
