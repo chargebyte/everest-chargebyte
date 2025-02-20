@@ -23,6 +23,7 @@ struct Conf {
     double DefaultRetries;
     double DefaultRetryInterval;
     int ResetDelay;
+    int min_time_deviation;
 };
 
 class CbSystem : public Everest::ModuleBase {

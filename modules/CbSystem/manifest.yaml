@@ -18,6 +18,13 @@ config:
     type: integer
     minimum: 0
     default: 3
+  min_time_deviation:
+    description: >-
+      Specifies in milliseconds the minimum clock deviation for applying a new system time. This is to avoid frequent
+      small jumps of system time.
+    type: integer
+    minimum: 0
+    default: 1000
 provides:
   main:
     description: Implements the system interface

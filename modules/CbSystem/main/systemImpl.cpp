@@ -23,8 +23,6 @@ namespace main {
 namespace fs = std::filesystem;
 using namespace std::literals::chrono_literals;
 
-const std::chrono::milliseconds min_clock_deviation = 500ms;
-
 const std::string CONSTANTS = "constants.env";
 const std::string DIAGNOSTICS_UPLOADER = "diagnostics_uploader.sh";
 const std::string FIRMWARE_UPDATER = "firmware_updater.sh";
@@ -752,6 +750,10 @@ bool systemImpl::handle_set_system_time(std::string& timestamp) {
     // do not adjust small differences
     const std::chrono::milliseconds sys_clock_diff =
         std::chrono::duration_cast<std::chrono::milliseconds>(timepoint - date::utc_clock::now());
+
+    const std::chrono::milliseconds min_clock_deviation =
+        std::chrono::milliseconds(this->mod->config.min_time_deviation);
+
     if (std::chrono::abs(sys_clock_diff) < min_clock_deviation) {
         EVLOG_debug << "Skipped setting system time to: " << timestamp
                     << ", difference is: " << std::to_string(sys_clock_diff.count()) << " ms";
