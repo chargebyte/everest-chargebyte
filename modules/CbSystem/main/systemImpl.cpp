@@ -23,7 +23,7 @@ namespace main {
 namespace fs = std::filesystem;
 using namespace std::literals::chrono_literals;
 
-const std::chrono::milliseconds min_clock_deviation = 2s;
+const std::chrono::milliseconds min_clock_deviation = 500ms;
 
 const std::string CONSTANTS = "constants.env";
 const std::string DIAGNOSTICS_UPLOADER = "diagnostics_uploader.sh";
