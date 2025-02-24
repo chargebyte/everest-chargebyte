@@ -187,48 +187,40 @@ void systemImpl::setSystemTime(const std::chrono::time_point<date::utc_clock>& t
     //   (SDBus)
     // - throw on errors
     __attribute__((cleanup(sd_bus_error_free))) sd_bus_error sd_error = SD_BUS_ERROR_NULL;
-    __attribute__((cleanup(sd_bus_unrefp))) sd_bus* bus = NULL;
+    __attribute__((cleanup(sd_bus_flush_close_unrefp))) sd_bus* bus = NULL;
     const char* bus_timedate_destination = "org.freedesktop.timedate1";
     const char* bus_timedate_path = "/org/freedesktop/timedate1";
     const char* bus_timedate_interface = "org.freedesktop.timedate1";
     int rv;
 
-    // date::utc_clock takes leap seconds into consideration, the SDBus system clock does not
-    // so convert to eliminate to 28 seconds difference
+    // date::utc_clock takes leap seconds into consideration, the SDBus system clock does not;
+    // so convert to eliminate the 28 seconds difference
     const auto timepoint_sys_clock = date::clock_cast<std::chrono::system_clock>(timepoint);
     const auto timepoint_sys_clock_us = std::chrono::time_point_cast<std::chrono::microseconds>(timepoint_sys_clock);
+    // the integer value SDBus requires
     const int64_t usec_utc_sys = timepoint_sys_clock_us.time_since_epoch().count();
 
     rv = sd_bus_default_system(&bus);
     if (rv < 0) {
-        sd_bus_close(bus);
         throw std::system_error(errno, std::generic_category(), "Could not initialize SDBus");
     }
 
     const char* sb_bus_types = "xbb"; // int64_t, boolean, boolean
     constexpr bool relative = false;
     constexpr bool interactive = false;
-    rv = sd_bus_call_method(bus, bus_timedate_destination, bus_timedate_path, bus_timedate_interface, "SetTime",
-                            &sd_error, NULL, sb_bus_types, usec_utc_sys, relative, interactive);
-    if (rv < 0) {
-        sd_bus_close(bus);
-        throw std::system_error(errno, std::generic_category(), "Could not call SDBus method");
-    }
-
-    rv = sd_bus_flush(bus);
-    if (rv < 0) {
-        sd_bus_close(bus);
-        throw std::system_error(errno, std::generic_category(), "Could not flush SDBus");
-    }
-
-    sd_bus_close(bus);
+    sd_bus_call_method(bus, bus_timedate_destination, bus_timedate_path, bus_timedate_interface, "SetTime", &sd_error,
+                       NULL, sb_bus_types, usec_utc_sys, relative, interactive);
 
     if (sd_bus_error_is_set(&sd_error)) {
-        std::stringstream ss;
-        ss << "SDBus operation returned an error named '" << sd_error.name << "', message: '" << sd_error.message
-           << "'";
-        // EIO is a random choice
-        throw std::system_error(EIO, std::generic_category(), ss.str());
+        int sd_errno = sd_bus_error_get_errno(&sd_error);
+        // EALREADY means the time is already in sync (from another source)
+        // let's not flood the logs with warnings about this
+        if (sd_errno != EALREADY) {
+            std::stringstream ss;
+            ss << "SDBus operation returned an error named '" << sd_error.name << "', message: '" << sd_error.message
+               << "'";
+            throw std::system_error(sd_errno, std::generic_category(), ss.str());
+        }
     }
 }
 
