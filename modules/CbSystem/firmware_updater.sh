@@ -25,10 +25,10 @@ booted_from=$(rauc status | grep "Booted from" | awk -F ': ' '{print $2}')
 # Get the line containing "Activated" and extract the value after the colon
 activated=$(rauc status | grep "Activated" | awk -F ': ' '{print $2}')
 
-# Get the number the number of paritions marked as good
+# Get the number of partitions marked as good
 marked_good=$(rauc status | grep "boot status" | grep -c good)
 
-# Check if booted_from and activated are different and the 2 paritions are marked as good
+# Check if booted_from and activated are different and the 2 partitions are marked as good
 if [[ "$booted_from" != "$activated" && "$marked_good" -eq 2 ]]; then
 
     echo "$INSTALL_REBOOTING"
