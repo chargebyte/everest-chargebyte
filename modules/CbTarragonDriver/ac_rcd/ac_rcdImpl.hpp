@@ -14,7 +14,6 @@
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 #include <atomic>
-#include <CbTarragonRCM.hpp>
 #include <thread>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
@@ -57,9 +56,6 @@ private:
 
     /// @brief RCM Observation thread handle
     std::thread rcm_observation_thread;
-
-    /// @brief Member variable for holding RCM controller instance
-    CbTarragonRCM rcm_controller;
 
     /// @brief Indicator whether RCM is still tripped
     std::atomic_bool rcm_tripped {false};

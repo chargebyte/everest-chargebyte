@@ -179,5 +179,4 @@ provides:
 metadata:
   license: https://spdx.org/licenses/Apache-2.0.html
   authors:
-    - Fabian Hartung
-    - Mohannad Oraby
+    - chargebyte GmbH

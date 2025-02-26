@@ -16,6 +16,12 @@
 
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
+#include <map>
+#include <memory>
+#include <string>
+#include <CbTarragonRelay.hpp>
+#include <CbTarragonContactorControl.hpp>
+#include <CbTarragonRCM.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -67,6 +73,16 @@ public:
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
     // insert your public definitions here
+
+    /// @brief Map with platform relays
+    std::map<std::string, std::unique_ptr<CbTarragonRelay>> relays;
+
+    /// @brief Relay and contactor control
+    std::unique_ptr<CbTarragonContactorControl> contactor_controller;
+
+    /// @brief Member variable for holding RCM controller instance
+    CbTarragonRCM rcm_controller;
+
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:

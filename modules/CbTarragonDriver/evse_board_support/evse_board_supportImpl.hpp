@@ -17,6 +17,9 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
+#include <mutex>
+#include <thread>
 #include <generated/types/cb_board_support.hpp>
 #include <CbTarragonCP.hpp>
 #include <CbTarragonPWM.hpp>
@@ -41,10 +44,6 @@ public:
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
     ~evse_board_supportImpl();
-
-    /// @brief setter method to signal a emergency
-    /// @param is_emergency
-    static void set_emergency_state(bool is_emergency);
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
 
 protected:
@@ -93,8 +92,8 @@ private:
     /// @brief Control Pilot generation
     CbTarragonPWM pwm_controller;
 
-    /// @brief Relay and contactor control
-    CbTarragonContactorControl contactor_controller;
+    /// @brief Flag to remember whether we already published a contactor fault.
+    std::atomic_bool contactor_fault_reported {false};
 
     /// @brief Mutex to enable/disable CP observation thread. Usually hold by the observation
     ///        worker thread but can be requested via `disable_cp_observation` method.
@@ -124,16 +123,6 @@ private:
     /// @brief PP observation thread handle
     std::thread pp_observation_thread;
 
-    /// @brief Duration to wait for contactor feedback before issuing a contactor fault.
-    ///        A value of 200ms should suffice for both contactors.
-    std::chrono::milliseconds contactor_feedback_timeout;
-
-    /// @brief Previous value of flag `allow_power_on`;
-    bool last_allow_power_on {false};
-
-    /// @brief Contactor handling thread handle
-    std::thread contactor_handling_thread;
-
     /// @brief Helper to determine the CP state based on the measured voltages
     types::cb_board_support::CPState determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
                                                         const CPUtils::cp_state_signal_side& cp_state_negative_side,
@@ -151,18 +140,6 @@ private:
     /// @brief Main function of the PP observation thread
     void pp_observation_worker(void);
 
-    /// @brief Main function of the contactor handling thread. This is responsible for both setting
-    ///        the target state of the relay actuator and waiting for the contactor feedback
-    //         to be received.
-    void contactor_handling_worker(void);
-
-    /// @brief Signal from upper layers to determine if relays can be switched on
-    ///        (`true`: Switch on allowed, `false`: Switch off)
-    std::atomic_bool allow_power_on {false};
-
-    /// @brief Signal from other interface to determine if an emergency state (e.g. RCD error) is present
-    ///        (`true`: emergency present, `false`: emergency not present)
-    inline static std::atomic_bool is_emergency {false};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

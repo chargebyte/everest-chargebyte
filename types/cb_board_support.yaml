@@ -19,3 +19,25 @@ types:
       - E
       - F
       - PilotFault
+  ContactorState:
+    description: Models the state of a contactor
+    type: string
+    enum:
+      - Unknown
+      - Open
+      - Closed
+  ContactorFeedbackType:
+    description: >-
+       Models the feedback type of the auxiliary contact of the contactor:
+       none - no feedback signal is used
+       nc - the feedback signal is wired to a normally-closed contact
+       no - the feedback signal is wired to a normally-open contact
+       Notes:
+       - we have to use quotes here to force string evaluation,
+         otherwise "no" would be converted to "False".
+       - we use lower-case strings to match the manifest configuration values
+    type: string
+    enum:
+      - "none"
+      - "nc"
+      - "no"

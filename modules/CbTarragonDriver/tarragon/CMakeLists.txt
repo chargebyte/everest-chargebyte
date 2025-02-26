@@ -10,7 +10,11 @@ target_sources(tarragon
         "CbTarragonPP.cpp"
         "CbTarragonRCM.cpp"
         "CbTarragonRelay.cpp"
+        "CbTarragonContactor.cpp"
         "CbTarragonContactorControl.cpp"
+        "CbTarragonContactorControlSimple.cpp"
+        "CbTarragonContactorControlSerial.cpp"
+        "CbTarragonContactorControlMutual.cpp"
 )
 
 get_property(LINUX_HW_INCLUDE_DIR GLOBAL PROPERTY LINUX_HW_INCLUDE_DIR)
