@@ -2,21 +2,21 @@
 
 . "${1}"
 
-mkdir /tmp/signature_validation
+SIGNATURE_VALIDATION_DIR=$(mktemp -d /tmp/signature_validation_XXXXX)
 sleep 2
 echo "$DOWNLOADING"
 
 sleep 2
-curl --location --progress-bar --fail --connect-timeout "$CONNECTION_TIMEOUT" "${2}" -o "${3}"
+curl --location --progress-bar --ssl --fail --connect-timeout "$CONNECTION_TIMEOUT" "${2}" -o "${3}"
 curl_exit_code=$?
 sleep 2
 if [[ $curl_exit_code -eq 0 ]]; then
     echo "$DOWNLOADED"
-    echo -e "${4}" >/tmp/signature_validation/firmware_signature.base64
-    echo -e "${5}" >/tmp/signature_validation/firmware_cert.pem
-    openssl x509 -pubkey -noout -in /tmp/signature_validation/firmware_cert.pem >/tmp/signature_validation/pubkey.pem # Extract public key from certificate
-    openssl base64 -d -in /tmp/signature_validation/firmware_signature.base64 -out /tmp/signature_validation/firmware_signature.sha256 # Decode base64 signature to binary
-    r=$(openssl dgst -sha256 -verify /tmp/signature_validation/pubkey.pem -signature /tmp/signature_validation/firmware_signature.sha256 -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:-1 "${3}") # Verify signature
+    echo -e "${4}" >"$SIGNATURE_VALIDATION_DIR/firmware_signature.base64"
+    echo -e "${5}" >"$SIGNATURE_VALIDATION_DIR/firmware_cert.pem"
+    openssl x509 -pubkey -noout -in "$SIGNATURE_VALIDATION_DIR/firmware_cert.pem" >"$SIGNATURE_VALIDATION_DIR/pubkey.pem" # Extract public key from certificate
+    openssl base64 -d -in "$SIGNATURE_VALIDATION_DIR/firmware_signature.base64" -out "$SIGNATURE_VALIDATION_DIR/firmware_signature.sha256" # Decode base64 signature to binary
+    r=$(openssl dgst -sha256 -verify "$SIGNATURE_VALIDATION_DIR/pubkey.pem" -signature "$SIGNATURE_VALIDATION_DIR/firmware_signature.sha256" -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:-1 "${3}") # Verify signature
     if [ "$r" = "Verified OK" ]; then
         echo "$SIGNATURE_VERIFIED"
     else
@@ -26,4 +26,4 @@ else
     echo "$DOWNLOAD_FAILED"
 fi
 
-rm -rf /tmp/signature_validation
+rm -rf "$SIGNATURE_VALIDATION_DIR"
