@@ -36,18 +36,14 @@ CbTarragonContactorControlSerial::CbTarragonContactorControlSerial(
 }
 
 bool CbTarragonContactorControlSerial::is_inconsistent_state(std::ostringstream& error_hint) const {
-    bool rv;
-
-    rv = this->primary.is_state_mismatch();
-    if (rv) {
+    if (this->primary.is_state_mismatch()) {
         error_hint << this->primary;
-        return rv;
+        return true;
     }
 
-    rv = this->secondary.is_state_mismatch();
-    if (rv) {
+    if (this->secondary.is_state_mismatch()) {
         error_hint << this->secondary;
-        return rv;
+        return true;
     }
 
     return false;
