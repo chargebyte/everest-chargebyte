@@ -17,6 +17,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -95,12 +96,17 @@ private:
     /// @brief Flag to remember whether we already published a contactor fault.
     std::atomic_bool contactor_fault_reported {false};
 
-    /// @brief Mutex to enable/disable CP observation thread. Usually hold by the observation
-    ///        worker thread but can be requested via `disable_cp_observation` method.
+    /// @brief Mutex to enable/disable CP observation thread. Usually this is held
+    ///        by the observation worker thread but in case e.g. duty cycle changes
+    ///        are requested, then it must be held to prevent sampling races.
     std::mutex cp_observation_lock;
 
-    /// @brief Helper to track whether the CP observation is running
-    bool cp_observation_enabled {false};
+    /// @brief Tracks whether this EVSE is enabled or not.
+    std::atomic_bool is_enabled {false};
+
+    /// @brief Used to signal changes on `is_enabled` to the CP observation thread
+    ///        which waits(sleeps) as long as `is_enabled` is false.
+    std::condition_variable is_enabled_changed;
 
     /// @brief Tracks the last published CP state.
     std::atomic<types::cb_board_support::CPState> cp_current_state;
