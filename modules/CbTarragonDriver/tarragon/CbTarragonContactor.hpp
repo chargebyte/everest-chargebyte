@@ -29,8 +29,8 @@ public:
     /// @brief Switch the contactor on/off.
     /// @param on The target state (true = on, false = off)
     /// @param wait_for_feedback Tell whether to wait and evaluate the feedback before returning.
-    /// @return Returns true if the new state was reached successfully (based on feedback if configured),
-    /// false otherwise.
+    /// @return Returns false if there is probably a contactor error (based on feedback if configured),
+    ///         true otherwise.
     bool switch_state(bool on, bool wait_for_feedback);
 
     /// @brief Read the actual state (based on actuator line).

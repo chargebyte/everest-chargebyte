@@ -43,8 +43,8 @@ public:
     ///        since in some setups, we might not see the feedback immediately.
     /// @param on The target state (true = on, false = off)
     /// @param wait_for_feedback Tell whether to wait and evaluate the feedback before returning.
-    /// @return Returns true if the new state was reached successfully (based on sense signal evaluation if configured),
-    /// false otherwise.
+    /// @return Returns false if the new state could not reached successfully (based on sense signal evaluation
+    ///         if configured and thus it is probably a contactor error), true otherwise.
     bool set_actuator_state(bool on, bool wait_for_feedback);
 
     /// @brief Read the actual GPIO state of the actuator.
