@@ -132,8 +132,9 @@ bool CbTarragonRelay::set_actuator_state(bool on, bool wait_for_feedback) {
         std::this_thread::sleep_for(this->get_closing_delay_left());
 
     // the mentioned double check - return before we do actually anything
+    // but report it as success - otherwise a contactor error is triggered which is not true here
     if (on and not this->execute_actuator_state_on_switch)
-        return false;
+        return true;
 
     // check whether we actually need to toggle
     if (on == this->get_actuator_state())
