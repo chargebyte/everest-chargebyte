@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <systemd/sd-bus.h>
 #include <thread>
 #include <vector>
 
@@ -20,6 +21,7 @@ namespace module {
 namespace main {
 
 namespace fs = std::filesystem;
+using namespace std::literals::chrono_literals;
 
 const std::string CONSTANTS = "constants.env";
 const std::string DIAGNOSTICS_UPLOADER = "diagnostics_uploader.sh";
@@ -176,6 +178,52 @@ void systemImpl::check_update_marker() {
     }
 }
 
+void systemImpl::setSystemTime(const std::chrono::time_point<date::utc_clock>& timepoint) {
+    // we ignore:
+    // - enabling or checking of NTP support
+    // - checking the time difference
+    // we do only:
+    // - set the system time with the simplest and most straight-forward method
+    //   (SDBus)
+    // - throw on errors
+    __attribute__((cleanup(sd_bus_error_free))) sd_bus_error sd_error = SD_BUS_ERROR_NULL;
+    __attribute__((cleanup(sd_bus_flush_close_unrefp))) sd_bus* bus = NULL;
+    const char* bus_timedate_destination = "org.freedesktop.timedate1";
+    const char* bus_timedate_path = "/org/freedesktop/timedate1";
+    const char* bus_timedate_interface = "org.freedesktop.timedate1";
+    int rv;
+
+    // date::utc_clock takes leap seconds into consideration, the SDBus system clock does not;
+    // so convert to eliminate the 28 seconds difference
+    const auto timepoint_sys_clock = date::clock_cast<std::chrono::system_clock>(timepoint);
+    const auto timepoint_sys_clock_us = std::chrono::time_point_cast<std::chrono::microseconds>(timepoint_sys_clock);
+    // the integer value SDBus requires
+    const int64_t usec_utc_sys = timepoint_sys_clock_us.time_since_epoch().count();
+
+    rv = sd_bus_default_system(&bus);
+    if (rv < 0) {
+        throw std::system_error(errno, std::generic_category(), "Could not initialize SDBus");
+    }
+
+    const char* sb_bus_types = "xbb"; // int64_t, boolean, boolean
+    constexpr bool relative = false;
+    constexpr bool interactive = false;
+    sd_bus_call_method(bus, bus_timedate_destination, bus_timedate_path, bus_timedate_interface, "SetTime", &sd_error,
+                       NULL, sb_bus_types, usec_utc_sys, relative, interactive);
+
+    if (sd_bus_error_is_set(&sd_error)) {
+        int sd_errno = sd_bus_error_get_errno(&sd_error);
+        // EALREADY means the time is already in sync (from another source)
+        // let's not flood the logs with warnings about this
+        if (sd_errno != EALREADY) {
+            std::stringstream ss;
+            ss << "SDBus operation returned an error named '" << sd_error.name << "', message: '" << sd_error.message
+               << "'";
+            throw std::system_error(sd_errno, std::generic_category(), ss.str());
+        }
+    }
+}
+
 void systemImpl::standard_firmware_update(const types::system::FirmwareUpdateRequest& firmware_update_request) {
 
     this->standard_firmware_update_running = true;
@@ -200,9 +248,9 @@ void systemImpl::standard_firmware_update(const types::system::FirmwareUpdateReq
         const std::vector<std::string> args = {constants.string(), firmware_update_request.location,
                                                firmware_file_path.string()};
         int32_t retries = 0;
-        const auto total_retries = firmware_update_request.retries.value_or(this->mod->config.DefaultRetries);
+        const auto total_retries = firmware_update_request.retries.value_or(this->mod->config.default_retries);
         const auto retry_interval =
-            firmware_update_request.retry_interval_s.value_or(this->mod->config.DefaultRetryInterval);
+            firmware_update_request.retry_interval_s.value_or(this->mod->config.default_retry_interval);
 
         auto firmware_status_enum = types::system::FirmwareUpdateStatusEnum::DownloadFailed;
         types::system::FirmwareUpdateStatus firmware_status;
@@ -367,9 +415,9 @@ void systemImpl::download_signed_firmware(const types::system::FirmwareUpdateReq
         constants.string(), firmware_update_request.location, firmware_file_path.string(),
         firmware_update_request.signature.value(), firmware_update_request.signing_certificate.value()};
     int32_t retries = 0;
-    const auto total_retries = firmware_update_request.retries.value_or(this->mod->config.DefaultRetries);
+    const auto total_retries = firmware_update_request.retries.value_or(this->mod->config.default_retries);
     const auto retry_interval =
-        firmware_update_request.retry_interval_s.value_or(this->mod->config.DefaultRetryInterval);
+        firmware_update_request.retry_interval_s.value_or(this->mod->config.default_retry_interval);
 
     auto firmware_status_enum = types::system::FirmwareUpdateStatusEnum::DownloadFailed;
     types::system::FirmwareUpdateStatus firmware_status;
@@ -614,9 +662,9 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
                                          diagnostics_file_path.string()};
         bool uploaded = false;
         int32_t retries = 0;
-        const auto total_retries = upload_logs_request.retries.value_or(this->mod->config.DefaultRetries);
+        const auto total_retries = upload_logs_request.retries.value_or(this->mod->config.default_retries);
         const auto retry_interval =
-            upload_logs_request.retry_interval_s.value_or(this->mod->config.DefaultRetryInterval);
+            upload_logs_request.retry_interval_s.value_or(this->mod->config.default_retry_interval);
 
         types::system::LogStatus log_status;
         while (!uploaded && retries <= total_retries && !this->interrupt_log_upload) {
@@ -677,7 +725,7 @@ void systemImpl::handle_reset(types::system::ResetType& type, bool& scheduled) {
     std::thread([this, type, scheduled] {
         EVLOG_info << "Reset request received: " << type << ", " << (scheduled ? "" : "not ") << "scheduled";
 
-        std::this_thread::sleep_for(std::chrono::seconds(this->mod->config.ResetDelay));
+        std::this_thread::sleep_for(std::chrono::seconds(this->mod->config.reset_delay));
 
         if (type == types::system::ResetType::Soft) {
             EVLOG_info << "Performing soft reset now.";
@@ -690,18 +738,31 @@ void systemImpl::handle_reset(types::system::ResetType& type, bool& scheduled) {
 }
 
 bool systemImpl::handle_set_system_time(std::string& timestamp) {
-    int exit_code = 1;
+    const auto timepoint = Everest::Date::from_rfc3339(timestamp);
+    // do not adjust small differences
+    const std::chrono::milliseconds sys_clock_diff =
+        std::chrono::duration_cast<std::chrono::milliseconds>(timepoint - date::utc_clock::now());
 
-    // FIXME: Time is set on every Heartbeat due to milliseconds differences. This needs a proper fix
-    static bool time_is_set = false;
+    const std::chrono::milliseconds min_clock_deviation =
+        std::chrono::milliseconds(this->mod->config.min_time_deviation);
 
-    if (!time_is_set && (timestamp != Everest::Date::to_rfc3339(date::utc_clock::now()))) {
-        EVLOG_debug << "Setting system time to: " << timestamp;
-        exit_code = boost::process::system("/bin/date", "--set", timestamp);
-        time_is_set = true;
+    if (std::chrono::abs(sys_clock_diff) < min_clock_deviation) {
+        EVLOG_debug << "Skipped setting system time to: " << timestamp
+                    << ", difference is: " << std::to_string(sys_clock_diff.count()) << " ms";
+        return true;
     }
 
-    return (exit_code == 0);
+    EVLOG_debug << "Setting system time to: " << timestamp;
+
+    // pass time to system
+    try {
+        this->setSystemTime(timepoint);
+    } catch (const std::system_error& e) {
+        EVLOG_error << "System error setting time: [" << e.code() << "] " << e.what();
+        return false;
+    }
+
+    return true;
 };
 
 types::system::BootReason systemImpl::handle_get_boot_reason() {

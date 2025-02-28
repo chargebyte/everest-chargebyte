@@ -20,9 +20,10 @@
 namespace module {
 
 struct Conf {
-    double DefaultRetries;
-    double DefaultRetryInterval;
-    int ResetDelay;
+    int default_retries;
+    int default_retry_interval;
+    int reset_delay;
+    int min_time_deviation;
 };
 
 class CbSystem : public Everest::ModuleBase {

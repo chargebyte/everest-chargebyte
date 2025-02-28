@@ -1,15 +1,15 @@
 description: This module implements system wide operations for chargebyte's hardware products
 config:
-  DefaultRetries:
+  default_retries:
     description: Specifies how many times Charge Point tries to upload or download files on previous failure.
-    type: number
+    type: integer
     default: 1
-  DefaultRetryInterval:
+  default_retry_interval:
     description: >-
       Specifies in seconds after which time a retry of an upload or download on previous failure may be attempted.
-    type: number
+    type: integer
     default: 1
-  ResetDelay:
+  reset_delay:
     description: >-
       When receiving a reset request, then the actual execution can be delayed by this amount of time (given in seconds).
       This might be necessary, for example, when the reset request arrives via the network and the call acknowledgement
@@ -18,6 +18,13 @@ config:
     type: integer
     minimum: 0
     default: 3
+  min_time_deviation:
+    description: >-
+      Specifies in milliseconds the minimum clock deviation for applying a new system time. This is to avoid frequent
+      small jumps of system time.
+    type: integer
+    minimum: 0
+    default: 1000
 provides:
   main:
     description: Implements the system interface
