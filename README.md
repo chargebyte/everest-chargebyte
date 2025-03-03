@@ -10,18 +10,19 @@ This repository includes the following modules:
 - **CbSystem**: Implements system wide operations for chargebyte's hardware products.
 
 ## Compatibility matrix
-| Tag    | EVerest release        |
-|--------|------------------------|
+| Tag    | EVerest release              |
+|--------|------------------------------|
+| 0.19.0 | 2024.9.0 or newer[^or_newer] |
 | 0.18.0 | 2024.9.0 or newer[^or_newer] |
 | 0.17.0 | 2024.9.0 or newer[^or_newer] |
-| 0.16.0 | 2024.8.0 or newer[^or_newer] |
-| 0.15.0 | 2024.8.0 or newer[^or_newer] |
-| 0.14.0 | 2024.7.1 <br> 2024.7.0 |
-| 0.13.0 | 2024.7.1 <br> 2024.7.0 |
-| 0.12.0 | 2024.6.0 <br> 2024.5.0 |
-| 0.11.0 | 2024.6.0 <br> 2024.5.0 |
-| 0.10.0 | 2024.6.0 <br> 2024.5.0 |
-| 0.9.0  | 2024.3.0               |
+| 0.16.0 | 2024.8.0                     |
+| 0.15.0 | 2024.8.0                     |
+| 0.14.0 | 2024.7.1 <br> 2024.7.0       |
+| 0.13.0 | 2024.7.1 <br> 2024.7.0       |
+| 0.12.0 | 2024.6.0 <br> 2024.5.0       |
+| 0.11.0 | 2024.6.0 <br> 2024.5.0       |
+| 0.10.0 | 2024.6.0 <br> 2024.5.0       |
+| 0.9.0  | 2024.3.0                     |
 
 [^or_newer]: Newer releases or upstream's `main` branch may already contain incompatible changes.
              The compatibility matrix will be updated with each new tag in this repository.
