@@ -4,6 +4,7 @@
 #include <chrono>
 #include <iomanip>
 #include <map>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <generated/types/cb_board_support.hpp>
@@ -73,10 +74,6 @@ void evse_board_supportImpl::init() {
     // Control Pilot PWM generation
     this->pwm_controller = CbTarragonPWM(this->mod->config.cp_pwm_device, this->mod->config.cp_pwmchannel,
                                          this->mod->config.cp_invert_gpio_line_name);
-
-    // acquire the lock so that the CP observation does not start immediately
-    this->cp_observation_lock.lock();
-    this->cp_observation_enabled = false;
 
     // preset with PowerOn for nice logging
     this->cp_current_state = types::cb_board_support::CPState::PowerOn;
@@ -169,10 +166,6 @@ evse_board_supportImpl::~evse_board_supportImpl() {
     // request termination of our worker threads
     this->termination_requested = true;
 
-    // ensure that thread is not waiting for the lock
-    if (!this->cp_observation_enabled)
-        this->cp_observation_lock.unlock();
-
     // if thread is active wait until it is terminated
     if (this->cp_observation_thread.joinable())
         this->cp_observation_thread.join();
@@ -183,22 +176,26 @@ evse_board_supportImpl::~evse_board_supportImpl() {
 }
 
 void evse_board_supportImpl::handle_enable(bool& value) {
+    // pause CP observation to avoid race condition between this thread and the CP observation thread
+    std::scoped_lock lock(this->cp_observation_lock);
+
+    this->is_enabled = value;
+    this->is_enabled_changed.notify_one();
+
     // generate state A or state F
     double new_duty_cycle = value ? 100.0 : 0.0;
-    // pause CP observation to avoid race condition between this thread and the CP observation thread
-    this->disable_cp_observation();
+
     EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
                << "%";
     this->pwm_controller.set_duty_cycle(new_duty_cycle);
-    this->enable_cp_observation();
 }
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
+    // pause CP observation to avoid race condition between this thread and the CP observation thread
+    std::scoped_lock lock(this->cp_observation_lock);
+
     std::stringstream amps_msg;
     double amps;
-
-    // pause CP observation to avoid race condition between this thread and the CP observation thread
-    this->disable_cp_observation();
 
     // calculate the corresponding limit in Ampere, just for logging
     if (value >= 85.0)
@@ -211,26 +208,26 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
     EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%"
                << amps_msg.str();
     this->pwm_controller.set_duty_cycle(value);
-    this->enable_cp_observation();
 }
 
 void evse_board_supportImpl::handle_pwm_off() {
+    // pause CP observation to avoid race condition between this thread and the CP observation thread
+    std::scoped_lock lock(this->cp_observation_lock);
+
     // generate state A
     double new_duty_cycle = 100.0;
-    // pause CP observation to avoid race condition between this thread and the CP observation thread
-    this->disable_cp_observation();
+
     EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
                << "%";
     this->pwm_controller.set_duty_cycle(100.0);
-    this->enable_cp_observation();
 }
 
 void evse_board_supportImpl::handle_pwm_F() {
     // pause CP observation to avoid race condition between this thread and the CP observation thread
-    this->disable_cp_observation();
+    std::scoped_lock lock(this->cp_observation_lock);
+
     EVLOG_info << "Generating CP state F";
     this->pwm_controller.set_duty_cycle(0.0);
-    this->enable_cp_observation();
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
@@ -421,26 +418,6 @@ void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
     (void)value;
 }
 
-void evse_board_supportImpl::disable_cp_observation(void) {
-    if (this->cp_observation_enabled) {
-        EVLOG_debug << "Disabling CP observation";
-        this->cp_observation_lock.lock();
-        this->cp_observation_enabled = false;
-    } else {
-        EVLOG_debug << "Disabling CP observation (suppressed)";
-    }
-}
-
-void evse_board_supportImpl::enable_cp_observation(void) {
-    if (!this->cp_observation_enabled) {
-        EVLOG_debug << "Enabling CP observation";
-        this->cp_observation_enabled = true;
-        this->cp_observation_lock.unlock();
-    } else {
-        EVLOG_debug << "Enabling CP observation (suppressed)";
-    }
-}
-
 types::cb_board_support::CPState
 evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
                                            const CPUtils::cp_state_signal_side& cp_state_negative_side,
@@ -482,7 +459,20 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         bool cp_state_changed {false};
 
         // acquire measurement lock for this loop round, wait for it eventually
-        std::lock_guard<std::mutex> lock(this->cp_observation_lock);
+        std::unique_lock<std::mutex> lock(this->cp_observation_lock);
+
+        // when this EVSE is not (yet) enabled, we are not allowed to publish BSP events
+        // so we must wait until `is_enabled` is true
+        if (!this->is_enabled)
+            this->is_enabled_changed.wait(lock, [this]() {
+                // we want to wait until we are enabled (again), or we have to
+                // return in case termination was requested while waiting
+                return this->is_enabled or this->termination_requested;
+            });
+
+        // exit the loop if termination was requested
+        if (this->termination_requested)
+            break;
 
         // do the actual measurement
         this->cp_controller.get_values(positive_side.voltage, negative_side.voltage);
