@@ -28,6 +28,11 @@ target_include_directories(${MODULE_NAME}
         ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+target_sources(${MODULE_NAME}
+    PRIVATE
+        "InfypowerCANID.cpp"
+)
+
 target_link_libraries(${MODULE_NAME}
     PRIVATE
         ${LIBSOCKETCAN_LIBRARIES}
