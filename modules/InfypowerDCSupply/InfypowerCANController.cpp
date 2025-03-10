@@ -183,7 +183,7 @@ void InfypowerCANController::setup_can_bcm() {
 
     struct {
         struct bcm_msg_head bcm_msg_head;
-        struct can_frame can_frame[3];
+        struct can_frame can_frame[4];
     } __attribute__((packed)) bcm_rx_setup = {
         .bcm_msg_head =
             {
@@ -201,7 +201,7 @@ void InfypowerCANController::setup_can_bcm() {
                         .tv_usec = 250000, // limit updates to once every 250ms (see EVerest's recommendation)
                     },
                 .can_id = rx_can_id,
-                .nframes = 3,
+                .nframes = 4,
             },
         .can_frame =
             {
@@ -211,7 +211,7 @@ void InfypowerCANController::setup_can_bcm() {
                     .__pad = 0,
                     .__res0 = 0,
                     .len8_dlc = 0,
-                    .data = {0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // MUX mask
+                    .data = {0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // MUX mask
                 },
                 {
                     .can_id = rx_can_id,
@@ -219,7 +219,7 @@ void InfypowerCANController::setup_can_bcm() {
                     .__pad = 0,
                     .__res0 = 0,
                     .len8_dlc = 0,
-                    .data = {0x00, 0x01, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff}, // mask for System DC side voltage
+                    .data = {0x10, 0x01, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff}, // mask for System DC side voltage
                 },
                 {
                     .can_id = rx_can_id,
@@ -227,7 +227,15 @@ void InfypowerCANController::setup_can_bcm() {
                     .__pad = 0,
                     .__res0 = 0,
                     .len8_dlc = 0,
-                    .data = {0x00, 0x02, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff}, // mask for System DC side current
+                    .data = {0x10, 0x02, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff}, // mask for System DC side current
+                },
+                {
+                    .can_id = rx_can_id,
+                    .len = 8,
+                    .__pad = 0,
+                    .__res0 = 0,
+                    .len8_dlc = 0,
+                    .data = {0x11, 0x10, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff}, // mask for power module status
                 },
             },
     };
@@ -238,7 +246,7 @@ void InfypowerCANController::setup_can_bcm() {
 
     struct {
         struct bcm_msg_head bcm_msg_head;
-        struct can_frame can_frame[2];
+        struct can_frame can_frame[3];
     } __attribute__((packed)) bcm_tx_setup = {
         .bcm_msg_head =
             {
@@ -254,10 +262,10 @@ void InfypowerCANController::setup_can_bcm() {
                     {
                         .tv_sec = 0,
                         .tv_usec =
-                            100000, // send at intervals of 100 ms alternating 2 frames -> effective cycle is 200ms
+                            100000, // send at intervals of 50 ms alternating 3 frames -> effective cycle is 150ms
                     },
                 .can_id = tx_can_id,
-                .nframes = 2,
+                .nframes = 3,
             },
         .can_frame =
             {
@@ -276,6 +284,14 @@ void InfypowerCANController::setup_can_bcm() {
                     .__res0 = 0,
                     .len8_dlc = 0,
                     .data = {0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // System DC side current
+                },
+                {
+                    .can_id = tx_can_id,
+                    .len = 8,
+                    .__pad = 0,
+                    .__res0 = 0,
+                    .len8_dlc = 0,
+                    .data = {0x11, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // power module status
                 },
             },
     };
@@ -510,6 +526,24 @@ void InfypowerCANController::can_bcm_rx_worker() {
                     current = extract_float(&bcm_frame.can_frame.data[4]) / 1000.0f;
 
                     this->on_vc_update(voltage, current);
+                    break;
+                }
+                break;
+
+            case 0x11:
+                switch (bcm_frame.can_frame.data[1]) {
+                case 0x10:
+                    this->on_error(bcm_frame.can_frame.data[7] & (1 << 0), "VendorError", "Output Short Circuit", "Output Short Circuit");
+                    this->on_error(bcm_frame.can_frame.data[7] & (1 << 5), "VendorError", "Discharge Abnormal", "Discharge Abnormal");
+
+                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 1), "VendorError", "Fault Alarm", "Fault Alarm");
+                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 2), "VendorError", "Protection Alarm", "Protection Alarm");
+                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 3), "VendorError", "Fan Fault Alarm", "Fan Fault Alarm");
+                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 4), "OverTemperature", "", "OverTemperature");
+                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 5), "OverVoltageDC", "", "OverVoltageDC");
+
+                    this->on_error(bcm_frame.can_frame.data[5] & (1 << 5), "UnderVoltageAC", "", "UnderVoltageAC");
+                    this->on_error(bcm_frame.can_frame.data[5] & (1 << 6), "OverVoltageAC", "", "OverVoltageAC");
                     break;
                 }
                 break;
