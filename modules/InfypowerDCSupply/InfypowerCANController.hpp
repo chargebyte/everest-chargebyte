@@ -3,6 +3,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -12,7 +13,10 @@
 #include <linux/can/bcm.h>
 #include <generated/types/power_supply_DC.hpp>
 #include <sigslot/signal.hpp>
+#include "InfypowerCANCmd.hpp"
 #include "InfypowerCANID.hpp"
+
+using namespace std::chrono_literals;
 
 ///
 /// A class for abstracting the Infypower's CAN interface
@@ -97,7 +101,7 @@ private:
     void setup_can_bcm();
 
     /// @brief Helper for (looped) write to CAN BCM
-    void push_to_can_bcm(const char *buf, size_t len, const std::string& err_msg);
+    void push_to_can_bcm(const char* buf, size_t len, const std::string& err_msg);
 
     /// @brief CAN BCM receive thread
     std::thread can_bcm_thread;
@@ -112,7 +116,7 @@ private:
     void setup_can_raw();
 
     /// @brief Helper for (looped) write to CAN RAW
-    void push_to_can_raw(const struct can_frame *can_frame, const std::string& err_msg);
+    void push_to_can_raw(const struct can_frame* can_frame, const std::string& err_msg);
 
     /// @brief CAN RAW receive thread
     std::thread can_raw_thread;
@@ -131,4 +135,34 @@ private:
 
     /// @brief Remember the last requested current (in mA)
     float requested_current {0};
+
+    /// @brief The time in milliseconds until a feedback CAN frame is expected
+    ///        for actions triggered by us.
+    std::chrono::milliseconds request_timeout {1s};
+
+    /// @brief List of "commands in flight", i.e. commands we have sent and expecting
+    ///        CAN frames as feedback.
+    std::vector<std::reference_wrapper<InfypowerCANCmd>> expected_cmds;
+
+    /// @brief Protects `expected_cmds`
+    std::mutex expected_cmds_mutex;
+
+    /// @brief Helper to add a command to the list
+    void register_expected_cmd(InfypowerCANCmd& cmd);
+
+    /// @brief Helper to remove a command from the list
+    void unregister_expected_cmd(InfypowerCANCmd& cmd);
+
+    /// @brief Helper to process all steps for a single command
+    ///        Return true in case of timeout, false otherwise.
+    bool process_cmd(InfypowerCANCmd& cmd);
+
+    /// @brief Remember how many modules we found in the power module group
+    unsigned int pm_count {0};
+
+    /// @brief Helper to raise an exception when CAN feedback is incomplete
+    void raise_incomplete_feedback(InfypowerCANCmd& cmd);
+
+    /// @brief Query the power module group master for the count of modules in this group.
+    void query_pm_count();
 };

@@ -5,7 +5,10 @@
 #include <cerrno>
 #include <cinttypes>
 #include <cstdint>
+#include <iosfwd>
+#include <iostream>
 #include <string>
+#include <stdexcept>
 #include <system_error>
 #include <net/if.h>
 #include <linux/can.h>
@@ -19,10 +22,7 @@
 #include <libsocketcan.h>
 #include <everest/logging.hpp>
 #include "datatype_tools.h"
-
-// shamelessly stolen from the example in
-// https://www.kernel.org/doc/Documentation/networking/can.txt
-#define U64_DATA(p) (*(unsigned long long*)(p)->data)
+#include "InfypowerCANCmd.hpp"
 
 InfypowerCANController::InfypowerCANController() {
     // we can only pre-init some of the caps statically, others will be filled later
@@ -50,12 +50,6 @@ InfypowerCANController::InfypowerCANController() {
     this->caps.peak_current_ripple_A = 2.0f;          // TODO: clarify source of this value
     this->caps.conversion_efficiency_import = 0.85f;  // TODO: clarify source of this value, maybe adjust dynamically
     this->caps.conversion_efficiency_export = 0.9f;   // TODO: clarify source of this value, maybe adjust dynamically
-
-#if 0
-    // ensure that structs are cleared before usage
-    memset(&this->bcm_rx, 0, sizeof(this->bcm_rx));
-    memset(&this->bcm_tx, 0, sizeof(this->bcm_tx));
-#endif
 }
 
 InfypowerCANController::~InfypowerCANController() {
@@ -65,6 +59,10 @@ InfypowerCANController::~InfypowerCANController() {
     // if thread is active wait until it is terminated
     if (this->can_bcm_thread.joinable())
         this->can_bcm_thread.join();
+
+    // if thread is active wait until it is terminated
+    if (this->can_raw_thread.joinable())
+        this->can_raw_thread.join();
 
     // close sockets
     if (this->can_bcm_fd != -1)
@@ -141,10 +139,10 @@ void InfypowerCANController::init(const std::string& device, unsigned int bitrat
     if (this->can_raw_fd == -1)
         throw std::system_error(errno, std::generic_category(), "socket(PF_CAN, CAN_RAW) failed");
 
-    if (connect(this->can_raw_fd, (struct sockaddr*)&addr, sizeof(addr)))
-        throw std::system_error(errno, std::generic_category(), "Couldn't connect CAN RAW socket on '" + device + "'");
+    if (bind(this->can_raw_fd, (struct sockaddr*)&addr, sizeof(addr)))
+        throw std::system_error(errno, std::generic_category(), "Couldn't bind CAN RAW socket on '" + device + "'");
 
-    // now we have already setup two generic CAN sockets
+    // now we have already set up two generic CAN sockets
     // let's call a power module specific CAN setup method for detailed CAN frame setup
     // (can be later different for different power module types)
     this->pm_can_setup();
@@ -154,6 +152,9 @@ void InfypowerCANController::init(const std::string& device, unsigned int bitrat
 
     // launch CAN BCM rx thread
     this->can_bcm_thread = std::thread(&InfypowerCANController::can_bcm_rx_worker, this);
+
+    // this must be the first command since we need to know how many devices are in our group
+    this->query_pm_count();
 }
 
 void InfypowerCANController::pm_can_setup() {
@@ -286,19 +287,174 @@ void InfypowerCANController::setup_can_bcm() {
 #pragma GCC diagnostic pop
 }
 
+void InfypowerCANController::query_pm_count() {
+    struct can_frame* can_frame;
+
+    InfypowerCANCmd cmd("Read Module Count", InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info),
+                        0x10, 0x10, 1);
+
+    if (this->process_cmd(cmd))
+        this->raise_incomplete_feedback(cmd);
+
+    can_frame = cmd.get_rx_frame(0);
+    this->pm_count = extract_uint16(&can_frame->data[6]);
+
+    EVLOG_info << "The power module group consists of " << this->pm_count << " devices.";
+}
+
 void InfypowerCANController::set_import_mode(bool enable_import) {
-    // FIXME
+    unsigned char new_mode = enable_import ? 0xA1 : 0xA2;
+    struct can_frame* can_frame;
+
+    InfypowerCANCmd cmd("Set Working Mode", this->can_id_write_cfg, 0x21, 0x10, this->pm_count);
+
+    can_frame = cmd.get_tx_frame();
+    can_frame->data[7] = new_mode;
+
+    if (this->process_cmd(cmd))
+        this->raise_incomplete_feedback(cmd);
+
+    for (unsigned int idx = 0; idx < this->pm_count; ++idx) {
+        can_frame = cmd.get_rx_frame(idx);
+        InfypowerCANID can_id(can_frame->can_id);
+
+        if (can_id.get_error_code() != error_code::normal) {
+            std::ostringstream os;
+            os << can_id << " [" << can_frame << "]";
+            throw std::runtime_error(os.str());
+        }
+
+        if (can_frame->data[7] != new_mode) {
+            std::ostringstream os;
+            os << "Feedback for requested mode differs for power module " << idx << ": expected 0x" << std::setw(2)
+               << std::setfill('0') << std::hex << new_mode << ", got: 0x" << can_frame->data[7];
+            EVLOG_error << os.str();
+            throw std::runtime_error(os.str());
+        }
+    }
 }
 
 void InfypowerCANController::set_enable(bool enable) {
-    // FIXME
+    unsigned char new_state = enable ? 0xA1 : 0xA2;
+    struct can_frame* can_frame;
+    InfypowerCANCmd cmd("Switch On/Off", this->can_id_write_cfg, 0x11, 0x10, this->pm_count);
+
+    can_frame = cmd.get_tx_frame();
+    can_frame->data[7] = new_state;
+
+    if (this->process_cmd(cmd))
+        this->raise_incomplete_feedback(cmd);
+
+    for (unsigned int idx = 0; idx < this->pm_count; ++idx) {
+        can_frame = cmd.get_rx_frame(idx);
+        InfypowerCANID can_id(can_frame->can_id);
+
+        if (can_id.get_error_code() != error_code::normal) {
+            std::ostringstream os;
+            os << can_id << " [" << can_frame << "]";
+            throw std::runtime_error(os.str());
+        }
+
+        if (can_frame->data[7] != new_state) {
+            std::ostringstream os;
+            os << "Feedback for requested state differs for power module " << idx << ": expected 0x" << std::setw(2)
+               << std::setfill('0') << std::hex << new_state << ", got: 0x" << can_frame->data[7];
+            EVLOG_error << os.str();
+            throw std::runtime_error(os.str());
+        }
+    }
+}
+
+void InfypowerCANController::raise_incomplete_feedback(InfypowerCANCmd& cmd) {
+    std::string errmsg = "Incomplete CAN feedback for ";
+    errmsg += cmd;
+
+    throw std::system_error(ETIMEDOUT, std::generic_category(), errmsg);
 }
 
 void InfypowerCANController::set_voltage_current(double voltage, double current) {
+    struct can_frame* can_frame;
+    float f;
+
     this->requested_voltage = voltage * 1000; // convert to mV
     this->requested_current = current * 1000; // convert to mA
 
-    // FIXME
+    // the group master replies with a single frame
+    InfypowerCANCmd cmd_v("Set System DC Voltage", this->can_id_write_cfg, 0x10, 0x01, 1);
+
+    // prepare payload
+    can_frame = cmd_v.get_tx_frame();
+    put_float(&can_frame->data[4], this->requested_voltage);
+
+    if (this->process_cmd(cmd_v))
+        this->raise_incomplete_feedback(cmd_v);
+
+    can_frame = cmd_v.get_rx_frame(0);
+    InfypowerCANID can_id_v(can_frame->can_id);
+
+    if (can_id_v.get_error_code() != error_code::normal) {
+        std::ostringstream os;
+        os << can_id_v << " [" << can_frame << "]";
+        throw std::runtime_error(os.str());
+    }
+
+    f = extract_float(&can_frame->data[4]);
+    if (f != this->requested_voltage)
+        EVLOG_warning << "Feedback for requested voltage differs: requested " << std::fixed << std::setprecision(0)
+                      << this->requested_voltage << " mV, feedback is " << f << " mV";
+
+    // the group master replies with a single frame
+    InfypowerCANCmd cmd_c("Set System DC Current", this->can_id_write_cfg, 0x10, 0x02, 1);
+
+    // prepare payload
+    can_frame = cmd_c.get_tx_frame();
+    put_float(&can_frame->data[4], this->requested_current);
+
+    if (this->process_cmd(cmd_c))
+        this->raise_incomplete_feedback(cmd_c);
+
+    can_frame = cmd_c.get_rx_frame(0);
+
+    InfypowerCANID can_id_c(can_frame->can_id);
+
+    if (can_id_c.get_error_code() != error_code::normal) {
+        std::ostringstream os;
+        os << can_id_c << " [" << can_frame << "]";
+        throw std::runtime_error(os.str());
+    }
+
+    f = extract_float(&can_frame->data[4]);
+    if (f != this->requested_current)
+        EVLOG_warning << "Feedback for requested current differs: requested " << std::fixed << std::setprecision(0)
+                      << this->requested_current << " mA, feedback is " << f << " mA";
+}
+
+bool InfypowerCANController::process_cmd(InfypowerCANCmd& cmd) {
+    // tell rx thread that we might receive feedback from now on
+    this->register_expected_cmd(cmd);
+
+    // send CAN frame
+    std::string errmsg = "Could not send \"";
+    errmsg += cmd;
+    errmsg += "\"";
+    this->push_to_can_raw(cmd.get_tx_frame(), errmsg);
+
+    // acquire lock before waiting
+    std::unique_lock lock(cmd.mutex);
+
+    // sleep until we received all feedback, or timeout
+    cmd.cv.wait_for(lock, this->request_timeout, [&] { return cmd.is_feedback_complete(); });
+
+    // we not expecting feedback anymore (or at least are not interested anymore)
+    this->unregister_expected_cmd(cmd);
+
+    // check whether we timed out
+    if (!cmd.is_feedback_complete()) {
+        EVLOG_error << "Incomplete feedback for " << cmd;
+        return true;
+    }
+
+    return false;
 }
 
 void InfypowerCANController::can_bcm_rx_worker() {
@@ -462,7 +618,8 @@ void InfypowerCANController::can_raw_rx_worker() {
         // convert CAN ID to class for easier handling
         InfypowerCANID can_id(raw_frame.can_id);
 
-        // first: check for and report errors
+        // filter out 'in_start_processing' (-> unclear whether needed to handle),
+        // and 'cmd_invalid' (-> should not happen) -> just report
         switch (can_id.get_error_code()) {
         case error_code::in_start_processing:
             // FIXME not yet sure whether this should be handled
@@ -474,46 +631,66 @@ void InfypowerCANController::can_raw_rx_worker() {
             EVLOG_error << can_id;
             continue;
 
-        case error_code::data_invalid:
-            // might happen when we request invalid stuff
-            // FIXME proper handling
-            EVLOG_error << can_id;
-            continue;
-
-        case error_code::normal:
-            // filter out all none-errors for CAN IDs which we have not sent
-            // via CAN RAW (but instead via BCM)
-            if (can_id != InfypowerRxCANID(this->can_id_write_cfg))
-                continue;
+        default:
             break;
         }
 
-        // second: just log broadcast for debugging
+        // log broadcasts for debugging
         if (can_id.get_dst_addr() == InfypowerCANID::BROADCAST_ADDR) {
             EVLOG_debug << can_id;
             continue;
         }
 
-        // at this point, we should have filtered out all but frames in response
-        // to an action we actually triggered ourself
+        std::scoped_lock lock(this->expected_cmds_mutex);
 
-#if 0
-            switch (bcm_frame.can_frame.data[0]) {
-            case 0x10:
-                switch (bcm_frame.can_frame.data[1]) {
-                case 0x01:
-                    voltage = extract_float(&bcm_frame.can_frame.data[4]) / 1000.0f;
-                    break;
-                case 0x02:
-                    current = extract_float(&bcm_frame.can_frame.data[4]) / 1000.0f;
+        // try to match the received CAN ID with one in our expectation list
+        auto it = std::find_if(
+            this->expected_cmds.begin(), this->expected_cmds.end(),
+            [&can_id](const std::reference_wrapper<const InfypowerCANCmd>& ref) { return ref.get() == can_id; });
 
-                    this->on_vc_update(voltage, current);
+        if (it != this->expected_cmds.end()) {
+            // we found a match, let's compare byte0 and byte1
+            struct can_frame* can_frame = it->get().get_tx_frame();
+            bool byteX_mismatch = false;
+
+            for (unsigned int b_idx = 0; b_idx < 2; ++b_idx) {
+                if (can_frame->data[b_idx] != raw_frame.data[b_idx]) {
+                    EVLOG_debug << it->get() << ": ignoring due to byte" << b_idx << " mismatch: expected 0x"
+                                << std::setw(2) << std::setfill('0') << std::hex << can_frame->data[b_idx]
+                                << ", got: 0x" << raw_frame.data[b_idx] << " [" << raw_frame << "]";
+                    byteX_mismatch = true;
                     break;
                 }
-                break;
             }
-#endif
+            if (byteX_mismatch)
+                continue;
+
+            it->get().store_feedback(can_id.get_src_addr(), &raw_frame);
+            EVLOG_debug << "Stored feedback CAN frame for " << it->get();
+
+            // signal to invoke possible waiters
+            it->get().cv.notify_one();
+        } else {
+            EVLOG_debug << "No match for this CAN ID in pending CMDs (size: " << this->expected_cmds.size()
+                        << ") found: " << can_id;
+        }
     }
 
     EVLOG_debug << "CAN RAW Rx Thread stopped";
+}
+
+void InfypowerCANController::register_expected_cmd(InfypowerCANCmd& cmd) {
+    std::scoped_lock lock(this->expected_cmds_mutex);
+
+    this->expected_cmds.push_back(cmd);
+}
+
+void InfypowerCANController::unregister_expected_cmd(InfypowerCANCmd& cmd) {
+    std::scoped_lock lock(this->expected_cmds_mutex);
+
+    auto it = std::find_if(this->expected_cmds.begin(), this->expected_cmds.end(),
+                           [&cmd](const std::reference_wrapper<InfypowerCANCmd>& ref) { return &ref.get() == &cmd; });
+
+    if (it != this->expected_cmds.end())
+        this->expected_cmds.erase(it);
 }
