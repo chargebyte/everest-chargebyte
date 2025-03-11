@@ -4,12 +4,15 @@
 
 #include <cerrno>
 #include <cinttypes>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <iosfwd>
 #include <iostream>
 #include <string>
 #include <stdexcept>
 #include <system_error>
+#include <utility>
 #include <net/if.h>
 #include <linux/can.h>
 #include <linux/can/bcm.h>
@@ -89,6 +92,9 @@ void InfypowerCANController::init(const std::string& device, unsigned int bitrat
     auto it = std::find(this->bidi_dc_module_types.begin(), this->bidi_dc_module_types.end(), dc_module_type);
     this->caps.bidirectional = it != this->bidi_dc_module_types.end();
 
+    // FIXME force bidi to false for now (untested)
+    this->caps.bidirectional = false;
+
     // get current interface configuration and state
     if (can_get_state(device.c_str(), &state))
         throw std::system_error(errno, std::generic_category(), "Failed to open '" + device + "'");
@@ -154,7 +160,16 @@ void InfypowerCANController::init(const std::string& device, unsigned int bitrat
     this->can_bcm_thread = std::thread(&InfypowerCANController::can_bcm_rx_worker, this);
 
     // this must be the first command since we need to know how many devices are in our group
-    this->query_pm_count();
+    this->pm_query_count();
+
+    // safety first: disable all modules in the group now that we know how many we have
+    this->set_enable(false);
+
+    // query the PM caps
+    this->pm_query_caps();
+
+    // set initial working mode to export (rectifier mode)
+    this->set_import_mode(false);
 }
 
 void InfypowerCANController::pm_can_setup() {
@@ -175,15 +190,52 @@ void InfypowerCANController::setup_can_bcm() {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 
-    // we use this CAN ID to trigger sending periodic responses
-    InfypowerTxCANID tx_can_id(this->can_src_addr, this->can_dst_addr, cmd::read_info);
+    // we use 0 expected responses here, since it is actually infinite
 
-    // thus we must then listen for this (better: similar, aka reply) CAN ID: derive it from our sending one
-    InfypowerRxCANID rx_can_id(tx_can_id);
+    auto cmd_v = std::make_unique<InfypowerCANCmd>(
+        "Read System DC Voltage", InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x10, 0x01,
+        0);
+    cmd_v->on_received.connect([this](struct can_frame* can_frame) {
+        this->received_voltage = extract_uint32(&can_frame->data[4]) / 1000.0f;
 
+        // Note: Everest expects voltage and current in a single update, but we have two CAN frames here,
+        // so we don't do anything here but wait until the frame with the current value is received
+    });
+    this->can_bcm_cmds.push_back(std::move(cmd_v));
+
+    auto cmd_c = std::make_unique<InfypowerCANCmd>(
+        "Read System DC Current", InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x10, 0x02,
+        0);
+    cmd_c->on_received.connect([this](struct can_frame* can_frame) {
+        this->received_current = extract_uint32(&can_frame->data[4]) / 1000.0f;
+
+        // now we have the current and use the cached voltage value
+        float v = static_cast<float>(this->received_voltage);
+        float c = static_cast<float>(this->received_current);
+        this->on_vc_update(v, c);
+    });
+    this->can_bcm_cmds.push_back(std::move(cmd_c));
+
+    this->can_bcm_cmds.push_back(std::make_unique<InfypowerCANCmd>(
+        "Read Power Module Status", InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x11,
+        0x10, 0));
+
+    // register these commands in our expectation list
+    for (auto it = this->can_bcm_cmds.begin(); it != this->can_bcm_cmds.end(); ++it)
+        this->register_expected_cmd(**it);
+
+    // the CAN ID is the same for all commands here, so we just use this below
+    InfypowerCANCmd& cmd = *this->can_bcm_cmds[0];
+
+    // we cannot use the InfypowerRxCANID provided by InfypowerCANCmd because it has narrowed mask,
+    // so we have to create it for our use-case here: just swapped but complete
+    InfypowerRxCANID can_id_rx(cmd.get_tx_can_id());
+
+    // we actually only register Rx for Read Power Module Status here since we have to
+    // periodically report voltage and current to EVerest
     struct {
         struct bcm_msg_head bcm_msg_head;
-        struct can_frame can_frame[4];
+        struct can_frame can_frame[2];
     } __attribute__((packed)) bcm_rx_setup = {
         .bcm_msg_head =
             {
@@ -193,20 +245,20 @@ void InfypowerCANController::setup_can_bcm() {
                 .ival1 =
                     {
                         .tv_sec = 0,
-                        .tv_usec = 210000, // expect frames in intervals of 200 ms plus 10 ms safety margin
+                        .tv_usec = 385000, // expect frames in intervals of 375 ms plus 10 ms safety margin
                     },
                 .ival2 =
                     {
                         .tv_sec = 0,
                         .tv_usec = 250000, // limit updates to once every 250ms (see EVerest's recommendation)
                     },
-                .can_id = rx_can_id,
-                .nframes = 4,
+                .can_id = can_id_rx,
+                .nframes = 2,
             },
         .can_frame =
             {
                 {
-                    .can_id = rx_can_id,
+                    .can_id = can_id_rx,
                     .len = 8,
                     .__pad = 0,
                     .__res0 = 0,
@@ -214,23 +266,7 @@ void InfypowerCANController::setup_can_bcm() {
                     .data = {0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // MUX mask
                 },
                 {
-                    .can_id = rx_can_id,
-                    .len = 8,
-                    .__pad = 0,
-                    .__res0 = 0,
-                    .len8_dlc = 0,
-                    .data = {0x10, 0x01, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff}, // mask for System DC side voltage
-                },
-                {
-                    .can_id = rx_can_id,
-                    .len = 8,
-                    .__pad = 0,
-                    .__res0 = 0,
-                    .len8_dlc = 0,
-                    .data = {0x10, 0x02, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff}, // mask for System DC side current
-                },
-                {
-                    .can_id = rx_can_id,
+                    .can_id = can_id_rx,
                     .len = 8,
                     .__pad = 0,
                     .__res0 = 0,
@@ -247,54 +283,20 @@ void InfypowerCANController::setup_can_bcm() {
     struct {
         struct bcm_msg_head bcm_msg_head;
         struct can_frame can_frame[3];
-    } __attribute__((packed)) bcm_tx_setup = {
-        .bcm_msg_head =
-            {
-                .opcode = TX_SETUP,
-                .flags = SETTIMER | STARTTIMER | TX_CP_CAN_ID,
-                .count = 0,
-                .ival1 =
-                    {
-                        .tv_sec = 0,
-                        .tv_usec = 0,
-                    },
-                .ival2 =
-                    {
-                        .tv_sec = 0,
-                        .tv_usec =
-                            100000, // send at intervals of 50 ms alternating 3 frames -> effective cycle is 150ms
-                    },
-                .can_id = tx_can_id,
-                .nframes = 3,
-            },
-        .can_frame =
-            {
-                {
-                    .can_id = tx_can_id,
-                    .len = 8,
-                    .__pad = 0,
-                    .__res0 = 0,
-                    .len8_dlc = 0,
-                    .data = {0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // System DC side voltage
-                },
-                {
-                    .can_id = tx_can_id,
-                    .len = 8,
-                    .__pad = 0,
-                    .__res0 = 0,
-                    .len8_dlc = 0,
-                    .data = {0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // System DC side current
-                },
-                {
-                    .can_id = tx_can_id,
-                    .len = 8,
-                    .__pad = 0,
-                    .__res0 = 0,
-                    .len8_dlc = 0,
-                    .data = {0x11, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // power module status
-                },
-            },
-    };
+    } __attribute__((packed)) bcm_tx_setup;
+
+    memset(&bcm_tx_setup, 0, sizeof(bcm_tx_setup));
+
+    bcm_tx_setup.bcm_msg_head.opcode = TX_SETUP;
+    bcm_tx_setup.bcm_msg_head.flags = SETTIMER | STARTTIMER | TX_CP_CAN_ID;
+    // send at intervals of 125 ms alternating 3 frames -> effective cycle is 375ms,
+    // 250ms for voltage and current as recommended by EVerest
+    bcm_tx_setup.bcm_msg_head.ival2.tv_usec = 125000;
+    bcm_tx_setup.bcm_msg_head.can_id = cmd.get_tx_can_id();
+    bcm_tx_setup.bcm_msg_head.nframes = this->can_bcm_cmds.size();
+
+    for (unsigned int idx = 0; idx < this->can_bcm_cmds.size(); ++idx)
+        memcpy(&bcm_tx_setup.can_frame[idx], this->can_bcm_cmds[idx]->get_tx_frame(), sizeof(struct can_frame));
 
     // push the setup request to CAN BCM
     this->push_to_can_bcm((const char*)&bcm_tx_setup, sizeof(bcm_tx_setup),
@@ -303,7 +305,7 @@ void InfypowerCANController::setup_can_bcm() {
 #pragma GCC diagnostic pop
 }
 
-void InfypowerCANController::query_pm_count() {
+void InfypowerCANController::pm_query_count() {
     struct can_frame* can_frame;
 
     InfypowerCANCmd cmd("Read Module Count", InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info),
@@ -318,8 +320,60 @@ void InfypowerCANController::query_pm_count() {
     EVLOG_info << "The power module group consists of " << this->pm_count << " devices.";
 }
 
+void InfypowerCANController::pm_query_caps() {
+    struct can_frame* can_frame;
+
+    InfypowerCANCmd max_v("Read PM Caps DC Max Output Voltage",
+                          InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x11, 0x30, 1);
+
+    if (this->process_cmd(max_v))
+        this->raise_incomplete_feedback(max_v);
+
+    can_frame = max_v.get_rx_frame(0);
+    this->caps.max_export_voltage_V = extract_uint32(&can_frame->data[4]) / 1000.0f;
+
+    // ----
+
+    InfypowerCANCmd min_v("Read PM Caps DC Min Output Voltage",
+                          InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x11, 0x31, 1);
+
+    if (this->process_cmd(min_v))
+        this->raise_incomplete_feedback(min_v);
+
+    can_frame = min_v.get_rx_frame(0);
+    this->caps.min_export_voltage_V = extract_uint32(&can_frame->data[4]) / 1000.0f;
+
+    // ----
+
+    InfypowerCANCmd max_c("Read PM Caps DC Max Output Current",
+                          InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x11, 0x32, 1);
+
+    if (this->process_cmd(max_c))
+        this->raise_incomplete_feedback(max_c);
+
+    can_frame = max_c.get_rx_frame(0);
+    this->caps.max_export_current_A = extract_uint32(&can_frame->data[4]) / 1000.0f;
+
+    // ----
+
+    InfypowerCANCmd max_p("Read PM Caps DC Max Output Power",
+                          InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x11, 0x33, 1);
+
+    if (this->process_cmd(max_p))
+        this->raise_incomplete_feedback(max_p);
+
+    can_frame = max_p.get_rx_frame(0);
+    this->caps.max_export_power_W = extract_uint32(&can_frame->data[4]) / 1000.0f;
+
+    EVLOG_info << "PM Capabilities: " << std::fixed << std::setprecision(1) << this->caps.min_export_voltage_V << "-"
+               << std::fixed << std::setprecision(1) << this->caps.max_export_voltage_V << " V, " << std::fixed
+               << std::setprecision(1) << this->caps.min_export_current_A << "-" << std::fixed << std::setprecision(1)
+               << this->caps.max_export_current_A << " A, max " << std::fixed << std::setprecision(1)
+               << this->caps.max_export_power_W << " W";
+}
+
 void InfypowerCANController::set_import_mode(bool enable_import) {
-    unsigned char new_mode = enable_import ? 0xA1 : 0xA2;
+    unsigned char new_mode = enable_import ? 0xA1 : 0xA0;
     struct can_frame* can_frame;
 
     InfypowerCANCmd cmd("Set Working Mode", this->can_id_write_cfg, 0x21, 0x10, this->pm_count);
@@ -351,7 +405,7 @@ void InfypowerCANController::set_import_mode(bool enable_import) {
 }
 
 void InfypowerCANController::set_enable(bool enable) {
-    unsigned char new_state = enable ? 0xA1 : 0xA2;
+    unsigned char new_state = enable ? 0xA0 : 0xA1;
     struct can_frame* can_frame;
     InfypowerCANCmd cmd("Switch On/Off", this->can_id_write_cfg, 0x11, 0x10, this->pm_count);
 
@@ -390,17 +444,17 @@ void InfypowerCANController::raise_incomplete_feedback(InfypowerCANCmd& cmd) {
 
 void InfypowerCANController::set_voltage_current(double voltage, double current) {
     struct can_frame* can_frame;
-    float f;
+    uint32_t val;
 
-    this->requested_voltage = voltage * 1000; // convert to mV
-    this->requested_current = current * 1000; // convert to mA
+    this->requested_voltage = std::lround(voltage * 1000.0); // convert to mV
+    this->requested_current = std::lround(current * 1000.0); // convert to mA
 
     // the group master replies with a single frame
     InfypowerCANCmd cmd_v("Set System DC Voltage", this->can_id_write_cfg, 0x10, 0x01, 1);
 
     // prepare payload
     can_frame = cmd_v.get_tx_frame();
-    put_float(&can_frame->data[4], this->requested_voltage);
+    put_uint32(&can_frame->data[4], this->requested_voltage);
 
     if (this->process_cmd(cmd_v))
         this->raise_incomplete_feedback(cmd_v);
@@ -414,17 +468,17 @@ void InfypowerCANController::set_voltage_current(double voltage, double current)
         throw std::runtime_error(os.str());
     }
 
-    f = extract_float(&can_frame->data[4]);
-    if (f != this->requested_voltage)
-        EVLOG_warning << "Feedback for requested voltage differs: requested " << std::fixed << std::setprecision(0)
-                      << this->requested_voltage << " mV, feedback is " << f << " mV";
+    val = extract_uint32(&can_frame->data[4]);
+    if (val < this->requested_voltage - 1 || val > this->requested_voltage + 1)
+        EVLOG_warning << "Feedback for requested voltage differs: requested " << this->requested_voltage
+                      << " mV, feedback is " << val << " mV";
 
     // the group master replies with a single frame
     InfypowerCANCmd cmd_c("Set System DC Current", this->can_id_write_cfg, 0x10, 0x02, 1);
 
     // prepare payload
     can_frame = cmd_c.get_tx_frame();
-    put_float(&can_frame->data[4], this->requested_current);
+    put_uint32(&can_frame->data[4], this->requested_current);
 
     if (this->process_cmd(cmd_c))
         this->raise_incomplete_feedback(cmd_c);
@@ -439,10 +493,10 @@ void InfypowerCANController::set_voltage_current(double voltage, double current)
         throw std::runtime_error(os.str());
     }
 
-    f = extract_float(&can_frame->data[4]);
-    if (f != this->requested_current)
-        EVLOG_warning << "Feedback for requested current differs: requested " << std::fixed << std::setprecision(0)
-                      << this->requested_current << " mA, feedback is " << f << " mA";
+    val = extract_uint32(&can_frame->data[4]);
+    if (val < this->requested_current - 1 || val > this->requested_current + 1)
+        EVLOG_warning << "Feedback for requested current differs: requested " << this->requested_current
+                      << " mA, feedback is " << val << " mA";
 }
 
 bool InfypowerCANController::process_cmd(InfypowerCANCmd& cmd) {
@@ -479,8 +533,6 @@ void InfypowerCANController::can_bcm_rx_worker() {
         struct can_frame can_frame;
     } __attribute__((packed)) bcm_frame;
     bool timeout_reported {false};
-    float voltage {0.0f};
-    float current {0.0f};
 
     EVLOG_debug << "CAN BCM Rx Thread started";
 
@@ -513,32 +565,20 @@ void InfypowerCANController::can_bcm_rx_worker() {
                 timeout_reported = false;
             }
 
-            // Note: EVerest expects voltage and current bundled but we receive in two different messages
-            // so just publish when receiving the current and "cache"/"delay" the voltage value until then
-
             switch (bcm_frame.can_frame.data[0]) {
-            case 0x10:
-                switch (bcm_frame.can_frame.data[1]) {
-                case 0x01:
-                    voltage = extract_float(&bcm_frame.can_frame.data[4]) / 1000.0f;
-                    break;
-                case 0x02:
-                    current = extract_float(&bcm_frame.can_frame.data[4]) / 1000.0f;
-
-                    this->on_vc_update(voltage, current);
-                    break;
-                }
-                break;
-
             case 0x11:
                 switch (bcm_frame.can_frame.data[1]) {
                 case 0x10:
-                    this->on_error(bcm_frame.can_frame.data[7] & (1 << 0), "VendorError", "Output Short Circuit", "Output Short Circuit");
-                    this->on_error(bcm_frame.can_frame.data[7] & (1 << 5), "VendorError", "Discharge Abnormal", "Discharge Abnormal");
+                    this->on_error(bcm_frame.can_frame.data[7] & (1 << 0), "VendorError", "Output Short Circuit",
+                                   "Output Short Circuit");
+                    this->on_error(bcm_frame.can_frame.data[7] & (1 << 5), "VendorError", "Discharge Abnormal",
+                                   "Discharge Abnormal");
 
                     this->on_error(bcm_frame.can_frame.data[6] & (1 << 1), "VendorError", "Fault Alarm", "Fault Alarm");
-                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 2), "VendorError", "Protection Alarm", "Protection Alarm");
-                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 3), "VendorError", "Fan Fault Alarm", "Fan Fault Alarm");
+                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 2), "VendorError", "Protection Alarm",
+                                   "Protection Alarm");
+                    this->on_error(bcm_frame.can_frame.data[6] & (1 << 3), "VendorError", "Fan Fault Alarm",
+                                   "Fan Fault Alarm");
                     this->on_error(bcm_frame.can_frame.data[6] & (1 << 4), "OverTemperature", "", "OverTemperature");
                     this->on_error(bcm_frame.can_frame.data[6] & (1 << 5), "OverVoltageDC", "", "OverVoltageDC");
 
@@ -588,11 +628,14 @@ void InfypowerCANController::push_to_can_raw(const struct can_frame* can_frame, 
     size_t c = sizeof(*can_frame);
     const char* buf = (const char*)can_frame;
 
+    InfypowerCANID can_id(can_frame->can_id);
+    EVLOG_debug << "push_to_can_raw: " << can_id << " [" << *can_frame << "]";
+
     // loop until all data is written
     while (c) {
         int rv;
 
-        rv = write(this->can_raw_fd, &buf[sizeof(can_frame) - c], c);
+        rv = write(this->can_raw_fd, &buf[sizeof(*can_frame) - c], c);
         if (rv < 0) {
             throw std::system_error(errno, std::generic_category(), err_msg);
         }
@@ -677,33 +720,26 @@ void InfypowerCANController::can_raw_rx_worker() {
 
         std::scoped_lock lock(this->expected_cmds_mutex);
 
-        // try to match the received CAN ID with one in our expectation list
-        auto it = std::find_if(
-            this->expected_cmds.begin(), this->expected_cmds.end(),
-            [&can_id](const std::reference_wrapper<const InfypowerCANCmd>& ref) { return ref.get() == can_id; });
+        // try to match the received CAN ID with one in our expectation list;
+        // we also compare byte0 and byte1
+        // FIXME: this must be reworked for REG module commands
+        auto it = std::find_if(this->expected_cmds.begin(), this->expected_cmds.end(),
+                               [&](const std::reference_wrapper<const InfypowerCANCmd>& ref) {
+                                   if (ref.get() == can_id) {
+                                       unsigned char exp_byte0 = ref.get().get_byte0();
+                                       unsigned char exp_byte1 = ref.get().get_byte1();
+                                       return (exp_byte0 == raw_frame.data[0]) && (exp_byte1 == raw_frame.data[1]);
+                                   }
+                                   return false;
+                               });
 
         if (it != this->expected_cmds.end()) {
-            // we found a match, let's compare byte0 and byte1
-            struct can_frame* can_frame = it->get().get_tx_frame();
-            bool byteX_mismatch = false;
+            if (it->get().store_feedback(can_id.get_src_addr(), &raw_frame)) {
+                EVLOG_debug << "Stored feedback CAN frame for " << it->get();
 
-            for (unsigned int b_idx = 0; b_idx < 2; ++b_idx) {
-                if (can_frame->data[b_idx] != raw_frame.data[b_idx]) {
-                    EVLOG_debug << it->get() << ": ignoring due to byte" << b_idx << " mismatch: expected 0x"
-                                << std::setw(2) << std::setfill('0') << std::hex << can_frame->data[b_idx]
-                                << ", got: 0x" << raw_frame.data[b_idx] << " [" << raw_frame << "]";
-                    byteX_mismatch = true;
-                    break;
-                }
+                // signal to invoke possible waiters
+                it->get().cv.notify_one();
             }
-            if (byteX_mismatch)
-                continue;
-
-            it->get().store_feedback(can_id.get_src_addr(), &raw_frame);
-            EVLOG_debug << "Stored feedback CAN frame for " << it->get();
-
-            // signal to invoke possible waiters
-            it->get().cv.notify_one();
         } else {
             EVLOG_debug << "No match for this CAN ID in pending CMDs (size: " << this->expected_cmds.size()
                         << ") found: " << can_id;

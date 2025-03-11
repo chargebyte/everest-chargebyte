@@ -131,14 +131,26 @@ private:
     void pm_can_setup();
 
     /// @brief Remember the last requested voltage (in mV)
-    float requested_voltage {0};
+    uint32_t requested_voltage {0};
 
     /// @brief Remember the last requested current (in mA)
-    float requested_current {0};
+    uint32_t requested_current {0};
+
+    /// @brief Remember the last received voltage (in mV)
+    uint32_t received_voltage {0};
+
+    /// @brief Remember the last received current (in mA)
+    uint32_t received_current {0};
 
     /// @brief The time in milliseconds until a feedback CAN frame is expected
     ///        for actions triggered by us.
     std::chrono::milliseconds request_timeout {1s};
+
+    /// @brief List of "commands in flight" which are caused by the BCM part.
+    ///        This vector holds only pointers to the real instances.
+    ///        Of these instances, the callback mechanism is used, instead
+    ///        of the condition variable stuff.
+    std::vector<std::unique_ptr<InfypowerCANCmd>> can_bcm_cmds;
 
     /// @brief List of "commands in flight", i.e. commands we have sent and expecting
     ///        CAN frames as feedback.
@@ -164,5 +176,8 @@ private:
     void raise_incomplete_feedback(InfypowerCANCmd& cmd);
 
     /// @brief Query the power module group master for the count of modules in this group.
-    void query_pm_count();
+    void pm_query_count();
+
+    /// @brief Query the power module capabilities.
+    void pm_query_caps();
 };
