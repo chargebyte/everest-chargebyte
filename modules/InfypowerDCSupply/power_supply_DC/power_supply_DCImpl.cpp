@@ -31,12 +31,14 @@ void power_supply_DCImpl::ready() {
     // apply possible overrides to the caps from configuration
     if (this->mod->config.override_max_current >= 0.0f) {
         caps.max_export_current_A = this->mod->config.override_max_current;
-        EVLOG_warning << "Applying override to capabilities for maximum export current: " << std::fixed
+        caps.max_import_current_A = this->mod->config.override_max_current;
+        EVLOG_warning << "Applying override to capabilities for maximum export/import current: " << std::fixed
                       << std::setprecision(1) << caps.max_export_current_A << " A";
     }
     if (this->mod->config.override_max_power >= 0.0f) {
         caps.max_export_power_W = this->mod->config.override_max_power;
-        EVLOG_warning << "Applying override to capabilities for maximum export power: " << std::fixed
+        caps.max_import_power_W = this->mod->config.override_max_power;
+        EVLOG_warning << "Applying override to capabilities for maximum export/import power: " << std::fixed
                       << std::setprecision(1) << caps.max_export_power_W << " W";
     }
 
@@ -68,11 +70,11 @@ void power_supply_DCImpl::handle_setMode(types::power_supply_DC::Mode& mode,
     try {
         switch (mode) {
         case types::power_supply_DC::Mode::Export:
-            this->mod->controller.set_import_mode(false);
+            // this->mod->controller.set_import_mode(false);
             this->mod->controller.set_enable(true);
             break;
         case types::power_supply_DC::Mode::Import:
-            this->mod->controller.set_import_mode(true);
+            // this->mod->controller.set_import_mode(true);
             this->mod->controller.set_enable(true);
             break;
         default:
@@ -106,7 +108,7 @@ void power_supply_DCImpl::handle_setImportVoltageCurrent(double& voltage, double
     EVLOG_debug << std::fixed << std::setprecision(1) << "handle_setImportVoltageCurrent(" << voltage << " V, "
                 << current << " A)";
     try {
-        this->mod->controller.set_voltage_current(voltage, current);
+        this->mod->controller.set_voltage_current(voltage, -1.0 * std::abs(current));
 
     } catch (std::runtime_error& e) {
         this->raise_error("power_supply_DC/VendorError", "", e.what());

@@ -91,6 +91,7 @@ void InfypowerCANController::init(const std::string& device, unsigned int bitrat
     // check and remember whether the DC power module is a bidirectional one (based on user configuration input)
     auto it = std::find(this->bidi_dc_module_types.begin(), this->bidi_dc_module_types.end(), dc_module_type);
     this->caps.bidirectional = it != this->bidi_dc_module_types.end();
+    EVLOG_info << "Bidirectional capability: " << std::boolalpha << this->caps.bidirectional;
 
     // FIXME force bidi to false for now (untested)
     this->caps.bidirectional = false;
@@ -169,7 +170,8 @@ void InfypowerCANController::init(const std::string& device, unsigned int bitrat
     this->pm_query_caps();
 
     // set initial working mode to export (rectifier mode)
-    this->set_import_mode(false);
+    // FIXME pinned to grid connected inverter for the moment
+    this->set_import_mode(true);
 }
 
 void InfypowerCANController::pm_can_setup() {
@@ -196,7 +198,7 @@ void InfypowerCANController::setup_can_bcm() {
         "Read System DC Voltage", InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x10, 0x01,
         0);
     cmd_v->on_received.connect([this](struct can_frame* can_frame) {
-        this->received_voltage = extract_uint32(&can_frame->data[4]) / 1000.0f;
+        this->received_voltage = static_cast<int32_t>(extract_uint32(&can_frame->data[4]));
 
         // Note: Everest expects voltage and current in a single update, but we have two CAN frames here,
         // so we don't do anything here but wait until the frame with the current value is received
@@ -207,11 +209,11 @@ void InfypowerCANController::setup_can_bcm() {
         "Read System DC Current", InfypowerTxCANID(this->can_src_addr, this->can_dst_addr, cmd::read_info), 0x10, 0x02,
         0);
     cmd_c->on_received.connect([this](struct can_frame* can_frame) {
-        this->received_current = extract_uint32(&can_frame->data[4]) / 1000.0f;
+        this->received_current = static_cast<int32_t>(extract_uint32(&can_frame->data[4]));
 
         // now we have the current and use the cached voltage value
-        float v = static_cast<float>(this->received_voltage);
-        float c = static_cast<float>(this->received_current);
+        float v = std::abs(static_cast<float>(this->received_voltage) / 1000.0f);
+        float c = std::abs(static_cast<float>(this->received_current) / 1000.0f);
         this->on_vc_update(v, c);
     });
     this->can_bcm_cmds.push_back(std::move(cmd_c));
@@ -331,6 +333,7 @@ void InfypowerCANController::pm_query_caps() {
 
     can_frame = max_v.get_rx_frame(0);
     this->caps.max_export_voltage_V = extract_uint32(&can_frame->data[4]) / 1000.0f;
+    this->caps.max_import_voltage_V = this->caps.max_export_voltage_V;
 
     // ----
 
@@ -342,6 +345,7 @@ void InfypowerCANController::pm_query_caps() {
 
     can_frame = min_v.get_rx_frame(0);
     this->caps.min_export_voltage_V = extract_uint32(&can_frame->data[4]) / 1000.0f;
+    this->caps.min_import_voltage_V = this->caps.min_export_voltage_V;
 
     // ----
 
@@ -353,6 +357,7 @@ void InfypowerCANController::pm_query_caps() {
 
     can_frame = max_c.get_rx_frame(0);
     this->caps.max_export_current_A = extract_uint32(&can_frame->data[4]) / 1000.0f;
+    this->caps.max_import_current_A = this->caps.max_export_current_A;
 
     // ----
 
@@ -364,7 +369,9 @@ void InfypowerCANController::pm_query_caps() {
 
     can_frame = max_p.get_rx_frame(0);
     this->caps.max_export_power_W = extract_uint32(&can_frame->data[4]) / 1000.0f;
+    this->caps.max_import_power_W = this->caps.max_export_power_W;
 
+    // since we use the same values for both directions, we can summarize here
     EVLOG_info << "PM Capabilities: " << std::fixed << std::setprecision(1) << this->caps.min_export_voltage_V << "-"
                << std::fixed << std::setprecision(1) << this->caps.max_export_voltage_V << " V, " << std::fixed
                << std::setprecision(1) << this->caps.min_export_current_A << "-" << std::fixed << std::setprecision(1)
@@ -444,7 +451,7 @@ void InfypowerCANController::raise_incomplete_feedback(InfypowerCANCmd& cmd) {
 
 void InfypowerCANController::set_voltage_current(double voltage, double current) {
     struct can_frame* can_frame;
-    uint32_t val;
+    int32_t val;
 
     this->requested_voltage = std::lround(voltage * 1000.0); // convert to mV
     this->requested_current = std::lround(current * 1000.0); // convert to mA
@@ -454,7 +461,7 @@ void InfypowerCANController::set_voltage_current(double voltage, double current)
 
     // prepare payload
     can_frame = cmd_v.get_tx_frame();
-    put_uint32(&can_frame->data[4], this->requested_voltage);
+    put_uint32(&can_frame->data[4], static_cast<uint32_t>(this->requested_voltage));
 
     if (this->process_cmd(cmd_v))
         this->raise_incomplete_feedback(cmd_v);
@@ -468,7 +475,7 @@ void InfypowerCANController::set_voltage_current(double voltage, double current)
         throw std::runtime_error(os.str());
     }
 
-    val = extract_uint32(&can_frame->data[4]);
+    val = static_cast<int32_t>(extract_uint32(&can_frame->data[4]));
     if (val < this->requested_voltage - 1 || val > this->requested_voltage + 1)
         EVLOG_warning << "Feedback for requested voltage differs: requested " << this->requested_voltage
                       << " mV, feedback is " << val << " mV";
@@ -478,7 +485,7 @@ void InfypowerCANController::set_voltage_current(double voltage, double current)
 
     // prepare payload
     can_frame = cmd_c.get_tx_frame();
-    put_uint32(&can_frame->data[4], this->requested_current);
+    put_uint32(&can_frame->data[4], static_cast<uint32_t>(this->requested_current));
 
     if (this->process_cmd(cmd_c))
         this->raise_incomplete_feedback(cmd_c);
@@ -493,7 +500,7 @@ void InfypowerCANController::set_voltage_current(double voltage, double current)
         throw std::runtime_error(os.str());
     }
 
-    val = extract_uint32(&can_frame->data[4]);
+    val = static_cast<int32_t>(extract_uint32(&can_frame->data[4]));
     if (val < this->requested_current - 1 || val > this->requested_current + 1)
         EVLOG_warning << "Feedback for requested current differs: requested " << this->requested_current
                       << " mA, feedback is " << val << " mA";

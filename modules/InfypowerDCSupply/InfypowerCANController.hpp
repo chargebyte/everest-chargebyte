@@ -77,6 +77,7 @@ private:
     ///         user have to configure it.
     const std::vector<std::string> bidi_dc_module_types {
         "BEC",
+        "BEG",
     };
 
     /// @brief Remember the CAN interface name
@@ -131,16 +132,16 @@ private:
     void pm_can_setup();
 
     /// @brief Remember the last requested voltage (in mV)
-    uint32_t requested_voltage {0};
+    int32_t requested_voltage {0};
 
     /// @brief Remember the last requested current (in mA)
-    uint32_t requested_current {0};
+    int32_t requested_current {0};
 
     /// @brief Remember the last received voltage (in mV)
-    uint32_t received_voltage {0};
+    int32_t received_voltage {0};
 
     /// @brief Remember the last received current (in mA)
-    uint32_t received_current {0};
+    int32_t received_current {0};
 
     /// @brief The time in milliseconds until a feedback CAN frame is expected
     ///        for actions triggered by us.

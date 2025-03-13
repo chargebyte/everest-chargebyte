@@ -35,8 +35,8 @@ config:
     type: string
     enum:
       - BEC
-      - REG
-    default: BEC
+      - BEG
+    default: BEG
   override_max_current:
     description: >-
       When this value is greater than or equal to zero, the value is used to
