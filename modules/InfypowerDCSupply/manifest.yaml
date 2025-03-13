@@ -37,6 +37,24 @@ config:
       - BEC
       - REG
     default: BEC
+  override_max_current:
+    description: >-
+      When this value is greater than or equal to zero, the value is used to
+      override the maximum supported current reported to EVerest in the power
+      module capabilities. The value is expected in Ampere.
+      To disable this override, use any negative number,
+      then the value reported by the power module itself is used.
+    type: number
+    default: -1
+  override_max_power:
+    description: >-
+      When this value is greater than or equal to zero, the value is used to
+      override the maximum supported power reported to EVerest in the power
+      module capabilities. The value is expected in Watts.
+      To disable this override, use any negative number,
+      then the value reported by the power module itself is used.
+    type: number
+    default: -1
 provides:
   power_supply_DC:
     interface: power_supply_DC

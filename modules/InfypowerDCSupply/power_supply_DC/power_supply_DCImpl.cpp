@@ -25,8 +25,23 @@ void power_supply_DCImpl::ready() {
                 this->clear_error("power_supply_DC/" + type, sub_type);
         });
 
+    // use a working copy
+    auto caps = this->mod->controller.caps;
+
+    // apply possible overrides to the caps from configuration
+    if (this->mod->config.override_max_current >= 0.0f) {
+        caps.max_export_current_A = this->mod->config.override_max_current;
+        EVLOG_warning << "Applying override to capabilities for maximum export current: " << std::fixed
+                      << std::setprecision(1) << caps.max_export_current_A << " A";
+    }
+    if (this->mod->config.override_max_power >= 0.0f) {
+        caps.max_export_power_W = this->mod->config.override_max_power;
+        EVLOG_warning << "Applying override to capabilities for maximum export power: " << std::fixed
+                      << std::setprecision(1) << caps.max_export_power_W << " W";
+    }
+
     // capabilities must be published at least once
-    this->publish_capabilities(this->mod->controller.caps);
+    this->publish_capabilities(caps);
 
     // FIXME do we need to publish our initial state?
     this->publish_mode(types::power_supply_DC::Mode::Off);

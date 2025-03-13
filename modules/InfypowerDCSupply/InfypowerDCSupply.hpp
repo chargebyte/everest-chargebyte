@@ -28,6 +28,8 @@ struct Conf {
     int can_source_address;
     int can_destination_address;
     std::string dc_module_type;
+    double override_max_current;
+    double override_max_power;
 };
 
 class InfypowerDCSupply : public Everest::ModuleBase {
