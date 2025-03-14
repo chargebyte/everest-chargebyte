@@ -81,6 +81,9 @@ void power_supply_DCImpl::handle_setMode(types::power_supply_DC::Mode& mode,
             this->mod->controller.set_enable(false);
         }
 
+        // remember the current charging phase
+        this->charging_phase = phase;
+
         // finally report the current mode
         this->publish_mode(mode);
 
@@ -95,7 +98,13 @@ void power_supply_DCImpl::handle_setExportVoltageCurrent(double& voltage, double
     EVLOG_info << std::fixed << std::setprecision(1) << "handle_setExportVoltageCurrent(" << voltage << " V, "
                << current << " A)";
     try {
-        this->mod->controller.set_voltage_current(voltage, current);
+        auto new_current = current;
+
+        if (this->charging_phase == types::power_supply_DC::ChargingPhase::Charging) {
+            new_current = -1.0 * 2.0;
+        }
+
+        this->mod->controller.set_voltage_current(voltage, new_current);
 
     } catch (std::runtime_error& e) {
         this->raise_error("power_supply_DC/VendorError", "", e.what());
