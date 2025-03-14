@@ -29,17 +29,31 @@ void power_supply_DCImpl::ready() {
     auto caps = this->mod->controller.caps;
 
     // apply possible overrides to the caps from configuration
-    if (this->mod->config.override_max_current >= 0.0f) {
-        caps.max_export_current_A = this->mod->config.override_max_current;
-        caps.max_import_current_A = this->mod->config.override_max_current;
-        EVLOG_warning << "Applying override to capabilities for maximum export/import current: " << std::fixed
-                      << std::setprecision(1) << caps.max_export_current_A << " A";
+    if (this->mod->config.override_max_current >= 0.0) {
+        if (this->mod->config.override_max_current > caps.max_export_current_A) {
+            EVLOG_warning << "NOT overriding capabilities for maximum export/import current with " << std::fixed
+                          << std::setprecision(1) << caps.max_export_current_A << " A since the value is greater then "
+                          << "the reported value by the power module itself with " << std::fixed << std::setprecision(1)
+                          << caps.max_export_current_A << " A";
+        } else {
+            caps.max_export_current_A = this->mod->config.override_max_current;
+            caps.max_import_current_A = this->mod->config.override_max_current;
+            EVLOG_warning << "Applying override to capabilities for maximum export/import current: " << std::fixed
+                          << std::setprecision(1) << caps.max_export_current_A << " A";
+        }
     }
-    if (this->mod->config.override_max_power >= 0.0f) {
-        caps.max_export_power_W = this->mod->config.override_max_power;
-        caps.max_import_power_W = this->mod->config.override_max_power;
-        EVLOG_warning << "Applying override to capabilities for maximum export/import power: " << std::fixed
-                      << std::setprecision(1) << caps.max_export_power_W << " W";
+    if (this->mod->config.override_max_power >= 0.0) {
+        if (this->mod->config.override_max_power > caps.max_export_power_W) {
+            EVLOG_warning << "NOT overriding capabilities for maximum export/import power with " << std::fixed
+                          << std::setprecision(1) << caps.max_export_power_W << " W since the value is greater then "
+                          << "the reported value by the power module itself with " << std::fixed << std::setprecision(1)
+                          << caps.max_export_power_W << " W";
+        } else {
+            caps.max_export_power_W = this->mod->config.override_max_power;
+            caps.max_import_power_W = this->mod->config.override_max_power;
+            EVLOG_warning << "Applying override to capabilities for maximum export/import power: " << std::fixed
+                          << std::setprecision(1) << caps.max_export_power_W << " W";
+        }
     }
 
     // capabilities must be published at least once
