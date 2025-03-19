@@ -32,6 +32,7 @@ target_sources(${MODULE_NAME}
     PRIVATE
         "datatype_tools.c"
         "InfypowerCANCmd.cpp"
+        "InfypowerCANController.cpp"
         "InfypowerCANID.cpp"
 )
 
