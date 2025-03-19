@@ -14,6 +14,9 @@
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
+#include <atomic>
+#include <mutex>
+#include <string>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -29,6 +32,15 @@ public:
 
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
+
+    // ensure that the public method is not hidden (see below)
+    using power_supply_DCImplBase::raise_error;
+
+    /// @brief Helper to report errors.
+    ///        Note: participates in overload resolution since a function with same name already exists
+    ///              in the base class.
+    void raise_error(const std::string& type, const std::string& sub_type, const std::string& errmsg);
+
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
 
 protected:
@@ -51,6 +63,25 @@ private:
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
     // insert your private definitions here
+
+    /// @brief A mutex to serialize all interface calls.
+    std::mutex mutex;
+
+    /// @brief Flag to remember whether we already published a communication error.
+    std::atomic_bool comm_err_reported {false};
+
+    /// @brief Helper to report communication errors.
+    void raise_comm_error(const std::string& errmsg);
+
+    /// @brief Helper to clear reported communication errors.
+    void clear_comm_error();
+
+    /// @brief Remember last published voltage/current debug message to minimize debug output
+    ///        We just store the printed message so that we don't need to compare the
+    ///        underlying floats (which may have only a small change) and thus can focus on
+    ///        what the developer sees.
+    std::string last_vc_dbgmsg;
+
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
