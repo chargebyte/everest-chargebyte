@@ -52,22 +52,22 @@ public:
     void set_enable(bool enable);
 
     /// @brief Set the desired values via CAN.
-    /// @param voltage The desired new voltage
-    /// @param current The desired new current
+    /// @param voltage The desired new voltage (in [V])
+    /// @param current The desired new current (in [A])
     void set_voltage_current(double voltage, double current);
 
     /// @brief Set the desired cut-off voltage via CAN.
-    /// @param voltage The desired new voltage
+    /// @param voltage The desired new voltage (in [V])
     void set_import_cutoff_voltage(double voltage);
 
     /// @brief Signal used to inform about voltage and current changes.
     ///        The callback receives two floats, the actual voltage and the current.
-    sigslot::signal<float&, float&> on_vc_update;
+    sigslot::signal<const float&, const float&> on_vc_update;
 
     /// @brief Signal used to inform about errors.
     ///        The callback receives four parameters:
     ///        - a bool whether the error is actually present (true if so, false otherwise)
-    ///        - a string used as the last part of Everest::error::ErrorTyp
+    ///        - a string used as the last part of Everest::error::ErrorType
     ///        - a string used as ErrorSubType
     ///        - a string used as error message
     sigslot::signal<bool, const std::string&, const std::string&, const std::string&> on_error;
@@ -181,7 +181,7 @@ private:
     unsigned int pm_count {0};
 
     /// @brief Helper to raise an exception when CAN feedback is incomplete
-    void raise_incomplete_feedback(InfypowerCANCmd& cmd);
+    void raise_incomplete_feedback(const InfypowerCANCmd& cmd);
 
     /// @brief Query the power module group master for the count of modules in this group.
     void pm_query_count();

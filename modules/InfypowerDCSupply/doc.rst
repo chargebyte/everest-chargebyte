@@ -10,7 +10,7 @@ Usage Overview
 This module is a driver for various Infypower's DC supply power modules
 connected via CAN bus to the EVerest system.
 
-It provides the `power_supply_DC` interface and there are no dependencies.
+It provides the `power_supply_DC` interface and there are no interface dependencies.
 
 The manifest has reasonable default values set, e.g. for the CAN interface
 and the bitrate, but also for the Infypower addresses used in the CAN IDs.
@@ -42,9 +42,9 @@ the helper classes provide e.g. helpers for masking out the specific bits in
 the CAN IDs.
 
 From the high-level perspective, the protocol is a command-response approach.
-There are commands which need to be send in a cyclic manner, e.g. querying
+There are commands which need to be sent in a cyclic manner, e.g. querying
 the current voltage and current or the power module status.
-Other commands only need to be send once, or in case a specific action should
+Other commands only need to be sent once, or in case a specific action should
 be done, like changing the working mode or adjusting voltage/current.
 Each command usually causes a response from the power module. However, there
 are commands when only the master module of the group answers, but there are
@@ -60,7 +60,7 @@ So the decision was made, that those frames are received using Linux' CAN RAW
 interface.
 
 This raw interface is better suited for sending out the non-cyclic CAN frames,
-but also provide flexible CAN ID based filters while receiving - in contrast to
+but also provides flexible CAN ID based filters while receiving - in contrast to
 the BCM interface which provides filter based on content changes.
 This is why also such a socket is used.
 
@@ -75,16 +75,19 @@ responses.
 
 Since different power modules use different commands, the idea is to use the
 existing controller class as base class later, and derive power module specific
-sub-classes. These classes can the implement specific functionality while
+sub-classes. These classes can then implement specific functionality while
 providing the same interface to higher layers.
 
 Open TODOs/Ideas
 ================
 
 * test bidirectional charging with BEC/BEG power modules
+  (only usual AC -> DC was tested with a BEG power module at the moment)
 * rework controller class so that sub-classes can better handle
-  different power module types (which slightly different commands
+  different power module types (with slightly different commands
   and/or datatypes etc.)
 * rework the class for command handling, e.g. byte0/byte1 stuff
   is not required for some commands
 * improve the alarm handling code
+* clarify how to handle fields like peak_current_ripple_A... and what is
+  the source of these values

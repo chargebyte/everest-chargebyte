@@ -59,11 +59,11 @@ void power_supply_DCImpl::ready() {
     // capabilities must be published at least once
     this->publish_capabilities(caps);
 
-    // FIXME do we need to publish our initial state?
+    // publish our initial state to be on the safe side
     this->publish_mode(types::power_supply_DC::Mode::Off);
 
-    // register (and this enable) publishing of voltage and current values
-    this->mod->controller.on_vc_update.connect([this](float& voltage, float& current) {
+    // register (and thus enable) publishing of voltage and current values
+    this->mod->controller.on_vc_update.connect([this](const float& voltage, const float& current) {
         types::power_supply_DC::VoltageCurrent vc;
         std::ostringstream dbgmsg;
 
@@ -75,10 +75,10 @@ void power_supply_DCImpl::ready() {
         dbgmsg << std::fixed << std::setprecision(1) << "U: " << vc.voltage_V << " V, " << std::fixed
                << std::setprecision(1) << "I: " << vc.current_A << " A";
 
-        if (this->last_vc_dbgmsg != dbgmsg.str())
+        if (this->last_vc_dbgmsg != dbgmsg.str()) {
             EVLOG_debug << dbgmsg.str();
-
-        this->last_vc_dbgmsg = dbgmsg.str();
+            this->last_vc_dbgmsg = dbgmsg.str();
+        }
     });
 }
 
@@ -126,8 +126,8 @@ void power_supply_DCImpl::handle_setExportVoltageCurrent(double& voltage, double
 void power_supply_DCImpl::handle_setImportVoltageCurrent(double& voltage, double& current) {
     std::scoped_lock lock(this->mutex);
 
-    EVLOG_debug << std::fixed << std::setprecision(1) << "handle_setImportVoltageCurrent(" << voltage << " V, "
-                << current << " A)";
+    EVLOG_info << std::fixed << std::setprecision(1) << "handle_setImportVoltageCurrent(" << voltage << " V, "
+               << current << " A)";
     try {
         // since we do not have any other voltage from EVerest, we assume that
         // the voltage is carefully chosen and represents the cut-off voltage
@@ -147,8 +147,7 @@ void power_supply_DCImpl::raise_comm_error(const std::string& errmsg) {
 
     // only if the old value (still) was false, then we can raise the error
     if (!old_value) {
-        const auto err = this->error_factory->create_error("power_supply_DC/CommunicationFault", "", errmsg);
-        this->raise_error(err);
+        this->raise_error("power_supply_DC/CommunicationFault", "", errmsg);
         EVLOG_error << "CommunicationFault raised: " << errmsg;
     } else {
         EVLOG_debug << "CommunicationFault (suppressed): " << errmsg;

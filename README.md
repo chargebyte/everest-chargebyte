@@ -8,6 +8,7 @@ This repository includes the following modules:
 - **CbTarragonPlugLock**: Driver for plug lock control on chargebyte's Tarragon board.  
 - **CbTarragonDIs**: Driver for configuring digital input reference PWM on chargebyte's Tarragon board.  
 - **CbSystem**: Implements system wide operations for chargebyte's hardware products.
+- **InfypowerDCSupply**: Driver for Infypower's BEC/BEG power modules.
 
 ## Compatibility matrix
 | Tag    | EVerest release              |
@@ -64,7 +65,23 @@ cmake -DSIGSLOT_COMPILE_EXAMPLES=OFF -DSIGSLOT_COMPILE_TESTS=OFF ..
 sudo make install
 ```
 
-Remember that, when cross-compiling for the target platforms, both libraries must be included in your SYSROOT environment.
+Some modules depend on [libsocketcan](https://github.com/linux-can/libsocketcan).
+The library is included as package in Ubuntu and also available in Yocto (both version 0.0.12).
+In case manual installation is needed, use for example the following steps:
+
+```bash
+git clone https://github.com/linux-can/libsocketcan.git
+cd libsocketcan
+git checkout v0.0.12
+./autogen.sh
+mkdir build
+cd build
+../configure
+sudo make install
+```
+
+
+Remember that, when cross-compiling for the target platforms, all libraries must be included in your SYSROOT environment.
 
 ## Build and install
 If you need to regenerate the modules using the EVerest ev-cli tool, for example, if there is a change in the EVerest interfaces, execute the following command:

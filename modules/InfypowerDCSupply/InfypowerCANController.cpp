@@ -224,11 +224,11 @@ void InfypowerCANController::setup_can_bcm() {
         this->register_expected_cmd(**it);
 
     // the CAN ID is the same for all commands here, so we just use this below
-    InfypowerCANCmd& cmd = *this->can_bcm_cmds[0];
+    const InfypowerCANCmd& cmd = *this->can_bcm_cmds[0];
 
     // we cannot use the InfypowerRxCANID provided by InfypowerCANCmd because it has narrowed mask,
     // so we have to create it for our use-case here: just swapped but complete
-    InfypowerRxCANID can_id_rx(cmd.get_tx_can_id());
+    const InfypowerRxCANID can_id_rx(cmd.get_tx_can_id());
 
     // we actually only register Rx for Read Power Module Status here since we have to
     // periodically report voltage and current to EVerest
@@ -439,7 +439,7 @@ void InfypowerCANController::set_enable(bool enable) {
     }
 }
 
-void InfypowerCANController::raise_incomplete_feedback(InfypowerCANCmd& cmd) {
+void InfypowerCANController::raise_incomplete_feedback(const InfypowerCANCmd& cmd) {
     std::string errmsg = "Incomplete CAN feedback for ";
     errmsg += cmd;
 
@@ -538,6 +538,14 @@ void InfypowerCANController::set_import_cutoff_voltage(double voltage) {
 }
 
 bool InfypowerCANController::process_cmd(InfypowerCANCmd& cmd) {
+    // Note: as soon as we register the cmd in the expected cmd list, the
+    // worker thread might actually store feedback frames in cmd even that
+    // we did not yet send out our CAN request.
+    // This should usually not happen, but to ensure that we count the
+    // received CAN frames correctly, we have to acquire the cmd's mutex already.
+    // We need the mutex also so that we can wait on the cv later.
+    std::unique_lock lock(cmd.mutex);
+
     // tell rx thread that we might receive feedback from now on
     this->register_expected_cmd(cmd);
 
@@ -547,13 +555,10 @@ bool InfypowerCANController::process_cmd(InfypowerCANCmd& cmd) {
     errmsg += "\"";
     this->push_to_can_raw(cmd.get_tx_frame(), errmsg);
 
-    // acquire lock before waiting
-    std::unique_lock lock(cmd.mutex);
-
     // sleep until we received all feedback, or timeout
     cmd.cv.wait_for(lock, this->request_timeout, [&] { return cmd.is_feedback_complete(); });
 
-    // we not expecting feedback anymore (or at least are not interested anymore)
+    // we are not expecting feedback anymore (or at least are not interested anymore)
     this->unregister_expected_cmd(cmd);
 
     // check whether we timed out

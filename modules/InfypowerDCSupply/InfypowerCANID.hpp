@@ -19,7 +19,7 @@
 ///
 // clang-format on
 
-// not all value are specified
+// not all values are specified
 enum class error_code : unsigned char
 {
     normal = 0x00,
