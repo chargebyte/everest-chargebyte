@@ -9,6 +9,8 @@ find_package(everest-cmake 0.4 REQUIRED
     PATHS ../everest-cmake
 )
 
+set(CMAKE_CXX_STANDARD 17)
+
 # search for package PkgConfig
 find_package(PkgConfig REQUIRED)
 
