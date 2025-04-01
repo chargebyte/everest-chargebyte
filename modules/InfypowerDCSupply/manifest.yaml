@@ -1,0 +1,64 @@
+description: Power supply module for Infypower BEC/BEG Power Modules
+config:
+  device:
+    description: CAN interface name to use
+    type: string
+    default: can0
+  bitrate:
+    description: CAN bitrate (in bit/s)
+    type: integer
+    minimum: 1000
+    maximum: 1000000
+    default: 125000
+  can_source_address:
+    description: >-
+      The source address to use (aka controller address).
+      Possible range is 0xf0..0xf8 (i.e. decimal 240..248)
+      Default value: 0xf0 (240)
+    type: integer
+    minimum: 240
+    maximum: 248
+    default: 240
+  can_destination_address:
+    description: >-
+      The destination address to use (aka module group address).
+      The module group address is configured by using DIP switches
+      for example at the power module(s).
+      Possible range is 0..60 (decimal)
+      Default value: 0
+    type: integer
+    minimum: 0
+    maximum: 60
+    default: 0
+  dc_module_type:
+    description: The series of the power module(s)
+    type: string
+    enum:
+      - BEG
+    default: BEG
+  override_max_current:
+    description: >-
+      When this value is greater than or equal to zero, the value is used to
+      override the maximum supported current reported to EVerest in the power
+      module capabilities. The value is expected in Ampere.
+      To disable this override, use any negative number,
+      then the value reported by the power module itself is used.
+    type: number
+    default: -1
+  override_max_power:
+    description: >-
+      When this value is greater than or equal to zero, the value is used to
+      override the maximum supported power reported to EVerest in the power
+      module capabilities. The value is expected in Watts.
+      To disable this override, use any negative number,
+      then the value reported by the power module itself is used.
+    type: number
+    default: -1
+provides:
+  main:
+    interface: power_supply_DC
+    description: Main interface for the power supply
+metadata:
+  license: https://spdx.org/licenses/Apache-2.0.html
+  authors:
+    - chargebyte GmbH
