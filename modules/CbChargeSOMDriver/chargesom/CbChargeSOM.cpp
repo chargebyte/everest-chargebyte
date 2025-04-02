@@ -40,6 +40,9 @@ void CbChargeSOM::init(const std::string& serial_port, bool is_pluggable) {
     if (rv) {
         throw std::system_error(errno, std::generic_category(), "Failed to open '" + serial_port + "'");
     }
+
+    for (unsigned int i = 0; i < MAX_PT1000_CHANNELS; ++i)
+        this->ctx.data.ptx_en[i] = true;
 }
 
 std::chrono::milliseconds CbChargeSOM::get_recovery_delay_ms() {
@@ -220,6 +223,16 @@ void CbChargeSOM::set_allow_power_on(bool allow_power_on) {
         this->sync_with_hw();
 
     } while (this->ctx.data.hvsw1_hs != allow_power_on);
+}
+
+float CbChargeSOM::get_temperature(unsigned int channel) {
+    std::scoped_lock lock(this->ctx_mutex);
+
+    float v_pt1000 = 3.3f * this->ctx.data.ptx_vfb[channel] / 4096.0f;
+
+    float r_pt1000 = 1000.0f * (v_pt1000 / 3.3f - v_pt1000);
+
+    return (r_pt1000 - 1000.0f) / 3.85f;
 }
 
 void CbChargeSOM::sync() {

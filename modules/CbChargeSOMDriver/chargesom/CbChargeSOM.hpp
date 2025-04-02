@@ -73,6 +73,11 @@ public:
     /// @param allow_power_on True allows the contactor to close, false opens the contactor.
     void set_allow_power_on(bool allow_power_on);
 
+    /// @brief Retrieves the current temperature measured on a given channel.
+    /// @param channel The channel number
+    /// @return The temperature in °C
+    float get_temperature(unsigned int channel);
+
     /// @brief Performs a full communication exchange with the safety controller, i.e.
     ///        all values are read back and our desired values are communicated to it.
     ///        In case of error, it throws a `std::system_error` with the encountered errno.

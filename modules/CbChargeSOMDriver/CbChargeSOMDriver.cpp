@@ -55,6 +55,7 @@ void CbChargeSOMDriver::init() {
 
 void CbChargeSOMDriver::ready() {
     invoke_ready(*p_evse_board_support);
+    invoke_ready(*p_temperatures);
 
     while (!this->termination_requested) {
         try {
