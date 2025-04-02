@@ -19,6 +19,9 @@ provides:
       Provide the board support driver for the Charge SOM platform, e.g., control pilot
       monitoring and controlling, contactor switching and similar.
     interface: evse_board_support
+  temperatures:
+    description: Temperature readings as measured by the safety controller
+    interface: cb_chargesom_temperatures
 metadata:
   license: https://spdx.org/licenses/Apache-2.0.html
   authors:

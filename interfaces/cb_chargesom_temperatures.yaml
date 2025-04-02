@@ -1,0 +1,10 @@
+description: Interface for temperatures measured by chargebyte's Charge SOM platform
+vars:
+  temperatures:
+    description: Temperatures as measured by the safety controller
+    type: array
+    items:
+      type: object
+      $ref: /temperature#/Temperature
+errors:
+  - reference: /errors/generic
