@@ -30,6 +30,7 @@ struct Conf {
     std::string dc_module_type;
     double override_max_current;
     double override_max_power;
+    double override_cutoff_voltage;
 };
 
 class InfypowerDCSupply : public Everest::ModuleBase {

@@ -54,6 +54,19 @@ config:
       then the value reported by the power module itself is used.
     type: number
     default: -1
+  override_cutoff_voltage:
+    description: >-
+      When using BPT and the request is to discharge the EV, then the power module
+      needs a cut-off voltage to know when charging should be stopped.
+      With ISO15118-20, this parameter is communicated by the EV, but in combination
+      with the hack for DIN70121 or ISO15118-2 (see documentation of EvseManager etc),
+      it is sometimes desired to ignore the value given by the EvseManager and use
+      a fixed one instead. This option allows to specify such a fixed value in volts.
+      Any value equal to or greater than zero is used as-is - without any further checks.
+      To disable this override, use any negative number, then the voltage given by
+      EvseManager is used. This is also the default behavior.
+    type: number
+    default: -1
 provides:
   main:
     interface: power_supply_DC

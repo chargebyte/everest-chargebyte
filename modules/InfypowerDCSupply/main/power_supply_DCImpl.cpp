@@ -130,8 +130,12 @@ void power_supply_DCImpl::handle_setImportVoltageCurrent(double& voltage, double
                << current << " A)";
     try {
         // since we do not have any other voltage from EVerest, we assume that
-        // the voltage is carefully chosen and represents the cut-off voltage
-        this->mod->controller.set_import_cutoff_voltage(voltage);
+        // the voltage is carefully chosen and represents the cut-off voltage;
+        // the user however might have configured an override in the configuration
+        if (this->mod->config.override_cutoff_voltage >= 0.0)
+            this->mod->controller.set_import_cutoff_voltage(this->mod->config.override_cutoff_voltage);
+        else
+            this->mod->controller.set_import_cutoff_voltage(voltage);
 
         // the voltage here is probably not important and ignored by the PM
         // but we re-use the function for setting the current
