@@ -2,328 +2,393 @@
  * Copyright © 2024 chargebyte GmbH
  * SPDX-License-Identifier: Apache-2.0
  */
+#include <sys/time.h>
 #include <endian.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 #include "uart.h"
-#include "tools.h"
-#include "logging.h"
-#include "crc8_j1850.h"
+#include "cb_uart.h"
 #include "cb_protocol.h"
+#include "logging.h"
 
-/* frame start/end markers */
-#define CB_SOF 0xA5
-#define CB_EOF 0x03
+#define BITMASK(len) \
+    ((1 << (len)) - 1)
 
-/* values for COM fields */
-#define COM_DIGITAL_OUTPUT_01 0x00
-#define COM_DIGITAL_INPUT_01 0x01
-#define COM_ANALOG_INPUT_01 0x02
-#define COM_ANALOG_INPUT_02 0x03
-#define COM_ANALOG_INPUT_03 0x04
-#define COM_ANALOG_INPUT_04 0x05
+#define DATA_SET_BITS(dst, bit, len, datasource) \
+    (dst) &= ~((uint64_t)BITMASK(len) << (bit)); \
+    (dst) |= ((uint64_t)(datasource) & BITMASK(len)) << (bit)
 
-/* data packets have fixed size */
-struct inquiry_pkt {
-    uint8_t sof;
-    uint8_t com;
-    uint8_t crc;
-    uint8_t eof;
-} __attribute__((packed));
+#define DATA_GET_BITS(src, bit, len) \
+    (((src) >> (bit)) & BITMASK(len))
 
-#define DATA_PKT_PAYLOAD_LENGTH 8
-
-struct data_pkt {
-    uint8_t sof;
-    uint8_t com;
-    union {
-        uint8_t data8[DATA_PKT_PAYLOAD_LENGTH / sizeof(uint8_t)];
-        uint16_t data16[DATA_PKT_PAYLOAD_LENGTH / sizeof(uint16_t)];
-    } __attribute__((packed));
-    uint8_t crc;
-    uint8_t eof;
-} __attribute__((packed));
-
-static int cb_request_data(struct uart_ctx *uart, uint8_t com, struct data_pkt *response)
+int cb_send_uart_inquiry(struct uart_ctx *uart, uint8_t com)
 {
-    struct inquiry_pkt request;
-    uint8_t crc;
-    ssize_t c;
+    uint64_t data = 0;
 
-    c = uart_flush_input(uart);
-    if (c < 0)
-        return c;
+    DATA_SET_BITS(data, 56, 8, com);
 
-    /* prepare inquiry packet */
-    memset(&request, 0, sizeof(request));
-    request.sof = CB_SOF;
-    request.com = com;
-    request.crc = crc8_j1850(&request.com, 1);
-    request.eof = CB_EOF;
-
-    debug("sending inquiry packet");
-
-    c = uart_write_drain(uart, (const uint8_t *)&request, sizeof(request));
-    if (c < 0)
-        return c;
-
-    debug("waiting for response");
-
-    c = uart_read_with_timeout(uart, (uint8_t *)response, sizeof(*response), RESPONSE_TIMEOUT_MS);
-    if (c < 0)
-        return c;
-
-    debug("received response");
-    //uart_dump_frame(false, (uint8_t *)response, sizeof(*response));
-
-    /* check field patterns */
-    if (response->sof != CB_SOF) {
-        error("SOF pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, CB_SOF, response->sof);
-        errno = EBADMSG;
-        return -1;
-    }
-    if (response->eof != CB_EOF) {
-        error("EOF pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, CB_EOF, response->eof);
-        errno = EBADMSG;
-        return -1;
-    }
-
-    /* check crc */
-    crc = crc8_j1850(&response->com, sizeof(response->com) + sizeof(response->data8));
-    if (crc != response->crc) {
-        error("CRC pattern mismatch: expected 0x%02x, got 0x%02" PRIx8, crc, response->crc);
-        errno = EBADMSG;
-        return -1;
-    }
-
-    debug("received response looks valid (SOF, EOF, CRC)");
-
-    return 0;
+    return cb_uart_send(uart, COM_INQUIRY, data);
 }
 
-static int cb_wait_throttle_timeout(struct safety_ctx *ctx)
+bool cb_proto_get_actual_pwm_active(struct safety_controller *ctx)
 {
+    return DATA_GET_BITS(ctx->charge_state, 63, 1);
+}
+
+bool cb_proto_get_target_pwm_active(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_control, 63, 1);
+}
+
+void cb_proto_set_pwm_active(struct safety_controller *ctx, bool active)
+{
+    DATA_SET_BITS(ctx->charge_control, 63, 1, active);
+}
+
+unsigned int cb_proto_get_actual_duty_cycle(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 48, 10);
+}
+
+unsigned int cb_proto_get_target_duty_cycle(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_control, 48, 10);
+}
+
+void cb_proto_set_duty_cycle(struct safety_controller *ctx, unsigned int duty_cycle)
+{
+    DATA_SET_BITS(ctx->charge_control, 48, 10, duty_cycle);
+}
+
+bool cb_proto_get_actual_contactor_state(struct safety_controller *ctx, unsigned int contactor)
+{
+    return DATA_GET_BITS(ctx->charge_state, 24 + contactor, 1);
+}
+
+bool cb_proto_get_target_contactor_state(struct safety_controller *ctx, unsigned int contactor)
+{
+    return DATA_GET_BITS(ctx->charge_control, 40 + contactor, 1);
+}
+
+void cb_proto_set_contactor_state(struct safety_controller *ctx, unsigned int contactor, bool active)
+{
+    DATA_SET_BITS(ctx->charge_control, 40 + contactor, 1, active);
+}
+
+bool cb_proto_has_contactor_errors(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 26, 2);
+}
+
+bool cb_proto_has_contactorN_error(struct safety_controller *ctx, unsigned int contactor)
+{
+    return DATA_GET_BITS(ctx->charge_state, 26 + contactor, 1);
+}
+
+enum cp_state cb_proto_get_cp_state(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 40, 3);
+}
+
+unsigned int cb_proto_get_cp_errors(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 43, 2);
+}
+
+bool cb_proto_is_cp_short_circuit(struct safety_controller *ctx)
+{
+    return cb_proto_get_cp_errors(ctx) & CP_SHORT_CIRCUIT;
+}
+
+bool cb_proto_is_diode_fault(struct safety_controller *ctx)
+{
+    return cb_proto_get_cp_errors(ctx) & CP_DIODE_FAULT;
+}
+
+enum pp_state cb_proto_get_pp_state(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 32, 3);
+}
+
+bool cb_proto_has_estop_tripped(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 16, 3);
+}
+
+bool cb_proto_has_estopX_tripped(struct safety_controller *ctx, unsigned int estop)
+{
+    return DATA_GET_BITS(ctx->charge_state, 16, 3) & (1 << estop);
+}
+
+unsigned int cb_proto_get_imd_rcm_errors(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->charge_state, 19, 2);
+}
+
+bool cb_proto_pt1000_is_active(struct safety_controller *ctx, unsigned int channel)
+{
+    return DATA_GET_BITS(ctx->pt1000, 16 * (MAX_PT1000_CHANNELS - 1 - channel) + 2, 14) != PT1000_TEMPERATURE_UNUSED;
+}
+
+double cb_proto_pt1000_get_temp(struct safety_controller *ctx, unsigned int channel)
+{
+    /* we access the whole 16 bit so that we shift correctly */
+    int16_t d = DATA_GET_BITS(ctx->pt1000, 16 * (MAX_PT1000_CHANNELS - 1 - channel), 16);
+
+    return (double)(d >> 2) / 10.0;
+}
+
+unsigned int cb_proto_pt1000_get_errors(struct safety_controller *ctx, unsigned int channel)
+{
+    return DATA_GET_BITS(ctx->pt1000, 16 * (MAX_PT1000_CHANNELS - 1 - channel), 2);
+}
+
+unsigned int cb_proto_fw_get_major(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->fw_version, 56, 8);
+}
+
+unsigned int cb_proto_fw_get_minor(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->fw_version, 48, 8);
+}
+
+unsigned int cb_proto_fw_get_build(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->fw_version, 40, 8);
+}
+
+enum fw_platform_type cb_proto_fw_get_platform_type(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->fw_version, 32, 8);
+}
+
+enum fw_application_type cb_proto_fw_get_application_type(struct safety_controller *ctx)
+{
+    return DATA_GET_BITS(ctx->fw_version, 24, 8);
+}
+
+void cb_proto_set_fw_version_str(struct safety_controller *ctx)
+{
+    snprintf(ctx->fw_version_str, sizeof(ctx->fw_version_str), "%u.%u.%u",
+             cb_proto_fw_get_major(ctx),
+             cb_proto_fw_get_minor(ctx),
+             cb_proto_fw_get_build(ctx));
+}
+
+void cb_proto_set_git_hash_str(struct safety_controller *ctx)
+{
+    uint8_t *p = (uint8_t *)&ctx->git_hash + sizeof(ctx->git_hash) - 1;
+    char *s = &ctx->git_hash_str[0];
+    unsigned int i;
+
+    for (i = 0; i < sizeof(ctx->git_hash); ++i) {
+        sprintf(s, "%02" PRIx8, *p);
+        p--;
+        s += 2;
+    }
+
+    *s = '\0';
+}
+
+
+const char *cb_proto_cp_state_to_str(enum cp_state state)
+{
+    switch (state) {
+    case CP_STATE_UNKNOWN:
+        return "unknown";
+    case CP_STATE_A:
+        return "A";
+    case CP_STATE_B:
+        return "B";
+    case CP_STATE_C:
+        return "C";
+    case CP_STATE_D:
+        return "D";
+    case CP_STATE_E:
+        return "E";
+    case CP_STATE_F:
+        return "F";
+    case CP_STATE_INVALID:
+        return "invalid";
+    default:
+        return "undefined";
+    }
+}
+
+const char *cb_proto_pp_state_to_str(enum cp_state state)
+{
+    switch (state) {
+    case PP_STATE_NO_CABLE:
+        return "no cable detected";
+    case PP_STATE_13A:
+        return "13 A";
+    case PP_STATE_20A:
+        return "20 A";
+    case PP_STATE_32A:
+        return "32 A";
+    case PP_STATE_63_70A:
+        return "63/70 A";
+    case PP_STATE_TYPE1_CONNECTED:
+        return "connected";
+    case PP_STATE_TYPE1_CONNECTED_BUTTON_PRESSED:
+        return "connected, button pressed";
+    case PP_STATE_INVALID:
+        return "invalid";
+    default:
+        return "undefined";
+    }
+}
+
+const char *cb_proto_fw_platform_type_to_str(enum fw_platform_type type)
+{
+    switch (type) {
+    case FW_PLATFORM_TYPE_UNSPECIFIED:
+        return "unspecified";
+    case FW_PLATFORM_TYPE_UNKNOWN:
+        return "unknown";
+    case FW_PLATFORM_TYPE_CHARGESOM:
+        return "Charge SOM";
+    case FW_PLATFORM_TYPE_CCY:
+        return "CC Y";
+    default:
+        return "unknown value";
+    }
+}
+
+const char *cb_proto_fw_application_type_to_str(enum fw_application_type type)
+{
+    switch (type) {
+    case FW_APPLICATION_TYPE_FW:
+        return "firmware";
+    case FW_APPLICATION_TYPE_EOL:
+        return "eol";
+    case FW_APPLICATION_TYPE_QUALIFICATION:
+        return "qualification";
+    default:
+        return "unknown";
+    }
+}
+
+int cb_proto_set_ts_str(struct safety_controller *ctx, uint8_t com)
+{
+    char *buffer = ctx->ts_str_recv_com[com];
+    struct timeval tv;
+    struct tm tm;
+    size_t offset;
     int rv;
 
-    /* only wait when the timestamp was set at all */
-    if (timespec_is_set(&ctx->ts_next_query)) {
-        /* sleep until the MCU accepts the next request */
-        rv = clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ctx->ts_next_query, NULL);
-        if (rv)
-            return rv;
+    if (gettimeofday(&tv, NULL) < 0) {
+         error("gettimeofday() failed: %m");
+         return -1;
     }
 
-    /* calculate the next timestamp... */
-    rv = clock_gettime(CLOCK_MONOTONIC, &ctx->ts_next_query);
-    if (rv)
-        return rv;
+    if (localtime_r(&tv.tv_sec, &tm) == NULL) {
+        error("localtime_r() failed: %m");
+        return -1;
+    }
 
-    /* ...we must only add half of the timeout since this is our query interval */
-    timespec_add_ms(&ctx->ts_next_query, RESPONSE_TIMEOUT_MS / 2);
+    offset = strftime(buffer, TS_STR_RECV_COM_BUFSIZE, "%Y-%m-%d %H:%M:%S", &tm);
+    if (offset < 1) {
+        error("strftime() failed");
+        return -1;
+    }
 
-    return 0;
+    rv = snprintf(&buffer[offset], TS_STR_RECV_COM_BUFSIZE - offset, ".%03ld", tv.tv_usec / 1000);
+    if (rv < 0) {
+        error("strftime() failed");
+        return -1;
+    }
+
+    return rv;
 }
 
-#define DATA_PKT_SET_BIT(offset, bit, datasource) \
-    request.data8[(offset)] |= (datasource) << (bit)
+#define printfnl(fmt, ...) \
+        do { \
+            printf(fmt "\r\n", ##__VA_ARGS__); \
+        } while (0)
 
-static int cb_send_do(struct uart_ctx *uart, struct safety_controller *data)
+#define THIS_BIT_AND_ANY_OF_THE_LOWER(src, bit) \
+    (((src) & (bit)) && ((src) & ((bit) - 1)))
+
+void cb_proto_dump(struct safety_controller *ctx)
 {
-    struct data_pkt request;
-    ssize_t c;
-    int i;
+    unsigned int i;
 
-    /* prepare packet */
-    memset(&request, 0, sizeof(request));
-    request.sof = CB_SOF;
-    request.com = COM_DIGITAL_OUTPUT_01;
+    printfnl("== Various ==");
+    printfnl("Control Pilot:   %s (%s%s%s%s)", cb_proto_cp_state_to_str(cb_proto_get_cp_state(ctx)),
+             cb_proto_get_cp_errors(ctx) ? "" : "-no flags set-",
+             (cb_proto_get_cp_errors(ctx) & CP_DIODE_FAULT) ? "diode fault" : "",
+             THIS_BIT_AND_ANY_OF_THE_LOWER(cb_proto_get_cp_errors(ctx), CP_DIODE_FAULT) ? "," : "",
+             (cb_proto_get_cp_errors(ctx) & CP_SHORT_CIRCUIT) ? "short circuit" : "");
 
-    for (i = 0; i < MAX_PT1000_CHANNELS; i++)
-        DATA_PKT_SET_BIT(0, i, data->ptx_en[i]);
+    printfnl("Proximity Pilot: %s", cb_proto_pp_state_to_str(cb_proto_get_pp_state(ctx)));
 
-    DATA_PKT_SET_BIT(0, 4, data->hvsw3_precharge);
-    DATA_PKT_SET_BIT(0, 5, data->sc_alive);
-    DATA_PKT_SET_BIT(0, 6, data->hvsw1_hs);
-    DATA_PKT_SET_BIT(0, 7, data->hvsw2_hs);
+    printfnl("Emergency Stop Tripped: ESTOP1=%-3s  ESTOP2=%-3s  ESTOP2=%-3s",
+             cb_proto_has_estopX_tripped(ctx, 0) ? "yes" : "no",
+             cb_proto_has_estopX_tripped(ctx, 1) ? "yes" : "no",
+             cb_proto_has_estopX_tripped(ctx, 2) ? "yes" : "no");
 
-    DATA_PKT_SET_BIT(1, 0, data->motor_drv_out2);
-    DATA_PKT_SET_BIT(1, 1, data->motor_drv_out1);
-    DATA_PKT_SET_BIT(1, 2, data->cp_rst_pos_peak_det);
-    DATA_PKT_SET_BIT(1, 3, data->cp_rst_neg_peak_det);
-    DATA_PKT_SET_BIT(1, 4, data->cp_state_c);
-    DATA_PKT_SET_BIT(1, 5, data->pp_sae_iec);
+    printfnl("IMD/RCM State: 0x%02x (%s%s%s%s)", cb_proto_get_imd_rcm_errors(ctx),
+             cb_proto_get_imd_rcm_errors(ctx) ? "" : "-no flags set-",
+             (cb_proto_get_imd_rcm_errors(ctx) & IMD_RCM_STATE_CHARGING_ABORT) ? "charging abort" : "",
+             THIS_BIT_AND_ANY_OF_THE_LOWER(cb_proto_get_imd_rcm_errors(ctx), IMD_RCM_STATE_CHARGING_ABORT) ? "," : "",
+             (cb_proto_get_imd_rcm_errors(ctx) & IMD_RCM_STATE_TEST_FAILED) ? "test failed" : "");
 
-    request.data8[2] = data->duty_cycle;
+    printfnl("");
+    printfnl("== PWM ==");
+    printfnl("Enable:               %-3s      Is Enabled:         %-3s",
+             cb_proto_get_target_pwm_active(ctx)? "yes" : "no",
+             cb_proto_get_actual_pwm_active(ctx) ? "yes" : "no");
+    printfnl("Requested Duty Cycle: %5.1f%%   Current Duty Cycle: %5.1f%%",
+             cb_proto_get_target_duty_cycle(ctx) / 10.0,
+             cb_proto_get_actual_duty_cycle(ctx) / 10.0);
 
-    request.crc = crc8_j1850(&request.com, sizeof(request.com) + sizeof(request.data8));
-    request.eof = CB_EOF;
+    printfnl("");
+    printfnl("== Contactor ==");
+    printfnl("Contactor 1: requested=%-5s   actual=%-6s   %s",
+             cb_proto_get_target_contactor_state(ctx, 0) ? "CLOSE" : "open",
+             cb_proto_get_actual_contactor_state(ctx, 0) ? "CLOSED" : "open",
+             cb_proto_has_contactorN_error(ctx, 0) ? "ERROR" : "no error");
+    printfnl("Contactor 2: requested=%-5s   actual=%-6s   %s",
+              cb_proto_get_target_contactor_state(ctx, 1) ? "CLOSE" : "open",
+              cb_proto_get_actual_contactor_state(ctx, 1) ? "CLOSED" : "open",
+              cb_proto_has_contactorN_error(ctx, 1) ? "ERROR" : "no error");
 
-    debug("sending packet");
+    printfnl("");
+    printfnl("== Temperatures ==");
+    for (i = 0; i < MAX_PT1000_CHANNELS; ++i) {
+        bool is_enabled = cb_proto_pt1000_is_active(ctx, i);
 
-    c = uart_write_drain(uart, (const uint8_t *)&request, sizeof(request));
-    if (c < 0)
-        return c;
+        printf("Channel %d: enabled=%-3s temperature=", i + 1, is_enabled ? "yes" : "no");
+        if (is_enabled)
+            printf("%5.1f °C", cb_proto_pt1000_get_temp(ctx, i));
+        else
+            printf("-n/a- °C");
+        printfnl(" (%s%s%s%s)",
+                 cb_proto_pt1000_get_errors(ctx, i) ? "" : "-no flags set-",
+                 (cb_proto_pt1000_get_errors(ctx, i) & PT1000_SELFTEST_FAILED) ? "selftest failed" : "",
+                 THIS_BIT_AND_ANY_OF_THE_LOWER(cb_proto_pt1000_get_errors(ctx, i), PT1000_SELFTEST_FAILED) ? "," : "",
+                 (cb_proto_pt1000_get_errors(ctx, i) & PT1000_CHARGING_STOPPED) ? "charging stop cause" : "");
+    }
 
-    return 0;
-}
+    printfnl("");
+    printfnl("== Firmware Info ==");
+    printfnl("Version: %s (%s, %s)",
+           ctx->fw_version ? ctx->fw_version_str : "unknown",
+           cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(ctx)),
+           cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(ctx)));
+    printfnl("Git Hash: %s", ctx->git_hash ? ctx->git_hash_str : "unknown");
 
-#define DATA_PKT_GET_BIT(offset, bit) \
-    ((response.data8[(offset)] >> (bit)) & 1)
-
-int cb_single_run(struct safety_ctx *ctx)
-{
-    struct safety_controller *data = &ctx->data;
-    struct uart_ctx *uart = &ctx->uart;
-    struct data_pkt response;
-    int i, rv;
-
-    rv = cb_wait_throttle_timeout(ctx);
-    if (rv)
-        return rv;
-
-    debug("sending COM_DIGITAL_OUTPUT_01");
-
-    rv = cb_send_do(uart, data);
-    if (rv)
-        return rv;
-
-    rv = cb_wait_throttle_timeout(ctx);
-    if (rv)
-        return rv;
-
-    debug("sending COM_DIGITAL_INPUT_01");
-
-    rv = cb_request_data(uart, COM_DIGITAL_INPUT_01, &response);
-    if (rv)
-        return rv;
-
-    data->pp_sae_iec =      DATA_PKT_GET_BIT(0, 0);
-    data->p403 =            DATA_PKT_GET_BIT(0, 1);
-    for (i = 0; i < MAX_ESTOP_CHANNELS; i++)
-        data->estopx[i] =   DATA_PKT_GET_BIT(0, 2 + i);
-    data->p408 =            DATA_PKT_GET_BIT(0, 5);
-    data->p407 =            DATA_PKT_GET_BIT(0, 6);
-    data->ptx_en[0] =       DATA_PKT_GET_BIT(0, 7);
-    data->ptx_en[1] =       DATA_PKT_GET_BIT(1, 0);
-    data->ptx_en[2] =       DATA_PKT_GET_BIT(1, 1);
-    data->ptx_en[3] =       DATA_PKT_GET_BIT(1, 2);
-    data->hvsw3_precharge = DATA_PKT_GET_BIT(1, 3);
-    data->sc_alive =        DATA_PKT_GET_BIT(1, 4);
-    data->hvsw1_hs =        DATA_PKT_GET_BIT(1, 5);
-    data->hvsw2_hs =        DATA_PKT_GET_BIT(1, 6);
-    data->motor_drv_fault = DATA_PKT_GET_BIT(1, 7);
-
-    data->motor_drv_out2 =  DATA_PKT_GET_BIT(2, 0);
-    data->motor_drv_out1 =  DATA_PKT_GET_BIT(2, 1);
-    data->p107 =            DATA_PKT_GET_BIT(2, 2);
-    data->p106 =            DATA_PKT_GET_BIT(2, 3);
-    data->p104 =            DATA_PKT_GET_BIT(2, 4);
-    data->sc_dev_2 =        DATA_PKT_GET_BIT(2, 5);
-    data->sc_dev_1 =        DATA_PKT_GET_BIT(2, 6);
-    data->cp_state_c =      DATA_PKT_GET_BIT(2, 7);
-
-    rv = cb_wait_throttle_timeout(ctx);
-    if (rv)
-        return rv;
-
-    debug("sending COM_ANALOG_INPUT_01");
-
-    rv = cb_request_data(uart, COM_ANALOG_INPUT_01, &response);
-    if (rv)
-        return rv;
-
-    for (i = 0; i < MAX_PT1000_CHANNELS; i++)
-        data->ptx_vfb[i] = le16toh(response.data16[i]);
-
-    rv = cb_wait_throttle_timeout(ctx);
-    if (rv)
-        return rv;
-
-    debug("sending COM_ANALOG_INPUT_02");
-
-    rv = cb_request_data(uart, COM_ANALOG_INPUT_02, &response);
-    if (rv)
-        return rv;
-
-    data->cp_neg_peak_det = le16toh(response.data16[0]);
-    data->cp_pos_peak_det = le16toh(response.data16[1]);
-    data->pp_value = le16toh(response.data16[2]);
-    data->u_in = le16toh(response.data16[3]);
-
-    rv = cb_wait_throttle_timeout(ctx);
-    if (rv)
-        return rv;
-
-    debug("sending COM_ANALOG_INPUT_03");
-
-    rv = cb_request_data(uart, COM_ANALOG_INPUT_03, &response);
-    if (rv)
-        return rv;
-
-    data->precharge_cfb = le16toh(response.data16[0]);
-    data->hs1_cfb = le16toh(response.data16[1]);
-    data->hs2_cfb = le16toh(response.data16[2]);
-    data->pt_1_2_cfb = le16toh(response.data16[3]);
-
-    rv = cb_wait_throttle_timeout(ctx);
-    if (rv)
-        return rv;
-
-    debug("sending COM_ANALOG_INPUT_04");
-
-    rv = cb_request_data(uart, COM_ANALOG_INPUT_04, &response);
-    if (rv)
-        return rv;
-
-    data->pt_3_4_cfb = le16toh(response.data16[0]);
-    data->int_temp = le16toh(response.data16[1]);
-    data->int_refvolt = le16toh(response.data16[2]);
-    // response.data16[3] is reserved
-
-    return 0;
-}
-
-void cb_dump_data(struct safety_controller *data)
-{
-    float neg_cp, pos_cp;
-    int i;
-
-    printf("COM_DIGITAL_INPUT_01:\n");
-    printf("\tDuty Cycle: %u\n", data->duty_cycle);
-    printf("\tCP Reset Peak Detector (Neg/Pos): %u/%u\n", data->cp_rst_neg_peak_det, data->cp_rst_pos_peak_det);
-    printf("\tPP SAE IEC: %u\n", data->pp_sae_iec);
-    printf("\tESTOP1: %u    ESTOP1: %u    ESTOP1: %u\n", data->estopx[0], data->estopx[1], data->estopx[2]);
-    printf("\tPT1_EN: %u    PT2_EN: %u    PT3_EN: %u    PT3_EN: %u\n", data->ptx_en[0], data->ptx_en[1], data->ptx_en[2], data->ptx_en[3]);
-    printf("\tP104: %u    P106: %u    P107: %u\n", data->p104, data->p106, data->p107);
-    printf("\tP403: %u    P407: %u    P407: %u\n", data->p403, data->p407, data->p408);
-    printf("\tHVSW1_HS:        %u    HVSW2_HS:       %u    SC_ALIVE:       %u\n", data->hvsw1_hs, data->hvsw2_hs, data->sc_alive);
-    printf("\tMOTOR_DRV_FAULT: %u    MOTOR_DRV_OUT1: %u    MOTOR_DRV_OUT1: %u\n", data->motor_drv_fault, data->motor_drv_out1, data->motor_drv_out2);
-    printf("\tSC_DEV_1:        %u    SC_DEV_2:       %u    CP_STATE_C:     %u\n", data->sc_dev_1, data->sc_dev_2, data->cp_state_c);
-
-    printf("COM_ANALOG_INPUT_01:\n");
-    for (i = 0; i < MAX_PT1000_CHANNELS; i++)
-        printf("\tPT%d_VFB: %u\n", i + 1, data->ptx_vfb[i]);
-
-    printf("COM_ANALOG_INPUT_02:\n");
-    neg_cp = (3.3 * data->cp_neg_peak_det * 150.0) / (4096 * -36.0);
-    pos_cp = (3.3 * data->cp_pos_peak_det * (47.0 + 150.0)) / (4096 * 47.0);
-    printf("\tCP_NEG_PEAK_DET: %-5u    %+8.3f V\n", data->cp_neg_peak_det, neg_cp);
-    printf("\tCP_POS_PEAK_DET: %-5u    %+8.3f V\n", data->cp_pos_peak_det, pos_cp);
-    printf("\tPP_VALUE: %u\n", data->pp_value);
-    printf("\tU_in: %u\n", data->u_in);
-
-    printf("COM_ANALOG_INPUT_03:\n");
-    printf("\tPRECHARGE_CFB: %u\n", data->precharge_cfb);
-    printf("\tHS1_CFB: %u\n", data->hs1_cfb);
-    printf("\tHS2_CFB: %u\n", data->hs2_cfb);
-    printf("\tPT_1_2_CFB: %u\n", data->pt_1_2_cfb);
-
-    printf("COM_ANALOG_INPUT_04:\n");
-    printf("\tPT_3_4_CFB: %u\n", data->pt_3_4_cfb);
-    printf("\tINT_TEMP: %u\n", data->int_temp);
-    printf("\tINT_REFVOLT: %u\n", data->int_refvolt);
+    printfnl("");
+    printfnl("== Timestamps ==");
+    for (i = 0; i < COM_MAX; ++i) {
+        if (strlen(ctx->ts_str_recv_com[i]))
+            printfnl("%-20s: %s", cb_uart_com_to_str(i), ctx->ts_str_recv_com[i]);
+    }
 }

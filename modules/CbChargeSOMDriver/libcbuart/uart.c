@@ -227,6 +227,11 @@ err_out:
     return rv;
 }
 
+void uart_trace(struct uart_ctx *ctx, bool on)
+{
+    ctx->trace = on;
+}
+
 /*
  * Print for each character in buffer [XX] or <XX> with log level trace.
  */

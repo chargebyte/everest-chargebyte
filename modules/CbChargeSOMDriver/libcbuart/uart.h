@@ -29,11 +29,16 @@ struct uart_ctx {
 
     /* termios settings to use */
     struct termios newtio;
+
+    /* enable tracing of sent and received frames */
+    bool trace;
 };
 
 int uart_open(struct uart_ctx *ctx, const char *port, int baudrate);
 int uart_close(struct uart_ctx *ctx);
 int uart_reconfigure_baudrate(struct uart_ctx *ctx, int baudrate);
+
+void uart_trace(struct uart_ctx *ctx, bool on);
 
 int uart_dump_frame(bool is_sending, uint8_t *buffer, size_t len);
 
