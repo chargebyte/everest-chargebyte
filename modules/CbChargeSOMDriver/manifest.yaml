@@ -7,12 +7,37 @@ config:
       - IEC62196Type2Cable
       - IEC62196Type2Socket
     default: IEC62196Type2Cable
+  min_current_A:
+    description: >-
+      The minimum current in ampere which can be imported/exported. The default value
+      of 6 A corresponds to the lowest value which is technically possible to signal
+      by the IEC 61851 standard via PWM.
+    type: number
+    default: 6
+  max_current_A:
+    description: >-
+      The maximum current in ampere which can be imported/exported. Here too,
+      the default corresponds to the maximum value which is possible to signal
+      with the IEC 61851 standard. The value should be adjusted if there is no
+      other limitating value/instance which represents the physical charger limits.
+    type: number
+    default: 80
   serial_port:
     description: >-
       Device name of the serial port to use for communication with the
       safety co-processor.
     type: string
     default: /dev/ttyLP2
+  reset_gpio_line_name:
+    description: >-
+      The GPIO line name which is connected to the reset input of the
+      safety co-processor.
+    type: string
+    default: nSAFETY_RESET_INT
+  reset_active_low:
+    description: The polarity of the reset GPIO line (active low = true, active high = false)
+    type: boolean
+    default: true
 provides:
   evse_board_support:
     description: >-

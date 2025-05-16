@@ -13,7 +13,7 @@
 using namespace std::chrono_literals;
 
 // provide wrappers for libcbuart which add a tiny prefix and then passes on to EVerest logging
-static void libcbuart_log(bool debug, const char *format, va_list args) {
+static void libcbuart_log(bool debug, const char* format, va_list args) {
     char msg[255];
 
     vsnprintf(msg, sizeof(msg), format, args);
@@ -25,11 +25,11 @@ static void libcbuart_log(bool debug, const char *format, va_list args) {
     }
 }
 
-void libcbuart_debug_cb(const char *format, va_list args) {
+void libcbuart_debug_cb(const char* format, va_list args) {
     libcbuart_log(true, format, args);
 }
 
-void libcbuart_error_cb(const char *format, va_list args) {
+void libcbuart_error_cb(const char* format, va_list args) {
     libcbuart_log(false, format, args);
 }
 
@@ -45,12 +45,16 @@ void CbChargeSOMDriver::init() {
     libcbuart_set_debug_msg_cb(libcbuart_debug_cb);
 
     // instantiate UART controller object for communication with safety controller
-    this->controller.init(this->config.serial_port, is_pluggable);
+    this->controller.init(this->config.reset_gpio_line_name, this->config.reset_active_low, this->config.serial_port,
+                          is_pluggable);
 
     // initialize the interfaces now
     invoke_init(*p_evse_board_support);
+    invoke_init(*p_temperatures);
 
     EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
+
+    EVLOG_info <<
 }
 
 void CbChargeSOMDriver::ready() {

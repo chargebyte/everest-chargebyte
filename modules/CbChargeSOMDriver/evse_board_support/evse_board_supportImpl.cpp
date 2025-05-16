@@ -32,16 +32,22 @@ namespace module {
 namespace evse_board_support {
 
 void evse_board_supportImpl::init() {
-    // configure hardware capabilities
-    this->hw_capabilities.max_current_A_import = 63;
-    this->hw_capabilities.min_current_A_import = 0;
-    this->hw_capabilities.max_phase_count_import = 3;
-    this->hw_capabilities.min_phase_count_import = 1;
-    this->hw_capabilities.max_current_A_export = 63;
-    this->hw_capabilities.min_current_A_export = 0;
-    this->hw_capabilities.max_phase_count_export = 3;
-    this->hw_capabilities.min_phase_count_export = 1;
+    // configure hardware capabilities: use user-configurable settings for flexibility
+    // but use the same value for import and export - there seems to be no reason for AC
+    // that these values differ for import and export
+    this->hw_capabilities.min_current_A_import = this->mod->config.min_current_A;
+    this->hw_capabilities.max_current_A_import = this->mod->config.max_current_A;
+    this->hw_capabilities.min_current_A_export = this->mod->config.min_current_A;
+    this->hw_capabilities.max_current_A_export = this->mod->config.max_current_A;
+
+    // this the Charge SOM is currently intended for DC, there is support in the
+    // safety controller for phase count switching yet
     this->hw_capabilities.supports_changing_phases_during_charging = false;
+    this->hw_capabilities.max_phase_count_import = 3;
+    this->hw_capabilities.min_phase_count_import = 3;
+    this->hw_capabilities.max_phase_count_export = 3;
+    this->hw_capabilities.min_phase_count_export = 3;
+
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
@@ -195,7 +201,7 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
 
 void evse_board_supportImpl::pp_observation_worker() {
 
-    //EVLOG_debug << "Proximity Pilot Observation Callback called";
+    // EVLOG_debug << "Proximity Pilot Observation Callback called";
 
     // acquire lock, wait for it eventually
     this->pp_observation_lock.lock();
@@ -231,8 +237,7 @@ void evse_board_supportImpl::pp_observation_worker() {
                 this->pp_fault_reported = true;
             }
 
-            if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None &&
-                this->pp_fault_reported) {
+            if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None && this->pp_fault_reported) {
                 // clear a ProximityFault error on PP state change to a valid value but only if it exists
                 this->clear_error("evse_board_support/MREC23ProximityFault");
                 this->pp_fault_reported = false;
@@ -253,7 +258,7 @@ void evse_board_supportImpl::pp_observation_worker() {
 
     this->pp_observation_lock.unlock();
 
-    //EVLOG_debug << "Proximity Pilot Observation Callback finished";
+    // EVLOG_debug << "Proximity Pilot Observation Callback finished";
 }
 
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
@@ -310,11 +315,11 @@ void evse_board_supportImpl::cp_observation_worker() {
     bool cp_state_changed {false};
 
     if (!this->cp_observation_enabled) {
-        //EVLOG_debug << "Control Pilot Observation Callback suppressed (not enabled <yet>)";
+        // EVLOG_debug << "Control Pilot Observation Callback suppressed (not enabled <yet>)";
         return;
     }
 
-    //EVLOG_debug << "Control Pilot Observation Callback called";
+    // EVLOG_debug << "Control Pilot Observation Callback called";
 
     // acquire measurement lock for this loop round, wait for it eventually
     std::lock_guard<std::mutex> lock(this->cp_observation_lock);
@@ -346,8 +351,8 @@ void evse_board_supportImpl::cp_observation_worker() {
             this->cp_negative_side.current_state != types::cb_board_support::CPState::F) {
             if (!this->diode_fault_reported) {
                 this->diode_fault_reported = true;
-                this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault,
-                                                 this->cp_negative_side, this->cp_positive_side);
+                this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, this->cp_negative_side,
+                                                 this->cp_positive_side);
                 Everest::error::Error error_object = this->error_factory->create_error(
                     "evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High);
                 this->raise_error(error_object);
@@ -368,7 +373,7 @@ void evse_board_supportImpl::cp_observation_worker() {
         if (this->cp_positive_side.current_state != this->cp_current_state) {
             // in case we see a pilot fault, we need to inform the upper layer
             if (this->cp_positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
-                    this->cp_negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
+                this->cp_negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
                 if (this->pilot_fault_reported == false) {
                     Everest::error::Error error_object =
                         this->error_factory->create_error("evse_board_support/MREC14PilotFault", "",
@@ -393,13 +398,14 @@ void evse_board_supportImpl::cp_observation_worker() {
             if (this->cp_positive_side.current_state == types::cb_board_support::CPState::D) {
                 // in case we see a ventilation request, although we do not support it,
                 // we need to inform the upper layer
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/VentilationNotAvailable", "", "Ventilation fault detected.",
-                    Everest::error::Severity::High);
+                Everest::error::Error error_object =
+                    this->error_factory->create_error("evse_board_support/VentilationNotAvailable", "",
+                                                      "Ventilation fault detected.", Everest::error::Severity::High);
                 this->raise_error(error_object);
                 this->ventilation_fault_reported = true;
                 this->publish_event({types::board_support_common::Event::D});
-                this->update_cp_state_internally(this->cp_positive_side.current_state, this->cp_negative_side, this->cp_positive_side);
+                this->update_cp_state_internally(this->cp_positive_side.current_state, this->cp_negative_side,
+                                                 this->cp_positive_side);
                 return;
             }
             if (this->ventilation_fault_reported) {
@@ -409,7 +415,8 @@ void evse_board_supportImpl::cp_observation_worker() {
             try {
                 types::board_support_common::BspEvent tmp = cpstate_to_bspevent(this->cp_positive_side.current_state);
                 this->publish_event(tmp);
-                this->update_cp_state_internally(this->cp_positive_side.current_state, this->cp_negative_side, this->cp_positive_side);
+                this->update_cp_state_internally(this->cp_positive_side.current_state, this->cp_negative_side,
+                                                 this->cp_positive_side);
             } catch (std::runtime_error& e) {
                 // Should never happen, when all invalid states are handled correctly
                 EVLOG_warning << e.what();
@@ -417,7 +424,7 @@ void evse_board_supportImpl::cp_observation_worker() {
         }
     }
 
-    //EVLOG_debug << "Control Pilot Observation Callback finished";
+    // EVLOG_debug << "Control Pilot Observation Callback finished";
 }
 
 } // namespace evse_board_support

@@ -14,12 +14,17 @@ void cb_chargesom_temperaturesImpl::init() {
 }
 
 void cb_chargesom_temperaturesImpl::ready() {
-    this->publish_thread = std::thread([&](){
+    this->publish_thread = std::thread([&]() {
+        unsigned int supported_channels = this->mod->controller.get_temperature_channels();
+
         while (!this->mod->termination_requested) {
             std::vector<types::temperature::Temperature> v;
 
-            for (unsigned i = 0; i < 4; ++i) {
+            for (unsigned int i = 0; i < supported_channels; ++i) {
                 types::temperature::Temperature t;
+
+                if (!this->mod->controller.is_temperature_enabled(i) or !this->mod->controller.is_temperature_valid(i))
+                    continue;
 
                 t.identification = "Channel " + std::to_string(i + 1);
                 t.temperature = this->mod->controller.get_temperature(i);

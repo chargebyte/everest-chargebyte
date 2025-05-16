@@ -5,212 +5,233 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <system_error>
 #include <thread>
+#include <gpiod.hpp>
+#include <sigslot/signal.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include "CbChargeSOM.hpp"
+#include <gpiodUtils.hpp>
 #include "uart.h"
 #include "cb_protocol.h"
+#include "CbChargeSOM.hpp"
 
 using namespace std::chrono_literals;
 
 CbChargeSOM::CbChargeSOM(void) {
-    // clear the context struct before usage
+    // clear the context structs before usage
+    memset(&this->uart, 0, sizeof(this->uart));
     memset(&this->ctx, 0, sizeof(this->ctx));
 
     // set to invalid fd so that destructor knows whether it must close something
-    this->ctx.uart.fd = -1;
+    this->uart.fd = -1;
 }
 
 CbChargeSOM::~CbChargeSOM() {
-    if (this->ctx.uart.fd != -1) {
-        uart_close(&this->ctx.uart);
+    if (this->tx_thread.joinable()) {
+        this->tx_thread.join();
+    }
+
+    if (this->rx_thread.joinable()) {
+        this->rx_thread.join();
+    }
+
+    if (this->uart.fd != -1) {
+        uart_close(&this->uart);
     }
 }
 
-void CbChargeSOM::init(const std::string& serial_port, bool is_pluggable) {
+void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
+                       bool is_pluggable) {
     int rv;
 
-    // remember this setting
+    // remember these settings
     this->is_pluggable = is_pluggable;
+    this->serial_port = serial_port;
+
+    // acquire the safety controller reset line
+    this->mcu_reset =
+        std::make_unique<gpiod::line_request>(get_gpioline_by_name(reset_gpio_line_name, "CbChargeSOMDriver",
+                                                                   gpiod::line_settings()
+                                                                       .set_direction(gpiod::line::direction::OUTPUT)
+                                                                       .set_output_value(gpiod::line::value::ACTIVE)
+                                                                       .set_active_low(reset_active_low)));
 
     // open the configured device with well-known baudrate
-    rv = uart_open(&this->ctx.uart, serial_port.c_str(), 115200);
+    rv = uart_open(&this->uart, serial_port.c_str(), 115200);
     if (rv) {
-        throw std::system_error(errno, std::generic_category(), "Failed to open '" + serial_port + "'");
+        throw std::system_error(errno, std::generic_category(), "Failed to open '" + this->serial_port + "'");
     }
 
-    for (unsigned int i = 0; i < MAX_PT1000_CHANNELS; ++i)
-        this->ctx.data.ptx_en[i] = true;
-}
+    // we are holding the safety in reset and we just opened the UART interface
+    // so this might not be necessary at all, but to be on the safe side
+    rv = uart_flush_input(&this->uart);
+    if (rv) {
+        throw std::system_error(errno, std::generic_category(),
+                                "Failed to flush input data on '" + this->serial_port + "'");
+    }
 
-std::chrono::milliseconds CbChargeSOM::get_recovery_delay_ms() {
-    return this->recovery_delay_ms;
-}
+    // launch processing of received frames
+    this->rx_thread = std::thread([&]() {
+        while (true) {
+            enum cb_uart_com com;
+            uint64_t data;
+            int rv;
 
-void CbChargeSOM::cp_get_values(int& positive_value, int& negative_value) {
-    // this method must be called with `ctx_mutex` already held
-    positive_value = 1000 * (3.3 * this->ctx.data.cp_pos_peak_det * (47.0 + 150.0)) / (4096 * 47.0);
+            rv = cb_uart_recv(&this->uart, &com, &data);
+            if (rv) {
+                switch (errno) {
+                case EBADMSG:
+                    // error is already logged via library
+                    // usually this should not happen since we have a synchronized startup
+                    // via reset line, only CRC errors might happen,
+                    // so for now: do nothing
+                    break;
+                default:
+                    throw std::system_error(errno, std::generic_category(), "Failed to receive from safety controller");
+                }
+            }
 
-    negative_value = 1000 * (3.3 * this->ctx.data.cp_neg_peak_det * 150.0) / (4096 * -36.0);
+            switch (com) {
+            case COM_CHARGE_STATE: {
+                std::scoped_lock lock(this->charge_state_mutex);
+                this->ctx.charge_state = data;
+                break;
+            }
+            case COM_PT1000_STATE: {
+                std::scoped_lock lock(this->pt1000_mutex);
+                this->ctx.pt1000 = data;
+                break;
+            }
+            case COM_FW_VERSION:
+                // we don't need a mutex here since we access this field only once and under defined sequence
+                this->ctx.fw_version = data;
+                cb_proto_set_fw_version_str(&this->ctx);
+                break;
+            case COM_GIT_HASH:
+                // we don't need a mutex here since we access this field only once and under defined sequence
+                this->ctx.git_hash = data;
+                cb_proto_set_git_hash_str(&this->ctx);
+                break;
+            default:
+                /* not yet implemented */
+            }
 
-    // FIXME values are not calibrated yet, so let's use static, manual offsets
-    positive_value += 350; // mV
-    negative_value -= 300; // mV
-}
-
-types::cb_board_support::CPState CbChargeSOM::cp_voltage_to_state(int voltage,
-                                                                  types::cb_board_support::CPState previous_state) const {
-    // The following thresholds mostly based on IEC 61851-1
-    // Table A.4 System states detected by the charging station.
-    if (voltage > 13000 /* mV */) /* > 13 V */
-        return types::cb_board_support::CPState::PilotFault;
-
-    if (voltage >= 11000 /* mV */) /* 11 V <= x <= 13 V */
-        return types::cb_board_support::CPState::A;
-
-    if (voltage >= 10000 /* mV */) { /* 10 V <= x < 11 V */
-        switch (previous_state) {
-        case types::cb_board_support::CPState::A:
-            return types::cb_board_support::CPState::A;
-        default:
-            return types::cb_board_support::CPState::B;
+            // awaken possible waiters
+            {
+                std::scoped_lock lock(this->rx_mutex);
+                this->latest_received_com = com;
+            }
+            this->rx_cv.notify_all();
         }
+    });
+
+    // release reset to start safety controller and give short time to startup:
+    // we simply assume that we should receive a UART frame within 1s after releasing the reset line
+    std::unique_lock<std::mutex> lock(this->rx_mutex);
+
+    this->set_mcu_reset(false);
+
+    if (!this->rx_cv.wait_for(lock, 1s, [&] { return this->latest_received_com == COM_CHARGE_STATE; })) {
+        throw std::runtime_error("Safety controller did not startup.");
     }
 
-    if (voltage >= 8000 /* mV */) /* 8 V <= x < 10 V */
-        return types::cb_board_support::CPState::B;
+    // query firmware version and Git hash
+    if (this->send_inquiry_and_wait(COM_FW_VERSION) or this->send_inquiry_and_wait(COM_GIT_HASH)) {
+        throw std::runtime_error("Could not determined safety controller firmware information.");
+    }
 
-    if (voltage >= 7000 /* mV */) { /* 7 V <= x < 8 V */
-        switch (previous_state) {
-        case types::cb_board_support::CPState::A:
-        case types::cb_board_support::CPState::B:
-            return types::cb_board_support::CPState::B;
-        default:
-            return types::cb_board_support::CPState::C;
+    this->fw_info = std::string(this->ctx.fw_version_str) + " (" +
+                    cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&this->ctx)) + ", " +
+                    cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ", " +
+                    this->ctx.git_hash_str + ")";
+
+    // start sending periodic frames
+    this->tx_thread = std::thread([&]() {
+        std::chrono::milliseconds interval(CHARGE_CONTROL_INTERVAL);
+
+        while (true) {
+            this->send_charge_control();
+            std::this_thread::sleep_for(interval);
         }
-    }
-
-    if (voltage >= 5000 /* mV */) /* 5 V <= x < 7 V */
-        return types::cb_board_support::CPState::C;
-
-    if (voltage >= 4000 /* mV */) { /* 4 V <= x < 5 V */
-        switch (previous_state) {
-        case types::cb_board_support::CPState::A:
-        case types::cb_board_support::CPState::B:
-        case types::cb_board_support::CPState::C:
-            return types::cb_board_support::CPState::C;
-        default:
-            return types::cb_board_support::CPState::D;
-        }
-    }
-
-    if (voltage >= 2000 /* mV */) /* 2 V <= x < 4 V */
-        return types::cb_board_support::CPState::D;
-
-    if (voltage >= 1000 /* mV */) { /* 1 V <= x < 2 V */
-        switch (previous_state) {
-        case types::cb_board_support::CPState::A:
-        case types::cb_board_support::CPState::B:
-        case types::cb_board_support::CPState::C:
-        case types::cb_board_support::CPState::D:
-            return types::cb_board_support::CPState::D;
-        default:
-            return types::cb_board_support::CPState::E;
-        }
-    }
-
-    if (voltage >= -1000 /* mV */) /* -1 V <= x < 1 V */
-        return types::cb_board_support::CPState::E;
-
-    if (voltage >= -2000 /* mV */) { /* -2 V <= x < -1 V (not standard) */
-        switch (previous_state) {
-        case types::cb_board_support::CPState::A:
-        case types::cb_board_support::CPState::B:
-        case types::cb_board_support::CPState::C:
-        case types::cb_board_support::CPState::D:
-        case types::cb_board_support::CPState::E:
-            return types::cb_board_support::CPState::E;
-        default:
-            return types::cb_board_support::CPState::PilotFault;
-        }
-    }
-
-    if (voltage >= -10000 /* mV */) /* -10 V <= x < -2 V */
-        return types::cb_board_support::CPState::PilotFault;
-
-    if (voltage >= -11000 /* mV */) { /* -11 V <= x < -10 V (not standard) */
-        return previous_state == types::cb_board_support::CPState::F ? types::cb_board_support::CPState::F
-                                                                     : types::cb_board_support::CPState::PilotFault;
-    }
-
-    if (voltage >= -13000 /* mV */) /* -13 V <= x < -11 V */
-        return types::cb_board_support::CPState::F;
-
-    return types::cb_board_support::CPState::PilotFault; /* < -13 V */
+    });
 }
 
-double CbChargeSOM::cp_get_duty_cycle() const {
-    // this method must be called with `ctx_mutex` already held
+void CbChargeSOM::send_charge_control() {
+    std::scoped_lock lock(this->tx_mutex, this->charge_control_mutex);
 
-    return this->ctx.data.duty_cycle;
+    if (cb_uart_send(&this->uart, COM_CHARGE_CONTROL, this->ctx.charge_control))
+        throw std::system_error(errno, std::generic_category(), "Error while sending charge control frame");
 }
 
-void CbChargeSOM::cp_set_duty_cycle(double duty_cycle) {
-    std::scoped_lock lock(this->ctx_mutex);
+void CbChargeSOM::send_inquiry(enum cb_uart_com com) {
+    std::scoped_lock lock(this->tx_mutex);
 
-    this->ctx.data.duty_cycle = floorl(duty_cycle);
-
-    this->sync_with_hw();
+    if (cb_send_uart_inquiry(&this->uart, com))
+        throw std::system_error(errno, std::generic_category(),
+                                std::string("Error while sending inquiry frame for '") + cb_uart_com_to_str(com) + "'");
 }
 
-bool CbChargeSOM::cp_is_nominal_duty_cycle() const {
-    // this method must be called with `ctx_mutex` already held
+bool CbChargeSOM::send_inquiry_and_wait(enum cb_uart_com com) {
 
-    return 0 < this->ctx.data.duty_cycle && this->ctx.data.duty_cycle < 100;
+    std::unique_lock<std::mutex> lock(this->rx_mutex);
+
+    this->send_inquiry(com);
+
+    // we should received a response at least within 1s
+    return !this->rx_cv.wait_for(lock, 1s, [&] { return this->latest_received_com == com; });
 }
 
-bool CbChargeSOM::cp_is_enabled() {
-    std::scoped_lock lock(this->ctx_mutex);
+void CbChargeSOM::reset() {
+    std::scoped_lock lock(this->tx_mutex);
 
-    // FIXME
-    return true;
+    this->set_mcu_reset(true);
+
+    std::this_thread::sleep_for(this->mcu_reset_duration);
+
+    if (uart_flush_input(&this->uart))
+        throw std::system_error(errno, std::generic_category(),
+                                "Failed to flush input data on '" + this->serial_port + "'");
+
+    this->set_mcu_reset(false);
 }
 
-void CbChargeSOM::cp_disable() {
-    std::scoped_lock lock(this->ctx_mutex);
-
-    // FIXME it is unclear atm if the current safety controller fw can disable CP
-    // so let's signal 100% for now
-    this->ctx.data.duty_cycle = 100;
-
-    this->sync_with_hw();
+void CbChargeSOM::set_mcu_reset(bool active) {
+    this->mcu_reset->set_value(this->mcu_reset->offsets()[0],
+                               active ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
 }
 
-types::board_support_common::Ampacity CbChargeSOM::get_ampacity(int& voltage) {
-    // FIXME
-    voltage = this->ctx.data.pp_value * 3300 / 4096;
+unsigned int CbChargeSOM::get_temperature_channels() const {
+    return MAX_PT1000_CHANNELS;
+}
 
-    // map the measured value
+bool CbChargeSOM::is_temperature_enabled(unsigned int channel) const {
+    std::scoped_lock lock(this->pt1000_mutex);
 
-    if (voltage >= 3100)
-        return types::board_support_common::Ampacity::None; // no cable connected
+    return cb_proto_pt1000_is_active(&this->ctx, channel);
+}
 
-    if (voltage >= 2500)
-        return types::board_support_common::Ampacity::A_13;
+bool CbChargeSOM::is_temperature_valid(unsigned int channel) const {
+    std::scoped_lock lock(this->pt1000_mutex);
 
-    if (voltage >= 2000)
-        return types::board_support_common::Ampacity::A_20;
+    return !(cb_proto_pt1000_get_errors(&this->ctx, channel) & PT1000_SELFTEST_FAILED);
+}
 
-    if (voltage >= 1200)
-        return types::board_support_common::Ampacity::A_32;
+float CbChargeSOM::get_temperature(unsigned int channel) const {
+    std::scoped_lock lock(this->pt1000_mutex);
 
-    if (voltage >= 700)
-        return types::board_support_common::Ampacity::A_63_3ph_70_1ph;
+    return cb_proto_pt1000_get_temp(&this->ctx, channel);
+}
 
-    throw std::underflow_error(
-        "The measured voltage for the Proximity Pilot is out-of-range (U_PP: " + std::to_string(voltage) + " mV).");
+const std::string& CbChargeSOM::get_fw_info() const {
+    return this->fw_info;
+}
+
+enum pp_state CbChargeSOM::get_ampacity() {
+    std::scoped_lock lock(this->charge_state_mutex);
+
+    return cb_proto_get_pp_state(&this->ctx);
 }
 
 void CbChargeSOM::set_allow_power_on(bool allow_power_on) {
@@ -223,44 +244,4 @@ void CbChargeSOM::set_allow_power_on(bool allow_power_on) {
         this->sync_with_hw();
 
     } while (this->ctx.data.hvsw1_hs != allow_power_on);
-}
-
-float CbChargeSOM::get_temperature(unsigned int channel) {
-    std::scoped_lock lock(this->ctx_mutex);
-
-    float v_pt1000 = 3.3f * this->ctx.data.ptx_vfb[channel] / 4096.0f;
-
-    float r_pt1000 = 1000.0f * (v_pt1000 / 3.3f - v_pt1000);
-
-    return (r_pt1000 - 1000.0f) / 3.85f;
-}
-
-void CbChargeSOM::sync() {
-    std::scoped_lock lock(this->ctx_mutex);
-    this->sync_with_hw();
-
-    if (this->is_pluggable) {
-        // we first signal a potential PP state change to mimic the physical environment
-        // (i.e. PP pin is slightly longer)
-        this->signal_pp_state_change();
-    }
-
-    // then signal a CP state change
-    this->signal_cp_state_change();
-}
-
-void CbChargeSOM::sync_with_hw() {
-    int rv;
-
-    // in case we want to monitor PP, we have to switch the PP pull-up on
-    // and since the flag is also updated with the current hw state, we
-    // always have to enforce that it is switched on - otherwise we might
-    // actually switch it off again after reading it back as unset;
-    // same applies to reverse direction
-    this->ctx.data.pp_sae_iec = this->is_pluggable;
-
-    rv = cb_single_run(&this->ctx);
-    if (rv) {
-        throw std::system_error(errno, std::generic_category(), "Communication with safety controller failed");
-    }
 }

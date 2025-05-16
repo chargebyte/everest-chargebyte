@@ -25,7 +25,11 @@ namespace module {
 
 struct Conf {
     std::string connector_type;
+    double min_current_A;
+    double max_current_A;
     std::string serial_port;
+    std::string reset_gpio_line_name;
+    bool reset_active_low;
 };
 
 class CbChargeSOMDriver : public Everest::ModuleBase {
@@ -50,7 +54,6 @@ public:
 
     /// @brief Safety controller UART Interface
     CbChargeSOM controller;
-
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
