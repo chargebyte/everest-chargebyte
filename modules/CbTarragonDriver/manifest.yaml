@@ -22,6 +22,13 @@ config:
       other limitating value/instance which represents the physical charger limits.
     type: number
     default: 80
+  max_phase_count:
+    description: >-
+      The number of supported phases.
+    type: integer
+    default: 3
+    minimum: 1
+    maximum: 3
   contactor_1_feedback_type:
     description: >-
       Defines the logic behind the feedback
@@ -60,6 +67,8 @@ config:
       secondary contactor only switches a single phase. Both contactors are wired
       parallel, so that only exactly one contactor must be switched on at the same time.
       See user guide for wiring schematics and details.
+      Note: 'max_phase_count' must be set to 3 (default) for this option to take
+      effect.
     type: string
     enum:
       - none

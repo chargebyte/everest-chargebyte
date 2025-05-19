@@ -30,6 +30,7 @@ struct Conf {
     std::string connector_type;
     double min_current_A;
     double max_current_A;
+    int max_phase_count;
     std::string contactor_1_feedback_type;
     std::string contactor_2_feedback_type;
     std::string switch_3ph1ph_wiring;
@@ -82,7 +83,6 @@ public:
 
     /// @brief Member variable for holding RCM controller instance
     CbTarragonRCM rcm_controller;
-
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:

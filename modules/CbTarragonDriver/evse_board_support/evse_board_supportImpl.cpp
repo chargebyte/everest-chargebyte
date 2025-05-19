@@ -55,12 +55,18 @@ void evse_board_supportImpl::init() {
     // check whether the configuration allows to enable phase-count switching support:
     // - 'switch_3ph1ph_wiring' must not be 'none'
     bool support_3ph1ph = this->mod->config.switch_3ph1ph_wiring != "none";
+    if (this->mod->config.max_phase_count < 3 && support_3ph1ph) {
+        EVLOG_warning << "Phase switching is configured to \"" << this->mod->config.switch_3ph1ph_wiring
+                      << "\", but only " << std::to_string(this->mod->config.max_phase_count)
+                      << " phases available, disabling";
+        support_3ph1ph = false;
+    }
 
     this->hw_capabilities.supports_changing_phases_during_charging = support_3ph1ph;
-    this->hw_capabilities.max_phase_count_import = 3;
-    this->hw_capabilities.min_phase_count_import = support_3ph1ph ? 1 : 3;
-    this->hw_capabilities.max_phase_count_export = 3;
-    this->hw_capabilities.min_phase_count_export = support_3ph1ph ? 1 : 3;
+    this->hw_capabilities.max_phase_count_import = this->mod->config.max_phase_count;
+    this->hw_capabilities.min_phase_count_import = support_3ph1ph ? 1 : this->mod->config.max_phase_count;
+    this->hw_capabilities.max_phase_count_export = this->mod->config.max_phase_count;
+    this->hw_capabilities.min_phase_count_export = support_3ph1ph ? 1 : this->mod->config.max_phase_count;
 
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);

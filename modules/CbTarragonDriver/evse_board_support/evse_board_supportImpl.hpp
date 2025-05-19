@@ -27,7 +27,6 @@
 #include <CbTarragonPP.hpp>
 #include <CbTarragonContactorControl.hpp>
 #include <CPUtils.hpp>
-
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -145,7 +144,6 @@ private:
 
     /// @brief Main function of the PP observation thread
     void pp_observation_worker(void);
-
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
