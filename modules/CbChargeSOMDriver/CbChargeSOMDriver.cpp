@@ -6,31 +6,31 @@
 #include <cstdio>
 #include <system_error>
 #include <thread>
-#include <libcbuart/logging.h>
+#include <ra-utils/logging.h>
 #include "CbChargeSOMDriver.hpp"
 #include "configuration.h"
 
 using namespace std::chrono_literals;
 
-// provide wrappers for libcbuart which add a tiny prefix and then passes on to EVerest logging
-static void libcbuart_log(bool debug, const char* format, va_list args) {
+// provide wrappers for libra-utils which add a tiny prefix and then passes on to EVerest logging
+static void ra_utils_log(bool debug, const char* format, va_list args) {
     char msg[255];
 
     vsnprintf(msg, sizeof(msg), format, args);
 
     if (debug) {
-        EVLOG_debug << "libcbuart: " << msg;
+        EVLOG_debug << "libra-utils: " << msg;
     } else {
-        EVLOG_error << "libcbuart: " << msg;
+        EVLOG_error << "libra-utils: " << msg;
     }
 }
 
-void libcbuart_debug_cb(const char* format, va_list args) {
-    libcbuart_log(true, format, args);
+void ra_utils_debug_cb(const char* format, va_list args) {
+    ra_utils_log(true, format, args);
 }
 
-void libcbuart_error_cb(const char* format, va_list args) {
-    libcbuart_log(false, format, args);
+void ra_utils_error_cb(const char* format, va_list args) {
+    ra_utils_log(false, format, args);
 }
 
 namespace module {
@@ -41,8 +41,8 @@ void CbChargeSOMDriver::init() {
     bool is_pluggable = connector_type == types::evse_board_support::Connector_type::IEC62196Type2Socket;
 
     // register debug and error message callback functions
-    libcbuart_set_error_msg_cb(libcbuart_error_cb);
-    libcbuart_set_debug_msg_cb(libcbuart_debug_cb);
+    ra_utils_set_error_msg_cb(ra_utils_error_cb);
+    ra_utils_set_debug_msg_cb(ra_utils_debug_cb);
 
     // instantiate UART controller object for communication with safety controller
     this->controller.init(this->config.reset_gpio_line_name, this->config.reset_active_low, this->config.serial_port,

@@ -11,8 +11,8 @@ ev_setup_cpp_module()
 # insert your custom targets and additional config variables here
 
 find_package(PalSigslot REQUIRED)
+find_package(ra-utils REQUIRED)
 
-add_subdirectory("libcbuart")
 add_subdirectory("chargesom")
 
 set(MODULE_DESCRIPTION "chargebyte's Charge SOM EVerest module")
@@ -26,14 +26,12 @@ configure_file(VERSION.in VERSION @ONLY)
 
 target_link_libraries(${MODULE_NAME}
     PRIVATE
-        libcbuart
         chargesom
         Pal::Sigslot
         nlohmann_json::nlohmann_json
 )
 target_include_directories(${MODULE_NAME}
     PRIVATE
-        ${LIBCBUART_INCLUDE_DIR}
         ${CHARGESOM_INCLUDE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
 )
