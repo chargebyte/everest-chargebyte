@@ -38,6 +38,22 @@ config:
     description: The polarity of the reset GPIO line (active low = true, active high = false)
     type: boolean
     default: true
+  pt1000_1_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: PT1000-1
+  pt1000_2_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: PT1000-2
+  pt1000_3_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: PT1000-3
+  pt1000_4_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: PT1000-4
 provides:
   evse_board_support:
     description: >-

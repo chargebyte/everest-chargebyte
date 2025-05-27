@@ -30,6 +30,10 @@ struct Conf {
     std::string serial_port;
     std::string reset_gpio_line_name;
     bool reset_active_low;
+    std::string pt1000_1_identification;
+    std::string pt1000_2_identification;
+    std::string pt1000_3_identification;
+    std::string pt1000_4_identification;
 };
 
 class CbChargeSOMDriver : public Everest::ModuleBase {

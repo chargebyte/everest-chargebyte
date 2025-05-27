@@ -26,7 +26,23 @@ void cb_chargesom_temperaturesImpl::ready() {
                 if (!this->mod->controller.is_temperature_enabled(i) or !this->mod->controller.is_temperature_valid(i))
                     continue;
 
-                t.identification = "Channel " + std::to_string(i + 1);
+                switch (i) {
+                case 0:
+                    t.identification = this->mod->config.pt1000_1_identification;
+                    break;
+                case 1:
+                    t.identification = this->mod->config.pt1000_2_identification;
+                    break;
+                case 2:
+                    t.identification = this->mod->config.pt1000_3_identification;
+                    break;
+                case 3:
+                    t.identification = this->mod->config.pt1000_4_identification;
+                    break;
+                default:
+                    t.identification = "Channel " + std::to_string(i + 1);
+                }
+
                 t.temperature = this->mod->controller.get_temperature(i);
 
                 v.push_back(t);

@@ -41,8 +41,8 @@ void CbChargeSOMDriver::init() {
     bool is_pluggable = connector_type == types::evse_board_support::Connector_type::IEC62196Type2Socket;
 
     // register debug and error message callback functions
-    ra_utils_set_error_msg_cb(ra_utils_error_cb);
     ra_utils_set_debug_msg_cb(ra_utils_debug_cb);
+    ra_utils_set_error_msg_cb(ra_utils_error_cb);
 
     // instantiate UART controller object for communication with safety controller
     this->controller.init(this->config.reset_gpio_line_name, this->config.reset_active_low, this->config.serial_port,
@@ -54,26 +54,12 @@ void CbChargeSOMDriver::init() {
 
     EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
 
-    EVLOG_info <<
+    EVLOG_info << this->controller.get_fw_info();
 }
 
 void CbChargeSOMDriver::ready() {
     invoke_ready(*p_evse_board_support);
     invoke_ready(*p_temperatures);
-
-    while (!this->termination_requested) {
-        try {
-            this->controller.sync();
-        } catch (std::system_error& e) {
-            EVLOG_error << e.what();
-            // give the safety controller the chance to recover
-            std::this_thread::sleep_for(this->controller.get_recovery_delay_ms());
-        }
-
-        // FIXME this should be removed since we want to query the safety controller
-        //       as fast as possible and the usage of the recovery delay is confusing
-        std::this_thread::sleep_for(this->controller.get_recovery_delay_ms());
-    }
 }
 
 } // namespace module
