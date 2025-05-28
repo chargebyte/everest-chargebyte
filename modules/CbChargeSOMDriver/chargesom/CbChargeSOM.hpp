@@ -45,6 +45,8 @@ public:
     /// @brief Resets the safety controller.
     void reset();
 
+    types::board_support_common::Ampacity pp_state_to_ampacity(enum pp_state pp_state);
+
     /// @brief Reads the current (cached) cable rating from safety controller.
     ///        In case the safety controller reported a value which cannot be mapped
     ///        we report 'None'. Error forwarding/reporting is done using the
@@ -52,12 +54,37 @@ public:
     /// @return A cable current rating using enum types::board_support_common::Ampacity
     types::board_support_common::Ampacity get_ampacity();
 
+    /// @brief Signal used to inform about CP state changes.
+    sigslot::signal<const types::board_support_common::Event&> on_cp_change;
+
     /// @brief Signal used to inform about PP state changes.
     sigslot::signal<const enum pp_state> on_pp_change;
 
-    /// @brief Allows the contactor to close or open it.
-    /// @param allow_power_on True allows the contactor to close, false opens the contactor.
-    void set_allow_power_on(bool allow_power_on);
+    /// @brief Signal used to inform about a charging stop caused by ESTOP signal.
+    ///        The first parameter is the number of the ESTOPx signal which caused
+    ///        the abort.
+    sigslot::signal<const unsigned int> on_estop;
+
+    /// @brief Signal used to inform about various errors, e.g. CP Short Circuits,
+    ///        Diode Faults and/or measurement errors for CP and/or PP.
+    ///        Callee is expected to check in detail.
+    sigslot::signal<> on_error;
+
+    /// @brief Closes the contactor (on = true), or opens it (on = false):
+    ///        This is a synchronous call, i.e. it waits until it is confirmed
+    ///        by feedback signal (if used).
+    /// @return True on success, false on error.
+    bool switch_state(bool on);
+
+    /// @brief Return the current contactor state (even when no contactor is configured)
+    bool get_contactor_state();
+
+    /// @brief Return whether the safety controller detected an emergency stop.
+    bool is_emergency();
+
+    /// @brief Set a new duty cycle.
+    /// @param duty_cycle The desired duty cycle in percent [0.1 %].
+    void set_duty_cycle(unsigned int duty_cycle);
 
     /// @brief Retrieves the number of supported temperature channels.
     /// @return The count of supported channels.
@@ -111,6 +138,9 @@ private:
     ///         false otherwise.
     bool send_inquiry_and_wait(enum cb_uart_com com);
 
+    /// @brief Internal helper to determine the current contactor state.
+    bool get_contactor_state_no_lock();
+
     /// @brief The UART context for libcbuart.
     struct uart_ctx uart;
 
@@ -132,20 +162,23 @@ private:
     /// @brief Thread for processing notifications to higher layers.
     std::thread notify_thread;
 
-    /// @brief FIXME
-    std::vector<enum pp_state> pp_changes;
+    /// @brief Mutex to protect access to the `charge_state_changes` queue.
+    std::mutex notify_mutex;
+
+    /// @brief Condition variables used to wait for updates on `charge_state_changes`
+    std::condition_variable notify_cv;
+
+    /// @brief Queue used to serialize changes of Charge State frame for notifying
+    std::queue<uint64_t> charge_state_changes;
 
     /// @brief Mutex to ensure that only one inquiry request is in-flight at the same time
     std::mutex inquiry_mutex;
 
-    /// @brief Condition variables used to wait for a specific UART frame
+    /// @brief Condition variables used to wait for a specific UART frame and/or update to the field in `ctx`
     std::vector<std::condition_variable> rx_cv = std::vector<std::condition_variable>(static_cast<std::size_t>(cb_uart_com::COM_MAX));
 
     /// @brief Used to protect the access to the individual data fields in `ctx`.
-    std::vector<std::mutex> rx_mutex = std::vector<std::mutex>(static_cast<std::size_t>(cb_uart_com::COM_MAX));
-
-    /// @brief Protects the `charge_control` field in `ctx`.
-    std::mutex charge_control_mutex;
+    std::vector<std::mutex> ctx_mutexes = std::vector<std::mutex>(static_cast<std::size_t>(cb_uart_com::COM_MAX));
 
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};

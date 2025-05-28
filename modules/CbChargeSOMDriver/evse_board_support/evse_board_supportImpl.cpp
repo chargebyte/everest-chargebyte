@@ -52,7 +52,74 @@ void evse_board_supportImpl::init() {
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
     // register our callback handlers
-    this->mod->controller.signal_pp_state_change.connect(&evse_board_supportImpl::pp_observation_worker, this);
+    this->mod->controller.on_cp_change.connect([&](const types::board_support_common::Event& event) {
+
+        if (this->cp_current_state == state)
+            return;
+
+        EVLOG_info << "CP state change from " << this->cp_current_state << " to " << state << ", "
+                   << "U_CP+: " << positive_side.voltage << " mV, "
+                   << "U_CP-: " << negative_side.voltage << " mV";
+        this->cp_current_state = state;
+
+        this->publish_event({ event });
+
+
+
+    });
+
+    this->mod->controller.on_pp_change.connect([&](const enum pp_state pp_state) {
+        std::scoped_lock lock(this->pp_mutex);
+
+        try {
+            // saved previous value
+            types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
+
+            this->pp_ampacity.ampacity = this->mod->controller.pp_state_to_ampacity(pp_state);
+
+            if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None) {
+                EVLOG_info << "PP noticed plug removal from socket";
+            } else {
+                EVLOG_info << "PP ampacity change from " << prev_value << " to " << this->pp_ampacity.ampacity;
+            }
+
+            // publish new value, upper layer should decide how to handle the change
+            this->publish_ac_pp_ampacity(this->pp_ampacity);
+
+            if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None &&
+                (this->cp_current_state == types::cb_board_support::CPState::C ||
+                 this->cp_current_state == types::cb_board_support::CPState::D)) {
+                // publish a ProximityFault
+                Everest::error::Error error_object = this->error_factory->create_error(
+                    "evse_board_support/MREC23ProximityFault", "", "Plug removed from socket during charge",
+                    Everest::error::Severity::High);
+                this->raise_error(error_object);
+                this->pp_fault_reported = true;
+            }
+
+            if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None &&
+                this->pp_fault_reported) {
+                // clear a ProximityFault error on PP state change to a valid value but only if it exists
+                this->clear_error("evse_board_support/MREC23ProximityFault");
+                this->pp_fault_reported = false;
+            }
+        } catch (std::runtime_error& e) {
+            if (!this->pp_fault_reported) {
+                EVLOG_error << e.what();
+
+                // publish a ProximityFault
+                Everest::error::Error error_object = this->error_factory->create_error(
+                    "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
+                this->raise_error(error_object);
+
+                this->pp_fault_reported = true;
+            }
+        }
+    });
+
+    types::board_support_common::BspEvent tmp = cpstate_to_bspevent(this->cp_positive_side.current_state);
+    this->publish_event(tmp);
+
     this->mod->controller.signal_cp_state_change.connect(&evse_board_supportImpl::cp_observation_worker, this);
 }
 
@@ -73,110 +140,130 @@ void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support:
     this->cp_current_state = state;
 }
 
-void evse_board_supportImpl::set_duty_cycle(double value) {
-    do {
-        try {
-            this->mod->controller.cp_set_duty_cycle(value);
-            break;
-        } catch (std::system_error& e) {
-            EVLOG_error << e.what();
-
-            // retry after a short period of waiting
-            std::this_thread::sleep_for(this->mod->controller.get_recovery_delay_ms());
-        }
-    } while (true);
-}
-
 void evse_board_supportImpl::handle_enable(bool& value) {
-    // generate state A or state F
-    double new_duty_cycle = value ? 100.0 : 0.0;
-    // pause CP observation to avoid race condition between this thread and the CP observation thread
-    this->disable_cp_observation();
-    EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
-               << "%";
-    this->set_duty_cycle(new_duty_cycle);
-    this->enable_cp_observation();
+    try {
+        // generate state A or state F
+        unsigned int new_duty_cycle = value ? 1000 : 0;
+
+        EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(1) << (new_duty_cycle / 10.0)
+                   << "%";
+        this->mod->controller.set_duty_cycle(new_duty_cycle);
+
+        this->is_enabled = value;
+    } catch (std::exception& e) {
+        EVLOG_error << e.what();
+    }
 }
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
-    // pause CP observation to avoid race condition between this thread and the CP observation thread
-    this->disable_cp_observation();
-    EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%";
-    this->set_duty_cycle(value);
-    this->enable_cp_observation();
+    try {
+        unsigned int new_duty_cycle = static_cast<unsigned int>(value * 10.0);
+
+        EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(1) << (new_duty_cycle / 10.0) << "%";
+        this->mod->controller.set_duty_cycle(new_duty_cycle);
+    } catch (std::exception& e) {
+        EVLOG_error << e.what();
+    }
 }
 
 void evse_board_supportImpl::handle_pwm_off() {
-    // generate state A
-    double new_duty_cycle = 100.0;
-    // pause CP observation to avoid race condition between this thread and the CP observation thread
-    this->disable_cp_observation();
-    EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
-               << "%";
-    this->set_duty_cycle(new_duty_cycle);
-    this->enable_cp_observation();
+    try {
+        // generate state A
+        unsigned int new_duty_cycle = 1000;
+
+        EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(1) << (new_duty_cycle / 10.0)
+                   << "%";
+        this->mod->controller.set_duty_cycle(new_duty_cycle);
+    } catch (std::exception& e) {
+        EVLOG_error << e.what();
+    }
 }
 
 void evse_board_supportImpl::handle_pwm_F() {
-    // pause CP observation to avoid race condition between this thread and the CP observation thread
-    this->disable_cp_observation();
-    EVLOG_info << "handle_pwm_F: Generating CP state F";
-    this->set_duty_cycle(0.0);
-    this->enable_cp_observation();
+    try {
+        // generate state F
+        unsigned int new_duty_cycle = 0;
+
+        EVLOG_info << "handle_pwm_F: Generating CP state F";
+
+        this->mod->controller.set_duty_cycle(new_duty_cycle);
+    } catch (std::exception& e) {
+        EVLOG_error << e.what();
+    }
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
 
+    // this method is called very often, even the contactor state is already matching the desired one
+    // so let's use this as helper to control the log noise a little bit and whether we actually
+    // need to report a BSP event
+    bool state_change = value.allow_power_on != this->mod->controller.get_contactor_state();
+
     if (value.allow_power_on && this->cp_current_state == types::cb_board_support::CPState::PilotFault) {
-        EVLOG_warning << "Power on rejected due to detected pilot fault.";
+        EVLOG_warning << "Power on rejected due to detected pilot fault";
         return;
     }
 
-    // TODO check whether an emergency flag is set by the safety controller which prevents to power on
+    if (value.allow_power_on && this->mod->controller.is_emergency()) {
+        EVLOG_warning << "Power on rejected due to detected emergency state";
+        return;
+    }
 
-    do {
-        try {
-            this->mod->controller.set_allow_power_on(value.allow_power_on);
+    if (value.allow_power_on && this->contactor_fault_reported) {
+        EVLOG_warning << "Power on rejected due to contactor fault present";
+        return;
+    }
 
-            types::board_support_common::Event tmp_event = value.allow_power_on
-                                                               ? types::board_support_common::Event::PowerOn
-                                                               : types::board_support_common::Event::PowerOff;
-            types::board_support_common::BspEvent tmp {tmp_event};
-            this->publish_event(tmp);
+    if (state_change)
+        EVLOG_info << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN")
+                   << " the contactor";
+    else
+        EVLOG_debug << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN")
+                    << " the contactor";
 
-            break;
-        } catch (std::system_error& e) {
-            EVLOG_error << e.what();
+    // exit early if we don't actually change the state
+    if (!state_change) {
+        EVLOG_info << "Current (unchanged) state: " << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
+        return;
+    }
 
-            // retry after a short period of waiting
-            std::this_thread::sleep_for(this->mod->controller.get_recovery_delay_ms());
-        }
-    } while (true);
+    if (this->mod->controller.switch_state(value.allow_power_on)) {
+        EVLOG_info << "Current state: " << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
+
+        // publish PowerOn or PowerOff event
+        types::board_support_common::Event tmp_event = value.allow_power_on
+                                                           ? types::board_support_common::Event::PowerOn
+                                                           : types::board_support_common::Event::PowerOff;
+        types::board_support_common::BspEvent tmp {tmp_event};
+        this->publish_event(tmp);
+    }
+    // Note: errors while switching the contactor are reported and handled via on_error slot
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
     // your code for cmd ac_switch_three_phases_while_charging goes here
+    (void)value;
 }
 
 void evse_board_supportImpl::handle_evse_replug(int& value) {
     // your code for cmd evse_replug goes here
+    (void)value;
 }
 
 types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
-    // acquire lock to guard against possible background changes done by the observation thread
-    std::lock_guard<std::mutex> lock(this->pp_observation_lock);
+    std::scoped_lock lock(this->pp_mutex);
+
     types::board_support_common::Ampacity old_ampacity = this->pp_ampacity.ampacity;
 
     // pre-init to None
     this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
 
     try {
-        // read current ampacity from hardware
-        int voltage = 0;
-        this->pp_ampacity.ampacity = this->mod->controller.get_ampacity(voltage);
+        // this can raise a std::runtime_error
+        this->pp_ampacity.ampacity = this->mod->controller.get_ampacity();
 
         if (old_ampacity != this->pp_ampacity.ampacity) {
-            EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity << " (U_PP: " << voltage << " mV)";
+            EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity;
         }
 
         if (this->pp_fault_reported)
@@ -184,7 +271,7 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
 
         // reset possible set flag since we successfully read a valid value
         this->pp_fault_reported = false;
-    } catch (std::underflow_error& e) {
+    } catch (std::runtime_error& e) {
         EVLOG_error << e.what();
 
         // publish a ProximityFault
@@ -199,90 +286,9 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
     return this->pp_ampacity;
 }
 
-void evse_board_supportImpl::pp_observation_worker() {
-
-    // EVLOG_debug << "Proximity Pilot Observation Callback called";
-
-    // acquire lock, wait for it eventually
-    this->pp_observation_lock.lock();
-
-    try {
-        // saved previous value
-        types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
-
-        // read new/actual ampacity from hardware
-        int voltage = 0;
-        this->pp_ampacity.ampacity = this->mod->controller.get_ampacity(voltage);
-
-        if (this->pp_ampacity.ampacity != prev_value) {
-
-            if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None) {
-                EVLOG_info << "PP noticed plug removal from socket (U_PP: " << voltage << " mV)";
-            } else {
-                EVLOG_info << "PP ampacity change from " << prev_value << " to " << this->pp_ampacity.ampacity
-                           << " (U_PP: " << voltage << " mV)";
-            }
-
-            // publish new value, upper layer should decide how to handle the change
-            this->publish_ac_pp_ampacity(this->pp_ampacity);
-
-            if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None &&
-                (this->cp_current_state == types::cb_board_support::CPState::C ||
-                 this->cp_current_state == types::cb_board_support::CPState::D)) {
-                // publish a ProximityFault
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/MREC23ProximityFault", "", "Plug removed from socket during charge",
-                    Everest::error::Severity::High);
-                this->raise_error(error_object);
-                this->pp_fault_reported = true;
-            }
-
-            if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None && this->pp_fault_reported) {
-                // clear a ProximityFault error on PP state change to a valid value but only if it exists
-                this->clear_error("evse_board_support/MREC23ProximityFault");
-                this->pp_fault_reported = false;
-            }
-        }
-    } catch (std::underflow_error& e) {
-        if (!this->pp_fault_reported) {
-            EVLOG_error << e.what();
-
-            // publish a ProximityFault
-            Everest::error::Error error_object = this->error_factory->create_error(
-                "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
-            this->raise_error(error_object);
-
-            this->pp_fault_reported = true;
-        }
-    }
-
-    this->pp_observation_lock.unlock();
-
-    // EVLOG_debug << "Proximity Pilot Observation Callback finished";
-}
-
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
     // your code for cmd ac_set_overcurrent_limit_A goes here
-}
-
-void evse_board_supportImpl::disable_cp_observation() {
-    if (this->cp_observation_enabled) {
-        EVLOG_debug << "Disabling CP observation";
-        this->cp_observation_lock.lock();
-        this->cp_observation_enabled = false;
-    } else {
-        EVLOG_debug << "Disabling CP observation (suppressed)";
-    }
-}
-
-void evse_board_supportImpl::enable_cp_observation() {
-    if (!this->cp_observation_enabled) {
-        EVLOG_debug << "Enabling CP observation";
-        this->cp_observation_enabled = true;
-        this->cp_observation_lock.unlock();
-    } else {
-        EVLOG_debug << "Enabling CP observation (suppressed)";
-    }
+    (void)value;
 }
 
 bool evse_board_supportImpl::cp_state_changed(struct cp_state_signal_side& signal_side) {
