@@ -26,14 +26,19 @@ configure_file(VERSION.in VERSION @ONLY)
 
 target_link_libraries(${MODULE_NAME}
     PRIVATE
+        utils::cp
         chargesom
         Pal::Sigslot
         nlohmann_json::nlohmann_json
 )
+
+get_property(CP_INCLUDE_DIR GLOBAL PROPERTY CP_INCLUDE_DIR)
+
 target_include_directories(${MODULE_NAME}
     PRIVATE
-        ${CHARGESOM_INCLUDE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
+        ${CP_INCLUDE_DIR}
+        ${CHARGESOM_INCLUDE_DIR}
 )
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
 

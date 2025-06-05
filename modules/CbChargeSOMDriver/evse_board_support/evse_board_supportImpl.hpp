@@ -79,6 +79,9 @@ private:
     /// @brief Store CP state errors
     CPUtils::cp_state_errors cp_errors {};
 
+    /// @brief Mutex to protect `cp_errors` and `cp_current_state`.
+    std::mutex cp_mutex;
+
     /// @brief Last published/detected ampacity
     types::board_support_common::ProximityPilot pp_ampacity {.ampacity = types::board_support_common::Ampacity::None};
 
@@ -88,8 +91,8 @@ private:
     /// @brief Mutex to protect `pp_ampacity` and `pp_fault_reported`
     std::mutex pp_mutex;
 
-     /// @brief Flag to remember whether we already published a contactor fault.
-        std::atomic_bool contactor_fault_reported {false};
+    /// @brief Flag to remember whether we already published a contactor fault.
+    std::atomic_bool contactor_fault_reported {false};
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };

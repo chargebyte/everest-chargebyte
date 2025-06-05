@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <stdexcept>
 #include <generated/types/cb_board_support.hpp>
+#include <CPUtils.hpp>
 #include "evse_board_supportImpl.hpp"
 
 using namespace std::chrono_literals;
@@ -40,8 +41,8 @@ void evse_board_supportImpl::init() {
     this->hw_capabilities.min_current_A_export = this->mod->config.min_current_A;
     this->hw_capabilities.max_current_A_export = this->mod->config.max_current_A;
 
-    // this the Charge SOM is currently intended for DC, there is support in the
-    // safety controller for phase count switching yet
+    // the Charge SOM is currently intended for DC only, there is no support in the
+    // safety controller firmware for AC nor phase count switching yet
     this->hw_capabilities.supports_changing_phases_during_charging = false;
     this->hw_capabilities.max_phase_count_import = 3;
     this->hw_capabilities.min_phase_count_import = 3;
@@ -52,30 +53,15 @@ void evse_board_supportImpl::init() {
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
     // register our callback handlers
-    this->mod->controller.on_cp_change.connect([&](const types::board_support_common::Event& event) {
 
-        if (this->cp_current_state == state)
-            return;
-
-        EVLOG_info << "CP state change from " << this->cp_current_state << " to " << state << ", "
-                   << "U_CP+: " << positive_side.voltage << " mV, "
-                   << "U_CP-: " << negative_side.voltage << " mV";
-        this->cp_current_state = state;
-
-        this->publish_event({ event });
-
-
-
-    });
-
-    this->mod->controller.on_pp_change.connect([&](const enum pp_state pp_state) {
+    this->mod->controller.on_pp_change.connect([&](const enum pp_state& new_pp_state) {
         std::scoped_lock lock(this->pp_mutex);
 
         try {
             // saved previous value
             types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
 
-            this->pp_ampacity.ampacity = this->mod->controller.pp_state_to_ampacity(pp_state);
+            this->pp_ampacity.ampacity = this->mod->controller.pp_state_to_ampacity(new_pp_state);
 
             if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None) {
                 EVLOG_info << "PP noticed plug removal from socket";
@@ -97,8 +83,7 @@ void evse_board_supportImpl::init() {
                 this->pp_fault_reported = true;
             }
 
-            if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None &&
-                this->pp_fault_reported) {
+            if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None && this->pp_fault_reported) {
                 // clear a ProximityFault error on PP state change to a valid value but only if it exists
                 this->clear_error("evse_board_support/MREC23ProximityFault");
                 this->pp_fault_reported = false;
@@ -117,10 +102,69 @@ void evse_board_supportImpl::init() {
         }
     });
 
-    types::board_support_common::BspEvent tmp = cpstate_to_bspevent(this->cp_positive_side.current_state);
-    this->publish_event(tmp);
+    this->mod->controller.on_cp_change.connect([&](const types::cb_board_support::CPState& current_cp_state) {
+        std::scoped_lock lock(this->cp_mutex);
 
-    this->mod->controller.signal_cp_state_change.connect(&evse_board_supportImpl::cp_observation_worker, this);
+        EVLOG_info << "CP state change from " << this->cp_current_state << " to " << current_cp_state << ", "
+                   << "PWM: " << std::fixed << std::setprecision(1) << (this->mod->controller.get_duty_cycle() / 10.0)
+                   << "%)";
+
+        // we can determine this directly from the currently seen value
+        this->cp_errors.pilot_fault.is_active = current_cp_state == types::cb_board_support::CPState::PilotFault;
+
+        CPUtils::process_everest_errors(*this, this->cp_errors.errors);
+
+        this->cp_current_state = current_cp_state;
+
+        if (current_cp_state == types::cb_board_support::CPState::PilotFault)
+            return;
+
+        try {
+            const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
+            this->publish_event(tmp);
+        } catch (std::runtime_error& e) {
+            // should never happen, when all invalid states are handled correctly
+            EVLOG_warning << e.what();
+        }
+    });
+
+    this->mod->controller.on_cp_error.connect([&]() {
+        std::scoped_lock lock(this->cp_mutex);
+
+        // we can determine this directly from the currently seen values
+        this->cp_errors.diode_fault.is_active = this->mod->controller.get_diode_fault();
+        this->cp_errors.cp_short_fault.is_active = this->mod->controller.get_cp_short_circuit();
+
+        CPUtils::process_everest_errors(*this, this->cp_errors.errors);
+    });
+
+    this->mod->controller.on_contactor_error.connect(
+        [&](const std::string& source, bool desired_state, types::cb_board_support::ContactorState actual_state) {
+            // An error occurred while switching - i.e. feedback does not match our expected new state.
+            // This fault is critical as it might be a sign of a hardware issue, therefore
+            // the fault will not be cleared to prevent further damage.
+            std::ostringstream errmsg;
+            errmsg << "Failed to " << (desired_state ? "CLOSE" : "OPEN") << " the " << source << ", it is still "
+                   << actual_state;
+
+            // raise a contactor fault if it was not done before
+            if (!this->contactor_fault_reported.exchange(true)) {
+                EVLOG_error << errmsg.str() << ", raising MREC17EVSEContactorFault.";
+
+                Everest::error::Error error_object = this->error_factory->create_error(
+                    "evse_board_support/MREC17EVSEContactorFault", "", errmsg.str(), Everest::error::Severity::High);
+                this->raise_error(error_object);
+            } else {
+                EVLOG_error << errmsg.str();
+            }
+        });
+
+    this->mod->controller.on_estop.connect([&](const unsigned int& estop, const bool& active) {
+        if (active)
+            EVLOG_warning << "Emergency Stop " << (estop + 1) << " TRIPPED";
+        else
+            EVLOG_info << "Emergency Stop " << (estop + 1) << " released";
+    });
 }
 
 void evse_board_supportImpl::ready() {
@@ -128,25 +172,13 @@ void evse_board_supportImpl::ready() {
     this->publish_capabilities(this->hw_capabilities);
 }
 
-void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
-                                                        const struct cp_state_signal_side& negative_side,
-                                                        const struct cp_state_signal_side& positive_side) {
-    if (this->cp_current_state == state)
-        return;
-
-    EVLOG_info << "CP state change from " << this->cp_current_state << " to " << state << ", "
-               << "U_CP+: " << positive_side.voltage << " mV, "
-               << "U_CP-: " << negative_side.voltage << " mV";
-    this->cp_current_state = state;
-}
-
 void evse_board_supportImpl::handle_enable(bool& value) {
     try {
         // generate state A or state F
         unsigned int new_duty_cycle = value ? 1000 : 0;
 
-        EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(1) << (new_duty_cycle / 10.0)
-                   << "%";
+        EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(1)
+                   << (new_duty_cycle / 10.0) << "%";
         this->mod->controller.set_duty_cycle(new_duty_cycle);
 
         this->is_enabled = value;
@@ -159,7 +191,8 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
     try {
         unsigned int new_duty_cycle = static_cast<unsigned int>(value * 10.0);
 
-        EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(1) << (new_duty_cycle / 10.0) << "%";
+        EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(1)
+                   << (new_duty_cycle / 10.0) << "%";
         this->mod->controller.set_duty_cycle(new_duty_cycle);
     } catch (std::exception& e) {
         EVLOG_error << e.what();
@@ -171,8 +204,8 @@ void evse_board_supportImpl::handle_pwm_off() {
         // generate state A
         unsigned int new_duty_cycle = 1000;
 
-        EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(1) << (new_duty_cycle / 10.0)
-                   << "%";
+        EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(1)
+                   << (new_duty_cycle / 10.0) << "%";
         this->mod->controller.set_duty_cycle(new_duty_cycle);
     } catch (std::exception& e) {
         EVLOG_error << e.what();
@@ -193,7 +226,6 @@ void evse_board_supportImpl::handle_pwm_F() {
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
-
     // this method is called very often, even the contactor state is already matching the desired one
     // so let's use this as helper to control the log noise a little bit and whether we actually
     // need to report a BSP event
@@ -223,7 +255,8 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
 
     // exit early if we don't actually change the state
     if (!state_change) {
-        EVLOG_info << "Current (unchanged) state: " << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
+        EVLOG_info << "Current (unchanged) state: "
+                   << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
         return;
     }
 
@@ -241,7 +274,8 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
-    // your code for cmd ac_switch_three_phases_while_charging goes here
+    EVLOG_info << "handle_ac_switch_three_phases_while_charging: switching to " << (value ? "3-phase" : "1-phase")
+               << " mode";
     (void)value;
 }
 
@@ -253,13 +287,12 @@ void evse_board_supportImpl::handle_evse_replug(int& value) {
 types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
     std::scoped_lock lock(this->pp_mutex);
 
+    // save old value and pre-init to None
     types::board_support_common::Ampacity old_ampacity = this->pp_ampacity.ampacity;
-
-    // pre-init to None
     this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
 
     try {
-        // this can raise a std::runtime_error
+        // this could raise a std::runtime_error
         this->pp_ampacity.ampacity = this->mod->controller.get_ampacity();
 
         if (old_ampacity != this->pp_ampacity.ampacity) {
@@ -289,148 +322,6 @@ types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_re
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
     // your code for cmd ac_set_overcurrent_limit_A goes here
     (void)value;
-}
-
-bool evse_board_supportImpl::cp_state_changed(struct cp_state_signal_side& signal_side) {
-    bool rv {false};
-
-    // CP state is only detected if the new state is different from the previous one (first condition).
-    // Additionally, to filter simple disturbances, a new state must be detected twice before notifying it (second
-    // condition). For that, we need at least two CP state measurements (third condition)
-
-    if (signal_side.previous_state != signal_side.measured_state &&
-        signal_side.current_state == signal_side.measured_state) {
-
-        // update the previous state
-        signal_side.previous_state = signal_side.current_state;
-        rv = true;
-
-    } else if (signal_side.measured_state == signal_side.previous_state &&
-               signal_side.measured_state != signal_side.current_state) {
-        EVLOG_warning << "CP state change from " << signal_side.previous_state << " to " << signal_side.current_state
-                      << " suppressed";
-    }
-
-    signal_side.current_state = signal_side.measured_state;
-
-    return rv;
-}
-
-void evse_board_supportImpl::cp_observation_worker() {
-    bool duty_cycle_changed {false};
-    bool cp_state_changed {false};
-
-    if (!this->cp_observation_enabled) {
-        // EVLOG_debug << "Control Pilot Observation Callback suppressed (not enabled <yet>)";
-        return;
-    }
-
-    // EVLOG_debug << "Control Pilot Observation Callback called";
-
-    // acquire measurement lock for this loop round, wait for it eventually
-    std::lock_guard<std::mutex> lock(this->cp_observation_lock);
-
-    // do the actual measurement
-    this->mod->controller.cp_get_values(this->cp_positive_side.voltage, this->cp_negative_side.voltage);
-
-    // positive signal side: map to CP state and check for changes
-    this->cp_positive_side.measured_state =
-        this->mod->controller.cp_voltage_to_state(this->cp_positive_side.voltage, this->cp_positive_side.current_state);
-    cp_state_changed |= this->cp_state_changed(this->cp_positive_side);
-
-    // negative signal side: map to CP state and check for changes
-    this->cp_negative_side.measured_state =
-        this->mod->controller.cp_voltage_to_state(this->cp_negative_side.voltage, this->cp_negative_side.current_state);
-    cp_state_changed |= this->cp_state_changed(this->cp_negative_side);
-
-    // at this point, the current_state member was already updated by the cp_state_changed methods
-
-    // check whether we see a change of the duty cycle
-    duty_cycle_changed = this->previous_duty_cycle != this->mod->controller.cp_get_duty_cycle();
-    this->previous_duty_cycle = this->mod->controller.cp_get_duty_cycle();
-
-    // if there was actually a change -> tell it to upper layers
-    if (cp_state_changed || duty_cycle_changed) {
-        // A diode fault is detected if the nominal duty cycle is set and the negative side of
-        // the CP is not in state F (-12V)
-        if (this->mod->controller.cp_is_nominal_duty_cycle() &&
-            this->cp_negative_side.current_state != types::cb_board_support::CPState::F) {
-            if (!this->diode_fault_reported) {
-                this->diode_fault_reported = true;
-                this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault, this->cp_negative_side,
-                                                 this->cp_positive_side);
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/DiodeFault", "", "Diode fault detected.", Everest::error::Severity::High);
-                this->raise_error(error_object);
-            }
-            return;
-        }
-    }
-
-    if (cp_state_changed) {
-        // in case we drive state F, then we cannot trust the peak detectors
-        if (this->mod->controller.cp_get_duty_cycle() == 0.0) {
-            types::board_support_common::BspEvent tmp {types::board_support_common::Event::F};
-            this->publish_event(tmp);
-            this->update_cp_state_internally(types::cb_board_support::CPState::F, cp_negative_side, cp_positive_side);
-            return;
-        }
-        // normal CP state change
-        if (this->cp_positive_side.current_state != this->cp_current_state) {
-            // in case we see a pilot fault, we need to inform the upper layer
-            if (this->cp_positive_side.current_state == types::cb_board_support::CPState::PilotFault ||
-                this->cp_negative_side.current_state == types::cb_board_support::CPState::PilotFault) {
-                if (this->pilot_fault_reported == false) {
-                    Everest::error::Error error_object =
-                        this->error_factory->create_error("evse_board_support/MREC14PilotFault", "",
-                                                          "Pilot fault detected.", Everest::error::Severity::High);
-                    this->raise_error(error_object);
-                    this->pilot_fault_reported = true;
-                    this->update_cp_state_internally(types::cb_board_support::CPState::PilotFault,
-                                                     this->cp_negative_side, this->cp_positive_side);
-                }
-                return;
-            }
-            // Before checking for ventilation error, we need to clear other errors if they were reported before
-            if (this->diode_fault_reported) {
-                this->clear_error("evse_board_support/DiodeFault");
-                this->diode_fault_reported = false;
-            }
-            if (this->pilot_fault_reported) {
-                this->clear_error("evse_board_support/MREC14PilotFault");
-                this->pilot_fault_reported = false;
-            }
-            // check if a ventilation error has occurred
-            if (this->cp_positive_side.current_state == types::cb_board_support::CPState::D) {
-                // in case we see a ventilation request, although we do not support it,
-                // we need to inform the upper layer
-                Everest::error::Error error_object =
-                    this->error_factory->create_error("evse_board_support/VentilationNotAvailable", "",
-                                                      "Ventilation fault detected.", Everest::error::Severity::High);
-                this->raise_error(error_object);
-                this->ventilation_fault_reported = true;
-                this->publish_event({types::board_support_common::Event::D});
-                this->update_cp_state_internally(this->cp_positive_side.current_state, this->cp_negative_side,
-                                                 this->cp_positive_side);
-                return;
-            }
-            if (this->ventilation_fault_reported) {
-                this->clear_error("evse_board_support/VentilationNotAvailable");
-                this->ventilation_fault_reported = false;
-            }
-            try {
-                types::board_support_common::BspEvent tmp = cpstate_to_bspevent(this->cp_positive_side.current_state);
-                this->publish_event(tmp);
-                this->update_cp_state_internally(this->cp_positive_side.current_state, this->cp_negative_side,
-                                                 this->cp_positive_side);
-            } catch (std::runtime_error& e) {
-                // Should never happen, when all invalid states are handled correctly
-                EVLOG_warning << e.what();
-            }
-        }
-    }
-
-    // EVLOG_debug << "Control Pilot Observation Callback finished";
 }
 
 } // namespace evse_board_support

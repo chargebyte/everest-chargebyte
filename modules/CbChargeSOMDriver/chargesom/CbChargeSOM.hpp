@@ -11,10 +11,9 @@
 #include <gpiod.hpp>
 #include <sigslot/signal.hpp>
 #include <generated/types/board_support_common.hpp>
+#include <generated/types/cb_board_support.hpp>
 #include <ra-utils/uart.h>
 #include <ra-utils/cb_protocol.h>
-/* FIXME needed? */
-#include <generated/types/cb_board_support.hpp>
 
 using namespace std::chrono_literals;
 
@@ -45,30 +44,54 @@ public:
     /// @brief Resets the safety controller.
     void reset();
 
+    /// @brief Helper to map the internal PP enum to the EVerest type system.
+    ///        A 'std::runtime_error` is raised in case the mappig fails, e.g.
+    ///        when Type 1 related states are found.
+    /// @return A cable current rating using `types::board_support_common::Ampacity`
     types::board_support_common::Ampacity pp_state_to_ampacity(enum pp_state pp_state);
 
-    /// @brief Reads the current (cached) cable rating from safety controller.
-    ///        In case the safety controller reported a value which cannot be mapped
-    ///        we report 'None'. Error forwarding/reporting is done using the
-    //         `on_pp_change` slot.
-    /// @return A cable current rating using enum types::board_support_common::Ampacity
+    /// @brief Reads the current (cached) cable rating from the safety controller.
+    ///        It uses `pp_state_to_ampacity`, in other words it raises an exception
+    ///        in case the value cannot be mapped.
+    /// @return A cable current rating using `types::board_support_common::Ampacity`
     types::board_support_common::Ampacity get_ampacity();
 
-    /// @brief Signal used to inform about CP state changes.
-    sigslot::signal<const types::board_support_common::Event&> on_cp_change;
-
     /// @brief Signal used to inform about PP state changes.
-    sigslot::signal<const enum pp_state> on_pp_change;
+    ///        The parameter contains the new PP state.
+    sigslot::signal<const enum pp_state&> on_pp_change;
 
-    /// @brief Signal used to inform about a charging stop caused by ESTOP signal.
-    ///        The first parameter is the number of the ESTOPx signal which caused
-    ///        the abort.
-    sigslot::signal<const unsigned int> on_estop;
+    /// @brief Signal used to inform about CP state changes.
+    ///        The parameter is the new CP state.
+    sigslot::signal<const types::cb_board_support::CPState&> on_cp_change;
 
     /// @brief Signal used to inform about various errors, e.g. CP Short Circuits,
-    ///        Diode Faults and/or measurement errors for CP and/or PP.
+    ///        Diode Faults and contactor errors.
     ///        Callee is expected to check in detail.
-    sigslot::signal<> on_error;
+    sigslot::signal<> on_cp_error;
+
+    /// @brief Signal used to inform about a charging stop caused by ESTOP signal.
+    ///        The first parameter is the number of the ESTOP signal which changed,
+    ///        the second parameter tells whether the signal is active.
+    sigslot::signal<const unsigned int&, const bool&> on_estop;
+
+    /// @brief Signal used to inform about errors during contactor switching.
+    sigslot::signal<const std::string&, bool, types::cb_board_support::ContactorState> on_contactor_error;
+
+    /// @brief Return whether the safety controller detected an emergency stop.
+    bool is_emergency();
+
+    /// @brief Set a new duty cycle.
+    /// @param duty_cycle The desired duty cycle in percent [0.1 %].
+    void set_duty_cycle(unsigned int duty_cycle);
+
+    /// @brief Get the current/actual duty cycle in [0.1 %].
+    unsigned int get_duty_cycle();
+
+    /// @brief Get the current state of the diode fault signal
+    bool get_diode_fault();
+
+    /// @brief Get the current state of the CP short circuit signal
+    bool get_cp_short_circuit();
 
     /// @brief Closes the contactor (on = true), or opens it (on = false):
     ///        This is a synchronous call, i.e. it waits until it is confirmed
@@ -78,13 +101,6 @@ public:
 
     /// @brief Return the current contactor state (even when no contactor is configured)
     bool get_contactor_state();
-
-    /// @brief Return whether the safety controller detected an emergency stop.
-    bool is_emergency();
-
-    /// @brief Set a new duty cycle.
-    /// @param duty_cycle The desired duty cycle in percent [0.1 %].
-    void set_duty_cycle(unsigned int duty_cycle);
 
     /// @brief Retrieves the number of supported temperature channels.
     /// @return The count of supported channels.
@@ -104,42 +120,17 @@ public:
     float get_temperature(unsigned int channel);
 
     /// @brief Return a firmware information string, i.e. version, application type, git hash...
+    ///        The return value is filled once the communication with the safety controller is
+    ///        was started, but not before.
     /// @return A string with the mentioned information.
     const std::string& get_fw_info() const;
 
 private:
-    /// @brief Holds the assembled firmware information string.
-    std::string fw_info;
+    /// @brief Remember whether the system is with fixed cable or not.
+    bool is_pluggable {false};
 
     /// @brief Remembers the serial port device name
     std::string serial_port;
-
-    /// @brief The GPIO handle of the reset line for the safety controller.
-    std::unique_ptr<gpiod::line_request> mcu_reset;
-
-    /// @brief Time to hold the reset line active when resetting the safety controller.
-    std::chrono::milliseconds mcu_reset_duration {5ms};
-
-    /// @brief Helper to toggle the reset pin
-    void set_mcu_reset(bool active);
-
-    /// @brief Helper to send out the charge control frame
-    void send_charge_control();
-
-    /// @brief Helper to determine whether the received COM field is valid.
-    bool is_valid_rx_com(enum cb_uart_com com);
-
-    /// @brief Helper to request the given frame from safety controller
-    void send_inquiry(enum cb_uart_com com);
-
-    /// @brief Helper to request the given frame from safety controller
-    ///        and to wait until the response was received.
-    /// @return True, in case there was no response within a given timeout;
-    ///         false otherwise.
-    bool send_inquiry_and_wait(enum cb_uart_com com);
-
-    /// @brief Internal helper to determine the current contactor state.
-    bool get_contactor_state_no_lock();
 
     /// @brief The UART context for libcbuart.
     struct uart_ctx uart;
@@ -147,8 +138,14 @@ private:
     /// @brief The safety controller state context.
     struct safety_controller ctx;
 
-    /// @brief Remember whether the system is with fixed cable or not.
-    bool is_pluggable {false};
+    /// @brief The GPIO handle of the reset line for the safety controller.
+    std::unique_ptr<gpiod::line_request> mcu_reset;
+
+    /// @brief Time to hold the reset line active when resetting the safety controller.
+    std::chrono::milliseconds mcu_reset_duration {5ms};
+
+    /// @brief Holds the assembled firmware information string.
+    std::string fw_info;
 
     /// @brief Thread for periodic transmitting UART frames
     std::thread tx_thread;
@@ -175,11 +172,33 @@ private:
     std::mutex inquiry_mutex;
 
     /// @brief Condition variables used to wait for a specific UART frame and/or update to the field in `ctx`
-    std::vector<std::condition_variable> rx_cv = std::vector<std::condition_variable>(static_cast<std::size_t>(cb_uart_com::COM_MAX));
+    std::vector<std::condition_variable> rx_cv =
+        std::vector<std::condition_variable>(static_cast<std::size_t>(cb_uart_com::COM_MAX));
 
     /// @brief Used to protect the access to the individual data fields in `ctx`.
     std::vector<std::mutex> ctx_mutexes = std::vector<std::mutex>(static_cast<std::size_t>(cb_uart_com::COM_MAX));
 
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};
+
+    /// @brief Helper to toggle the reset pin
+    void set_mcu_reset(bool active);
+
+    /// @brief Helper to determine whether the received COM field is valid.
+    bool is_valid_rx_com(enum cb_uart_com com);
+
+    /// @brief Helper to send out the charge control frame
+    void send_charge_control();
+
+    /// @brief Helper to request the given frame from safety controller
+    void send_inquiry(enum cb_uart_com com);
+
+    /// @brief Helper to request the given frame from safety controller
+    ///        and to wait until the response was received.
+    /// @return True, in case there was no response within a given timeout;
+    ///         false otherwise.
+    bool send_inquiry_and_wait(enum cb_uart_com com);
+
+    /// @brief Internal helper to determine the current contactor state.
+    bool get_contactor_state_no_lock();
 };

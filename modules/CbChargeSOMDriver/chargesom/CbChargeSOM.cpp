@@ -47,8 +47,7 @@ CbChargeSOM::~CbChargeSOM() {
     }
 }
 
-void CbChargeSOM::terminate()
-{
+void CbChargeSOM::terminate() {
     this->termination_requested = true;
 }
 
@@ -86,11 +85,19 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
     this->notify_thread = std::thread([&]() {
         enum cp_state previous_cp_state = CP_STATE_UNKNOWN;
         enum pp_state previous_pp_state = PP_STATE_MAX;
+        unsigned int previous_cp_errors = 0;
+        bool previous_contactor_error[CB_PROTO_MAX_CONTACTORS] = {};
+        bool previous_estop_tripped[CB_PROTO_MAX_ESTOPS] = {};
 
         while (!this->termination_requested) {
-            // temp helper for our access functions
+            // temporary helper variables for our access functions
             struct safety_controller tmpctx;
             enum pp_state current_pp_state;
+            enum cp_state current_cp_state;
+            unsigned int current_cp_errors;
+            bool current_contactor_error[CB_PROTO_MAX_CONTACTORS];
+            bool current_estop_tripped[CB_PROTO_MAX_ESTOPS];
+            unsigned int i;
 
             // wait for changes
             std::unique_lock<std::mutex> lock(this->notify_mutex);
@@ -110,8 +117,44 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
             // check for CP changes
             current_cp_state = cb_proto_get_cp_state(&tmpctx);
             if (current_cp_state != previous_cp_state) {
-                this->on_cp_change(current_cp_state);
-                previous_cp_state = current_cp_state ;
+                // the integer value representation of both enum classes are the same but we have to cast over int
+                unsigned int cp_state_as_number = static_cast<unsigned int>(current_cp_state);
+                types::cb_board_support::CPState new_cp_state =
+                    static_cast<types::cb_board_support::CPState>(cp_state_as_number);
+                this->on_cp_change(new_cp_state);
+                previous_cp_state = current_cp_state;
+            }
+
+            // check for CP related errors
+            current_cp_errors = cb_proto_get_cp_errors(&tmpctx);
+            if (current_cp_errors != previous_cp_errors) {
+                this->on_cp_error();
+                previous_cp_errors = current_cp_errors;
+            }
+
+            // forward contactor errors
+            for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+                std::string name = "Contactor " + std::to_string(i + 1);
+
+                current_contactor_error[i] =
+                    cb_proto_contactorN_is_enabled(&tmpctx, i) && cb_proto_contactorN_has_error(&tmpctx, i);
+
+                if (current_contactor_error[i] != previous_contactor_error[i]) {
+                    this->on_contactor_error(name, cb_proto_contactorN_get_target_state(&tmpctx, i),
+                                             cb_proto_contactorN_is_closed(&tmpctx, i)
+                                                 ? types::cb_board_support::ContactorState::Closed
+                                                 : types::cb_board_support::ContactorState::Open);
+                }
+            }
+
+            // check for ESTOP errors
+            for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
+                current_estop_tripped[i] =
+                    cb_proto_estopN_is_enabled(&tmpctx, i) && cb_proto_estopN_is_tripped(&tmpctx, i);
+                if (current_estop_tripped[i] != previous_estop_tripped[i]) {
+                    this->on_estop(i, current_estop_tripped[i]);
+                    previous_estop_tripped[i] = current_estop_tripped[i];
+                }
             }
         }
     });
@@ -166,7 +209,7 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
             case cb_uart_com::COM_PT1000_STATE:
                 this->ctx.pt1000 = data;
                 // note: notifying is not strictly needed here since the
-                // temperature interface polls in regular interval by itself
+                // temperature interface polls in regular intervals by itself
                 // but it also does not hurt
                 break;
 
@@ -201,13 +244,15 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
 
         while (!this->termination_requested) {
             this->send_charge_control();
-            std::this_thread::sleep_for(interval);
+
+            if (!this->termination_requested) {
+                std::this_thread::sleep_for(interval);
+            }
         }
     });
 
     // query firmware version and Git hash
-    if (this->send_inquiry_and_wait(COM_FW_VERSION) or
-        this->send_inquiry_and_wait(COM_GIT_HASH)) {
+    if (this->send_inquiry_and_wait(COM_FW_VERSION) or this->send_inquiry_and_wait(COM_GIT_HASH)) {
         throw std::runtime_error("Could not determined safety controller firmware information.");
     }
 
@@ -215,6 +260,31 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
                     cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&this->ctx)) + ", " +
                     cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ", " +
                     this->ctx.git_hash_str + ")";
+}
+
+void CbChargeSOM::set_mcu_reset(bool active) {
+    this->mcu_reset->set_value(this->mcu_reset->offsets()[0],
+                               active ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
+
+    // when releasing the reset, wait until safety controller is capable to handle UART frames again
+    if (not active) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(CB_PROTO_STARTUP_DELAY));
+    }
+}
+
+void CbChargeSOM::reset() {
+    std::scoped_lock lock(this->tx_mutex);
+
+    this->set_mcu_reset(true);
+
+    std::this_thread::sleep_for(this->mcu_reset_duration);
+
+    if (uart_flush_input(&this->uart)) {
+        throw std::system_error(errno, std::generic_category(),
+                                "Failed to flush input data on '" + this->serial_port + "'");
+    }
+
+    this->set_mcu_reset(false);
 }
 
 void CbChargeSOM::send_charge_control() {
@@ -262,61 +332,7 @@ bool CbChargeSOM::send_inquiry_and_wait(enum cb_uart_com com) {
     return this->rx_cv[n].wait_for(lock, 1s) == std::cv_status::timeout;
 }
 
-void CbChargeSOM::reset() {
-    std::scoped_lock lock(this->tx_mutex);
-
-    this->set_mcu_reset(true);
-
-    std::this_thread::sleep_for(this->mcu_reset_duration);
-
-    if (uart_flush_input(&this->uart)) {
-        throw std::system_error(errno, std::generic_category(),
-                                "Failed to flush input data on '" + this->serial_port + "'");
-    }
-
-    this->set_mcu_reset(false);
-}
-
-void CbChargeSOM::set_mcu_reset(bool active) {
-    this->mcu_reset->set_value(this->mcu_reset->offsets()[0],
-                               active ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
-
-    // when releasing the reset, wait until safety controller is capable to handle UART frames again
-    if (not active) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(CB_PROTO_STARTUP_DELAY));
-    }
-}
-
-unsigned int CbChargeSOM::get_temperature_channels() const {
-    return CB_PROTO_MAX_PT1000S;
-}
-
-bool CbChargeSOM::is_temperature_enabled(unsigned int channel) {
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
-    std::scoped_lock lock(this->ctx_mutexes[n]);
-
-    return cb_proto_pt1000_is_active(&this->ctx, channel);
-}
-
-bool CbChargeSOM::is_temperature_valid(unsigned int channel) {
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
-    std::scoped_lock lock(this->ctx_mutexes[n]);
-
-    return !(cb_proto_pt1000_get_errors(&this->ctx, channel) & PT1000_SELFTEST_FAILED);
-}
-
-float CbChargeSOM::get_temperature(unsigned int channel) {
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
-    std::scoped_lock lock(this->ctx_mutexes[n]);
-
-    return cb_proto_pt1000_get_temp(&this->ctx, channel);
-}
-
-const std::string& CbChargeSOM::get_fw_info() const {
-    return this->fw_info;
-}
-
-types::board_support_common::Ampacity CbChargeSOM::pp_state_to_ampacity(enum pp_state pp_state ) {
+types::board_support_common::Ampacity CbChargeSOM::pp_state_to_ampacity(enum pp_state pp_state) {
     // we map only the well-known states in this method - for all other a std::runtime_error is raised
     switch (pp_state) {
     case pp_state::PP_STATE_NO_CABLE:
@@ -335,8 +351,7 @@ types::board_support_common::Ampacity CbChargeSOM::pp_state_to_ampacity(enum pp_
         return types::board_support_common::Ampacity::A_63_3ph_70_1ph;
 
     default:
-        throw std::runtime_error(
-             "The measured voltage for the Proximity Pilot could not be mapped.");
+        throw std::runtime_error("The measured voltage for the Proximity Pilot could not be mapped.");
     }
 }
 
@@ -354,36 +369,54 @@ bool CbChargeSOM::is_emergency() {
     return cb_proto_estop_has_any_tripped(&this->ctx);
 }
 
-bool CbChargeSOM::get_contactor_state_no_lock() {
-    unsigned int i;
-    bool at_least_one_is_configured = false;
-    bool target_state = false;
-    bool actual_state = false;
+void CbChargeSOM::set_duty_cycle(unsigned int duty_cycle) {
+    // we need to take the lock to change the field
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
+    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
 
-    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-        if (cb_proto_contactorN_is_enabled(&this->ctx, i)) {
-            at_least_one_is_configured = true;
+    cb_proto_set_duty_cycle(&this->ctx, duty_cycle);
 
-            // don't overwrite, but merge the state
-            actual_state |= cb_proto_contactorN_is_closed(&this->ctx, i);
-        }
+    // but release it now so that sending can take the lock again
+    cc_lock.unlock();
 
-        // fallback in the same loop in case no contactor is actually in use
-        // don't overwrite, but merge the state
-        target_state |= cb_proto_contactorN_get_target_state(&this->ctx, i);
+    this->send_charge_control();
+
+    // then we take the lock to access Charge State to check for success
+    n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    std::unique_lock<std::mutex> cs_lock(this->ctx_mutexes[n]);
+
+    // we should see the new value reflected within at max 1s (FIXME)
+    if (not this->rx_cv[n].wait_for(cs_lock, 1s,
+                                    [&] { return cb_proto_get_actual_duty_cycle(&this->ctx) == duty_cycle; })) {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(1) << (duty_cycle / 10.0);
+
+        throw std::runtime_error("Safety Controller did not accept the new duty cycle of " + oss.str() + "%");
     }
-
-    if (at_least_one_is_configured)
-        return actual_state;
-    else
-        return target_state;
 }
 
-bool CbChargeSOM::get_contactor_state() {
+unsigned int CbChargeSOM::get_duty_cycle() {
+    // we need to take the lock to read the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::scoped_lock lock(this->ctx_mutexes[n]);
+    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
 
-    return this->get_contactor_state_no_lock();
+    return cb_proto_get_actual_duty_cycle(&this->ctx);
+}
+
+bool CbChargeSOM::get_diode_fault() {
+    // we need to take the lock to read the field
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
+
+    return cb_proto_is_diode_fault(&this->ctx);
+}
+
+bool CbChargeSOM::get_cp_short_circuit() {
+    // we need to take the lock to read the field
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
+
+    return cb_proto_is_cp_short_circuit(&this->ctx);
 }
 
 bool CbChargeSOM::switch_state(bool on) {
@@ -419,29 +452,63 @@ bool CbChargeSOM::switch_state(bool on) {
     return this->rx_cv[n].wait_for(cs_lock, 1s, [&] { return this->get_contactor_state_no_lock() == on; });
 }
 
-void CbChargeSOM::set_duty_cycle(unsigned int duty_cycle) {
-    // we need to take the lock to change the field
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
-    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
+bool CbChargeSOM::get_contactor_state_no_lock() {
+    unsigned int i;
+    bool at_least_one_is_configured = false;
+    bool target_state = false;
+    bool actual_state = false;
 
-    cb_proto_set_duty_cycle(&this->ctx, duty_cycle);
+    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+        if (cb_proto_contactorN_is_enabled(&this->ctx, i)) {
+            at_least_one_is_configured = true;
 
-    // but release it now so that sending can take the lock again
-    cc_lock.unlock();
+            // don't overwrite, but merge the state
+            actual_state |= cb_proto_contactorN_is_closed(&this->ctx, i);
+        }
 
-    this->send_charge_control();
-
-    // then we take the lock to access Charge State to check for success
-    n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::unique_lock<std::mutex> cs_lock(this->ctx_mutexes[n]);
-
-    // we should see the new value reflected within at max 1s (FIXME)
-    if (not this->rx_cv[n].wait_for(cs_lock, 1s, [&] {
-        return cb_proto_get_actual_duty_cycle(&this->ctx) == duty_cycle; })) {
-        std::ostringstream oss;
-        oss << std::fixed << std::setprecision(1) << (duty_cycle / 10.0);
-
-        throw std::runtime_error("Safety Controller did not accept the new duty cycle of " + oss.str() + "%");
+        // fallback in the same loop in case no contactor is actually in use
+        // don't overwrite, but merge the state
+        target_state |= cb_proto_contactorN_get_target_state(&this->ctx, i);
     }
+
+    if (at_least_one_is_configured)
+        return actual_state;
+    else
+        return target_state;
 }
 
+bool CbChargeSOM::get_contactor_state() {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    return this->get_contactor_state_no_lock();
+}
+
+unsigned int CbChargeSOM::get_temperature_channels() const {
+    return CB_PROTO_MAX_PT1000S;
+}
+
+float CbChargeSOM::get_temperature(unsigned int channel) {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    return cb_proto_pt1000_get_temp(&this->ctx, channel);
+}
+
+bool CbChargeSOM::is_temperature_enabled(unsigned int channel) {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    return cb_proto_pt1000_is_active(&this->ctx, channel);
+}
+
+bool CbChargeSOM::is_temperature_valid(unsigned int channel) {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    return !(cb_proto_pt1000_get_errors(&this->ctx, channel) & PT1000_SELFTEST_FAILED);
+}
+
+const std::string& CbChargeSOM::get_fw_info() const {
+    return this->fw_info;
+}

@@ -50,7 +50,9 @@ void cb_chargesom_temperaturesImpl::ready() {
 
             this->publish_temperatures(v);
 
-            std::this_thread::sleep_for(1s);
+            if (!this->mod->termination_requested) {
+                std::this_thread::sleep_for(1s);
+            }
         }
     });
 }
