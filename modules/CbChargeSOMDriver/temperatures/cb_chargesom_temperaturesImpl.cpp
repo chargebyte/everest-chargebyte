@@ -20,6 +20,14 @@ void cb_chargesom_temperaturesImpl::ready() {
         while (!this->mod->termination_requested) {
             std::vector<types::temperature::Temperature> v;
 
+            // we sleep directly at startup to give the safety controller a chance to send values
+            std::this_thread::sleep_for(1s);
+            if (this->mod->termination_requested)
+                break;
+
+            if (!this->mod->controller.temperature_data_is_valid)
+                continue;
+
             for (unsigned int i = 0; i < supported_channels; ++i) {
                 types::temperature::Temperature t;
 
@@ -49,10 +57,6 @@ void cb_chargesom_temperaturesImpl::ready() {
             }
 
             this->publish_temperatures(v);
-
-            if (!this->mod->termination_requested) {
-                std::this_thread::sleep_for(1s);
-            }
         }
     });
 }

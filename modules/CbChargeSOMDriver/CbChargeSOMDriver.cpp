@@ -19,9 +19,9 @@ static void ra_utils_log(bool debug, const char* format, va_list args) {
     vsnprintf(msg, sizeof(msg), format, args);
 
     if (debug) {
-        EVLOG_debug << "libra-utils: " << msg;
+        EVLOG_info << msg;
     } else {
-        EVLOG_error << "libra-utils: " << msg;
+        EVLOG_error << msg;
     }
 }
 
@@ -48,13 +48,15 @@ void CbChargeSOMDriver::init() {
     this->controller.init(this->config.reset_gpio_line_name, this->config.reset_active_low, this->config.serial_port,
                           is_pluggable);
 
+    this->controller.on_fw_info.connect([&](const std::string& fw_info) {
+        EVLOG_info << "Safety Controller Firmware: " << fw_info;
+    });
+
     // initialize the interfaces now
     invoke_init(*p_evse_board_support);
     invoke_init(*p_temperatures);
 
     EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
-
-    EVLOG_info << this->controller.get_fw_info();
 }
 
 void CbChargeSOMDriver::ready() {

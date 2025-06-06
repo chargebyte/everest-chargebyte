@@ -21,6 +21,7 @@
 #include <gpiodUtils.hpp>
 #include <generated/types/cb_board_support.hpp>
 #include "CbChargeSOM.hpp"
+#include <everest/logging.hpp>
 
 using namespace std::chrono_literals;
 
@@ -31,9 +32,251 @@ CbChargeSOM::CbChargeSOM() {
 
     // set to invalid fd so that destructor knows whether it must close something
     this->uart.fd = -1;
+
+    // we need a thread to call the notification signals asynchronously to the
+    // frame receiving to avoid stalling and to not miss a single change
+    this->notify_thread = std::thread([&]() {
+        enum cp_state previous_cp_state = CP_STATE_UNKNOWN;
+        enum pp_state previous_pp_state = PP_STATE_MAX;
+        unsigned int previous_cp_errors = 0;
+        bool previous_contactor_error[CB_PROTO_MAX_CONTACTORS] = {};
+        bool previous_estop_tripped[CB_PROTO_MAX_ESTOPS] = {};
+
+        EVLOG_info << "Notify Thread started";
+
+        while (!this->termination_requested) {
+            // temporary helper variables for our access functions
+            struct safety_controller tmpctx;
+            enum cp_state current_cp_state;
+            enum pp_state current_pp_state;
+            unsigned int current_cp_errors;
+            bool current_contactor_error[CB_PROTO_MAX_CONTACTORS];
+            bool current_estop_tripped[CB_PROTO_MAX_ESTOPS];
+            unsigned int i;
+
+            // wait for changes
+            std::unique_lock<std::mutex> lock(this->notify_mutex);
+            this->notify_cv.wait(lock, [&]() {
+                return (!this->charge_state_changes.empty() && this->evse_enabled) || this->termination_requested;
+            });
+
+            if (this->termination_requested)
+                break;
+
+            // remove from queue
+            tmpctx.charge_state = this->charge_state_changes.front();
+            this->charge_state_changes.pop();
+
+            // check for PP changes
+            current_pp_state = cb_proto_get_pp_state(&tmpctx);
+            if (current_pp_state != previous_pp_state) {
+                if (previous_pp_state != PP_STATE_MAX) {
+                    EVLOG_info << "on_pp_change(" << cb_proto_pp_state_to_str(current_pp_state) << ")";
+                    this->on_pp_change(current_pp_state);
+                } {
+                    EVLOG_info << "on_pp_change(" << cb_proto_pp_state_to_str(current_pp_state) << ") [suppressed]";
+                }
+                previous_pp_state = current_pp_state;
+            }
+
+            // check for CP changes
+            current_cp_state = cb_proto_get_cp_state(&tmpctx);
+            if (current_cp_state != previous_cp_state) {
+                // the integer value representation of both enum classes are the same but we have to cast over int
+                unsigned int cp_state_as_number = static_cast<unsigned int>(current_cp_state);
+                types::cb_board_support::CPState new_cp_state =
+                    static_cast<types::cb_board_support::CPState>(cp_state_as_number);
+                if (previous_cp_state != CP_STATE_UNKNOWN) {
+                    EVLOG_info << "on_cp_change(" << cb_proto_cp_state_to_str(current_cp_state) << ")";
+                    this->on_cp_change(new_cp_state);
+                } else {
+                    EVLOG_info << "on_cp_change(" << cb_proto_cp_state_to_str(current_cp_state) << ") [suppressed]";
+                }
+                previous_cp_state = current_cp_state;
+            }
+
+            // check for CP related errors
+            current_cp_errors = cb_proto_get_cp_errors(&tmpctx);
+            if (current_cp_errors != previous_cp_errors) {
+                EVLOG_info << "on_cp_error";
+                this->on_cp_error();
+                previous_cp_errors = current_cp_errors;
+            }
+
+            // forward contactor errors
+            for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+                std::string name = "Contactor " + std::to_string(i + 1);
+
+                current_contactor_error[i] =
+                    cb_proto_contactorN_is_enabled(&tmpctx, i) && cb_proto_contactorN_has_error(&tmpctx, i);
+
+                if (current_contactor_error[i] != previous_contactor_error[i]) {
+                    EVLOG_info << "on_contactor_error: " << i;
+                    this->on_contactor_error(name, cb_proto_contactorN_get_target_state(&tmpctx, i),
+                                             cb_proto_contactorN_is_closed(&tmpctx, i)
+                                                 ? types::cb_board_support::ContactorState::Closed
+                                                 : types::cb_board_support::ContactorState::Open);
+                }
+            }
+
+            // check for ESTOP errors
+            for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
+                current_estop_tripped[i] =
+                    cb_proto_estopN_is_enabled(&tmpctx, i) && cb_proto_estopN_is_tripped(&tmpctx, i);
+                if (current_estop_tripped[i] != previous_estop_tripped[i]) {
+                    EVLOG_info << "on_estop: " << i;
+                    this->on_estop(i, current_estop_tripped[i]);
+                    previous_estop_tripped[i] = current_estop_tripped[i];
+                }
+            }
+        }
+
+        EVLOG_info << "Notify Thread terminated";
+    });
+
+    // launch processing of received frames
+    this->rx_thread = std::thread([&]() {
+        // used to detect changes
+        uint64_t previous_charge_state = std::numeric_limits<uint64_t>::max();
+
+        EVLOG_info << "RX Thread started";
+
+        while (!this->termination_requested) {
+            enum cb_uart_com com;
+            uint64_t data;
+            bool notify = true;
+            size_t n;
+            int rv;
+
+            // in case we are holding the MCU (still) in reset, we can wait at least the startup
+            // delay before we should receive anything
+            if (this->is_mcu_reset_active) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(CB_PROTO_STARTUP_DELAY));
+                continue;
+            }
+
+            // in case rx path is still disabled we loop without sleeping
+            if (!this->rx_enabled)
+                continue;
+
+            // double check the file descriptor just to be sure
+            if (this->uart.fd == -1)
+                continue;
+
+            rv = cb_uart_recv(&this->uart, &com, &data);
+            if (rv) {
+                switch (errno) {
+                case EBADMSG:
+                    // error is already logged via library
+                    // usually this should not happen since we have a synchronized startup
+                    // via reset line, only CRC errors might happen, so for now: do nothing
+                    break;
+                case ETIMEDOUT:
+                    // this is not an error in case we are (still) holding the MCU in reset
+                    if (this->is_mcu_reset_active)
+                        continue;
+                    [[fallthrough]];
+                default:
+                    throw std::system_error(errno, std::generic_category(), "Failed to receive from safety controller");
+                }
+            }
+
+            // ignore all unknown COM values
+            if (this->is_unexpected_rx_com(com))
+                continue;
+
+            // map to the correct lock and condition variable for signaling
+            n = static_cast<std::size_t>(com);
+            std::scoped_lock lock(this->ctx_mutexes[n]);
+
+            switch (com) {
+            case cb_uart_com::COM_CHARGE_STATE:
+                this->ctx.charge_state = data;
+                // check if the previous value is different
+                notify = previous_charge_state != data;
+                previous_charge_state = data;
+                // on change -> put new value into queue for notify thread
+                if (notify) {
+                    std::scoped_lock notify_lock(this->notify_mutex);
+                    this->charge_state_changes.push(data);
+                    this->notify_cv.notify_one();
+                }
+                break;
+
+            case cb_uart_com::COM_PT1000_STATE:
+                this->ctx.pt1000 = data;
+                this->temperature_data_is_valid = true;
+                // note: notifying is not strictly needed here since the
+                // temperature interface polls in regular intervals by itself
+                // but it also does not hurt
+                break;
+
+            case cb_uart_com::COM_FW_VERSION:
+                this->ctx.fw_version = data;
+                cb_proto_set_fw_version_str(&this->ctx);
+                break;
+
+            case cb_uart_com::COM_GIT_HASH:
+                this->ctx.git_hash = data;
+                cb_proto_set_git_hash_str(&this->ctx);
+                break;
+
+            default:
+                /* not yet implemented */
+                ;
+            }
+
+            // awaken possible waiters
+            if (notify) {
+                this->rx_cv[n].notify_all();
+            }
+        }
+
+        EVLOG_info << "RX Thread terminated";
+    });
+
+    // start sending periodic frames (becomes effective when the flag is set later)
+    this->tx_thread = std::thread([&]() {
+        std::chrono::milliseconds interval(CB_PROTO_CHARGE_CONTROL_INTERVAL);
+        bool start_notified = false;
+        bool stop_notified = true;
+
+        EVLOG_info << "TX Thread started";
+
+        while (!this->termination_requested) {
+            if (this->tx_cc_enabled) {
+                this->send_charge_control();
+
+                if (!start_notified) {
+                    EVLOG_info << "Sending of Charge Control frames started";
+                    start_notified = true;
+                }
+                stop_notified = false;
+            } else {
+                start_notified = false;
+                if (!stop_notified) {
+                    EVLOG_info << "Sending of Charge Control frames stopped";
+                    stop_notified = true;
+                }
+            }
+
+            if (!this->termination_requested) {
+                std::this_thread::sleep_for(interval);
+            }
+        }
+
+        EVLOG_info << "TX Thread terminated";
+    });
 }
 
 CbChargeSOM::~CbChargeSOM() {
+    this->evse_enabled = false;
+    this->tx_cc_enabled = false;
+
+    if (this->notify_thread.joinable()) {
+        this->notify_thread.join();
+    }
+
     if (this->tx_thread.joinable()) {
         this->tx_thread.join();
     }
@@ -81,190 +324,43 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
                                 "Failed to flush input data on '" + this->serial_port + "'");
     }
 
-    // call the notification signals asynchronously to the frame receiving to avoid stalling
-    this->notify_thread = std::thread([&]() {
-        enum cp_state previous_cp_state = CP_STATE_UNKNOWN;
-        enum pp_state previous_pp_state = PP_STATE_MAX;
-        unsigned int previous_cp_errors = 0;
-        bool previous_contactor_error[CB_PROTO_MAX_CONTACTORS] = {};
-        bool previous_estop_tripped[CB_PROTO_MAX_ESTOPS] = {};
+    uart_trace(&this->uart, true);
+}
 
-        while (!this->termination_requested) {
-            // temporary helper variables for our access functions
-            struct safety_controller tmpctx;
-            enum pp_state current_pp_state;
-            enum cp_state current_cp_state;
-            unsigned int current_cp_errors;
-            bool current_contactor_error[CB_PROTO_MAX_CONTACTORS];
-            bool current_estop_tripped[CB_PROTO_MAX_ESTOPS];
-            unsigned int i;
+void CbChargeSOM::enable() {
+    // we can directly return it was already enabled
+    if (this->evse_enabled.exchange(true))
+        return;
 
-            // wait for changes
-            std::unique_lock<std::mutex> lock(this->notify_mutex);
-            this->notify_cv.wait(lock, [&]() { return !this->charge_state_changes.empty(); });
-
-            // remove from queue
-            tmpctx.charge_state = this->charge_state_changes.front();
-            this->charge_state_changes.pop();
-
-            // check for PP changes
-            current_pp_state = cb_proto_get_pp_state(&tmpctx);
-            if (current_pp_state != previous_pp_state) {
-                this->on_pp_change(current_pp_state);
-                previous_pp_state = current_pp_state;
-            }
-
-            // check for CP changes
-            current_cp_state = cb_proto_get_cp_state(&tmpctx);
-            if (current_cp_state != previous_cp_state) {
-                // the integer value representation of both enum classes are the same but we have to cast over int
-                unsigned int cp_state_as_number = static_cast<unsigned int>(current_cp_state);
-                types::cb_board_support::CPState new_cp_state =
-                    static_cast<types::cb_board_support::CPState>(cp_state_as_number);
-                this->on_cp_change(new_cp_state);
-                previous_cp_state = current_cp_state;
-            }
-
-            // check for CP related errors
-            current_cp_errors = cb_proto_get_cp_errors(&tmpctx);
-            if (current_cp_errors != previous_cp_errors) {
-                this->on_cp_error();
-                previous_cp_errors = current_cp_errors;
-            }
-
-            // forward contactor errors
-            for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-                std::string name = "Contactor " + std::to_string(i + 1);
-
-                current_contactor_error[i] =
-                    cb_proto_contactorN_is_enabled(&tmpctx, i) && cb_proto_contactorN_has_error(&tmpctx, i);
-
-                if (current_contactor_error[i] != previous_contactor_error[i]) {
-                    this->on_contactor_error(name, cb_proto_contactorN_get_target_state(&tmpctx, i),
-                                             cb_proto_contactorN_is_closed(&tmpctx, i)
-                                                 ? types::cb_board_support::ContactorState::Closed
-                                                 : types::cb_board_support::ContactorState::Open);
-                }
-            }
-
-            // check for ESTOP errors
-            for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
-                current_estop_tripped[i] =
-                    cb_proto_estopN_is_enabled(&tmpctx, i) && cb_proto_estopN_is_tripped(&tmpctx, i);
-                if (current_estop_tripped[i] != previous_estop_tripped[i]) {
-                    this->on_estop(i, current_estop_tripped[i]);
-                    previous_estop_tripped[i] = current_estop_tripped[i];
-                }
-            }
-        }
-    });
-
-    // launch processing of received frames
-    this->rx_thread = std::thread([&]() {
-        // used to detect changes
-        uint64_t previous_charge_state = std::numeric_limits<uint64_t>::max();
-
-        while (!this->termination_requested) {
-            enum cb_uart_com com;
-            uint64_t data;
-            bool notify = true;
-            size_t n;
-            int rv;
-
-            rv = cb_uart_recv(&this->uart, &com, &data);
-            if (rv) {
-                switch (errno) {
-                case EBADMSG:
-                    // error is already logged via library
-                    // usually this should not happen since we have a synchronized startup
-                    // via reset line, only CRC errors might happen, so for now: do nothing
-                    break;
-                default:
-                    throw std::system_error(errno, std::generic_category(), "Failed to receive from safety controller");
-                }
-            }
-
-            // ignore all unknown COM values
-            if (!this->is_valid_rx_com(com))
-                continue;
-
-            // map to the correct lock and condition variable for signaling
-            n = static_cast<std::size_t>(com);
-            std::scoped_lock lock(this->ctx_mutexes[n]);
-
-            switch (com) {
-            case cb_uart_com::COM_CHARGE_STATE:
-                this->ctx.charge_state = data;
-                // check if the previous value is different
-                notify = previous_charge_state != data;
-                previous_charge_state = data;
-                // on change -> put new value into queue for notify thread
-                if (notify) {
-                    std::scoped_lock notify_lock(this->notify_mutex);
-                    this->charge_state_changes.push(data);
-                    this->notify_cv.notify_one();
-                }
-                break;
-
-            case cb_uart_com::COM_PT1000_STATE:
-                this->ctx.pt1000 = data;
-                // note: notifying is not strictly needed here since the
-                // temperature interface polls in regular intervals by itself
-                // but it also does not hurt
-                break;
-
-            case cb_uart_com::COM_FW_VERSION:
-                this->ctx.fw_version = data;
-                cb_proto_set_fw_version_str(&this->ctx);
-                break;
-
-            case cb_uart_com::COM_GIT_HASH:
-                this->ctx.git_hash = data;
-                cb_proto_set_git_hash_str(&this->ctx);
-                break;
-
-            default:
-                /* not yet implemented */
-                ;
-            }
-
-            // awaken possible waiters
-            if (notify) {
-                this->rx_cv[n].notify_all();
-            }
-        }
-    });
+    // tell RX thread that we will receive frames soon
+    this->rx_enabled = true;
 
     // release reset to start safety controller
     this->set_mcu_reset(false);
 
-    // start sending periodic frames
-    this->tx_thread = std::thread([&]() {
-        std::chrono::milliseconds interval(CB_PROTO_CHARGE_CONTROL_INTERVAL);
+    // start sending of periodic Charge Control frames
+    this->tx_cc_enabled = true;
 
-        while (!this->termination_requested) {
-            this->send_charge_control();
-
-            if (!this->termination_requested) {
-                std::this_thread::sleep_for(interval);
-            }
+    if (this->fw_info.empty()) {
+        // query firmware version and Git hash
+        if (this->send_inquiry_and_wait(COM_FW_VERSION) or this->send_inquiry_and_wait(COM_GIT_HASH)) {
+            throw std::runtime_error("Could not determine safety controller firmware information.");
         }
-    });
 
-    // query firmware version and Git hash
-    if (this->send_inquiry_and_wait(COM_FW_VERSION) or this->send_inquiry_and_wait(COM_GIT_HASH)) {
-        throw std::runtime_error("Could not determined safety controller firmware information.");
+        this->fw_info = std::string(this->ctx.fw_version_str) + " (g" +
+                        this->ctx.git_hash_str + ", " +
+                        cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&this->ctx)) + ", " +
+                        cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ")";
+
+        // signal new value
+        this->on_fw_info(this->fw_info);
     }
-
-    this->fw_info = std::string(this->ctx.fw_version_str) + " (" +
-                    cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&this->ctx)) + ", " +
-                    cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ", " +
-                    this->ctx.git_hash_str + ")";
 }
 
 void CbChargeSOM::set_mcu_reset(bool active) {
     this->mcu_reset->set_value(this->mcu_reset->offsets()[0],
                                active ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
+    this->is_mcu_reset_active = active;
 
     // when releasing the reset, wait until safety controller is capable to handle UART frames again
     if (not active) {
@@ -295,15 +391,15 @@ void CbChargeSOM::send_charge_control() {
         throw std::system_error(errno, std::generic_category(), "Error while sending charge control frame");
 }
 
-bool CbChargeSOM::is_valid_rx_com(enum cb_uart_com com) {
+bool CbChargeSOM::is_unexpected_rx_com(enum cb_uart_com com) {
     switch (com) {
     case COM_CHARGE_STATE:
     case COM_PT1000_STATE:
     case COM_FW_VERSION:
     case COM_GIT_HASH:
-        return true;
-    default:
         return false;
+    default:
+        return true;
     }
 }
 
@@ -374,6 +470,7 @@ void CbChargeSOM::set_duty_cycle(unsigned int duty_cycle) {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
 
+    cb_proto_set_pwm_active(&this->ctx, true);
     cb_proto_set_duty_cycle(&this->ctx, duty_cycle);
 
     // but release it now so that sending can take the lock again

@@ -29,14 +29,21 @@ public:
     /// @brief Destructor.
     ~CbChargeSOM();
 
-    /// @brief Resets the safety controller, opens the given UART and establish initial
-    ///        communication with safety controller.
+    /// @brief Resets the safety controller and opens the given UART.
     /// @param reset_gpio_line_name The name of the GPIO line to reset the safety processor.
     /// @param reset_active_low Flag whether the reset line has active-low polarity.
     /// @param serial_port The name of the UART device to use for communication with the safety processor.
     /// @param is_pluggable Tells whether the safety processor needs to observe the proximity pilot.
     void init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
               bool is_pluggable);
+
+    /// @brief Releases the reset of the safety controller and establish communication,
+    ///        i.e. if not yet done, retrieve firmware version etc.
+    void enable();
+
+    /// @brief Signal used to inform when firmware information string was assembled
+    ///        The parameter contains the new content
+    sigslot::signal<const std::string&> on_fw_info;
 
     /// @brief Helper to indicate termination wish
     void terminate();
@@ -102,6 +109,9 @@ public:
     /// @brief Return the current contactor state (even when no contactor is configured)
     bool get_contactor_state();
 
+    /// @brief Remember whether the PT1000 State frame was received at least once.
+    bool temperature_data_is_valid {false};
+
     /// @brief Retrieves the number of supported temperature channels.
     /// @return The count of supported channels.
     unsigned int get_temperature_channels() const;
@@ -147,6 +157,15 @@ private:
     /// @brief Holds the assembled firmware information string.
     std::string fw_info;
 
+    /// @brief Remember whether EvseManager enabled this port.
+    std::atomic_bool evse_enabled {false};
+
+    /// @brief Flag to control sending of Charge Control messages
+    std::atomic_bool tx_cc_enabled {false};
+
+    /// @brief Flag whether we should expect frames from the safety controller.
+    std::atomic_bool rx_enabled {false};
+
     /// @brief Thread for periodic transmitting UART frames
     std::thread tx_thread;
 
@@ -181,11 +200,17 @@ private:
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};
 
+    /// @brief Helper to track the current MCU reset state
+    ///        Background: using the GPIO line itself is heavy load due to call into kernel etc.
+    ///                    and it is available only after the GPIO was requested. But we launch
+    ///                    some threads before.
+    bool is_mcu_reset_active {true};
+
     /// @brief Helper to toggle the reset pin
     void set_mcu_reset(bool active);
 
-    /// @brief Helper to determine whether the received COM field is valid.
-    bool is_valid_rx_com(enum cb_uart_com com);
+    /// @brief Helper to determine whether the received COM field is invalid (or better: not understood on our side).
+    bool is_unexpected_rx_com(enum cb_uart_com com);
 
     /// @brief Helper to send out the charge control frame
     void send_charge_control();

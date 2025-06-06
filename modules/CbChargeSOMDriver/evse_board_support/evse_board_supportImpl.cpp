@@ -174,6 +174,10 @@ void evse_board_supportImpl::ready() {
 
 void evse_board_supportImpl::handle_enable(bool& value) {
     try {
+        // enable UART frame processing
+        if (value)
+            this->mod->controller.enable();
+
         // generate state A or state F
         unsigned int new_duty_cycle = value ? 1000 : 0;
 

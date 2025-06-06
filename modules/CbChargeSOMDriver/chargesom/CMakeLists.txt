@@ -24,6 +24,7 @@ target_link_libraries(chargesom
     PRIVATE
         Pal::Sigslot
         nlohmann_json::nlohmann_json
+        everest::log
         utils::linux_hw
         ra-utils
         ${LIBGPIOD_LIBRARIES}
