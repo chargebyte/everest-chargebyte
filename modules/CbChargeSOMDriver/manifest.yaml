@@ -28,6 +28,14 @@ config:
       safety co-processor.
     type: string
     default: /dev/ttyLP2
+  serial_debug:
+    description: Enable debug messages in the communication library
+    type: boolean
+    default: false
+  serial_trace:
+    description: Enable debug output of the raw UART frames
+    type: boolean
+    default: false
   reset_gpio_line_name:
     description: >-
       The GPIO line name which is connected to the reset input of the

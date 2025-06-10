@@ -71,9 +71,14 @@ CbChargeSOM::CbChargeSOM() {
             current_pp_state = cb_proto_get_pp_state(&tmpctx);
             if (current_pp_state != previous_pp_state) {
                 if (previous_pp_state != PP_STATE_MAX) {
-                    EVLOG_info << "on_pp_change(" << cb_proto_pp_state_to_str(current_pp_state) << ")";
-                    this->on_pp_change(current_pp_state);
-                } {
+                    if (this->is_pluggable) {
+                        EVLOG_info << "on_pp_change(" << cb_proto_pp_state_to_str(current_pp_state) << ")";
+                        this->on_pp_change(current_pp_state);
+                    } else {
+                        EVLOG_info << "on_pp_change(" << cb_proto_pp_state_to_str(current_pp_state)
+                                   << ") [suppressed, fixed cable]";
+                    }
+                } else {
                     EVLOG_info << "on_pp_change(" << cb_proto_pp_state_to_str(current_pp_state) << ") [suppressed]";
                 }
                 previous_pp_state = current_pp_state;
@@ -245,13 +250,13 @@ CbChargeSOM::CbChargeSOM() {
 
         while (!this->termination_requested) {
             if (this->tx_cc_enabled) {
-                this->send_charge_control();
-
                 if (!start_notified) {
-                    EVLOG_info << "Sending of Charge Control frames started";
+                    EVLOG_info << "Starting sending of Charge Control frames";
                     start_notified = true;
                 }
                 stop_notified = false;
+
+                this->send_charge_control();
             } else {
                 start_notified = false;
                 if (!stop_notified) {
@@ -295,7 +300,7 @@ void CbChargeSOM::terminate() {
 }
 
 void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
-                       bool is_pluggable) {
+                       bool is_pluggable, bool serial_trace) {
     int rv;
 
     // remember these settings
@@ -324,7 +329,7 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
                                 "Failed to flush input data on '" + this->serial_port + "'");
     }
 
-    uart_trace(&this->uart, true);
+    uart_trace(&this->uart, serial_trace);
 }
 
 void CbChargeSOM::enable() {
@@ -347,8 +352,7 @@ void CbChargeSOM::enable() {
             throw std::runtime_error("Could not determine safety controller firmware information.");
         }
 
-        this->fw_info = std::string(this->ctx.fw_version_str) + " (g" +
-                        this->ctx.git_hash_str + ", " +
+        this->fw_info = std::string(this->ctx.fw_version_str) + " (g" + this->ctx.git_hash_str + ", " +
                         cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&this->ctx)) + ", " +
                         cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ")";
 
@@ -604,6 +608,13 @@ bool CbChargeSOM::is_temperature_valid(unsigned int channel) {
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return !(cb_proto_pt1000_get_errors(&this->ctx, channel) & PT1000_SELFTEST_FAILED);
+}
+
+unsigned int CbChargeSOM::get_temperature_errors(unsigned int channel) {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    return cb_proto_pt1000_get_errors(&this->ctx, channel);
 }
 
 const std::string& CbChargeSOM::get_fw_info() const {

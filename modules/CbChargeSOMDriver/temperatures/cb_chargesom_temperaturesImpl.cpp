@@ -25,13 +25,16 @@ void cb_chargesom_temperaturesImpl::ready() {
             if (this->mod->termination_requested)
                 break;
 
+            // this check whether we received temperature data at least once
             if (!this->mod->controller.temperature_data_is_valid)
                 continue;
 
             for (unsigned int i = 0; i < supported_channels; ++i) {
                 types::temperature::Temperature t;
+                unsigned int flags = this->mod->controller.get_temperature_errors(i);
 
-                if (!this->mod->controller.is_temperature_enabled(i) or !this->mod->controller.is_temperature_valid(i))
+                // skip this channel if not enabled at all
+                if (!this->mod->controller.is_temperature_enabled(i))
                     continue;
 
                 switch (i) {
@@ -52,6 +55,37 @@ void cb_chargesom_temperaturesImpl::ready() {
                 }
 
                 t.temperature = this->mod->controller.get_temperature(i);
+
+                if (flags & PT1000_CHARGING_STOPPED) {
+                    if (!this->chaging_abort_cause_reported[i]) {
+                        EVLOG_warning << t.identification.value() << " caused charging abort: " << std::fixed
+                                      << std::setprecision(1) << t.temperature << " °C";
+                        this->chaging_abort_cause_reported[i] = true;
+                    }
+                } else {
+                    // we can just reset the flag here since we don't want to
+                    // notify the user explicitly because the port was reset completely
+                    if (this->chaging_abort_cause_reported[i]) {
+                        EVLOG_warning << t.identification.value() << " charging abort flag reset";
+                        this->chaging_abort_cause_reported[i] = false;
+                    }
+                }
+
+                if (flags & PT1000_SELFTEST_FAILED) {
+                    if (!this->selftest_failed_reported[i]) {
+                        EVLOG_error << "Self-test for " << t.identification.value() << " failed.";
+                        this->selftest_failed_reported[i] = true;
+                    }
+                    // unsure whether the data is (still) valid at all, so don't forward it anymore
+                    continue;
+                } else {
+                    // we can just reset the flag here since we don't want to
+                    // notify the user explicitly because the port was reset completely
+                    if (this->selftest_failed_reported[i]) {
+                        EVLOG_warning << t.identification.value() << " selftest failed flag reset";
+                        this->selftest_failed_reported[i] = false;
+                    }
+                }
 
                 v.push_back(t);
             }

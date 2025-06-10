@@ -28,6 +28,8 @@ struct Conf {
     double min_current_A;
     double max_current_A;
     std::string serial_port;
+    bool serial_debug;
+    bool serial_trace;
     std::string reset_gpio_line_name;
     bool reset_active_low;
     std::string pt1000_1_identification;

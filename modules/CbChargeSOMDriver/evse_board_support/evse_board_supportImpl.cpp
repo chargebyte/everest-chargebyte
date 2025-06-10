@@ -107,7 +107,7 @@ void evse_board_supportImpl::init() {
 
         EVLOG_info << "CP state change from " << this->cp_current_state << " to " << current_cp_state << ", "
                    << "PWM: " << std::fixed << std::setprecision(1) << (this->mod->controller.get_duty_cycle() / 10.0)
-                   << "%)";
+                   << "%";
 
         // we can determine this directly from the currently seen value
         this->cp_errors.pilot_fault.is_active = current_cp_state == types::cb_board_support::CPState::PilotFault;

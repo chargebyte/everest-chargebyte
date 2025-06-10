@@ -34,8 +34,9 @@ public:
     /// @param reset_active_low Flag whether the reset line has active-low polarity.
     /// @param serial_port The name of the UART device to use for communication with the safety processor.
     /// @param is_pluggable Tells whether the safety processor needs to observe the proximity pilot.
+    /// @param serial_trace Enable debug traces in communication library if set to true.
     void init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
-              bool is_pluggable);
+              bool is_pluggable, bool serial_trace);
 
     /// @brief Releases the reset of the safety controller and establish communication,
     ///        i.e. if not yet done, retrieve firmware version etc.
@@ -123,6 +124,10 @@ public:
     /// @brief Returns whether the given temperature channel passed the internal selftest.
     /// @return True if the channel return valid measurements, false otherwise.
     bool is_temperature_valid(unsigned int channel);
+
+    /// @brief Returns the temperature channel error flags
+    /// @return The flags for this channel
+    unsigned int get_temperature_errors(unsigned int channel);
 
     /// @brief Retrieves the current temperature measured on a given channel.
     /// @param channel The channel number

@@ -24,7 +24,8 @@ struct Conf {};
 class cb_chargesom_temperaturesImpl : public cb_chargesom_temperaturesImplBase {
 public:
     cb_chargesom_temperaturesImpl() = delete;
-    cb_chargesom_temperaturesImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbChargeSOMDriver>& mod, Conf& config) :
+    cb_chargesom_temperaturesImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbChargeSOMDriver>& mod,
+                                  Conf& config) :
         cb_chargesom_temperaturesImplBase(ev, "temperatures"), mod(mod), config(config) {};
 
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
@@ -38,7 +39,6 @@ public:
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
 
 protected:
-
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
     // insert your protected definitions here
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
@@ -52,6 +52,12 @@ private:
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
     // insert your private definitions here
+
+    /// @brief Remember whether we already reported the failed selftest
+    bool selftest_failed_reported[CB_PROTO_MAX_PT1000S] = {};
+
+    /// @brief Remember whether we already reported that this channel caused charging abort
+    bool chaging_abort_cause_reported[CB_PROTO_MAX_PT1000S] = {};
 
     /// @brief Thread for periodic publishing
     std::thread publish_thread;
