@@ -92,7 +92,7 @@ namespace CPUtils {
     /// @brief Helper to raise errors
     template <typename T, std::size_t N>
     void process_everest_errors(T& obj, const std::array<std::reference_wrapper<everest_error>, N>& errors) {
-        // Interate over all errors and raise them if they are active, otherwise clear them if they are reported
+        // Iterate over all errors and raise them if they are active, otherwise clear them if they are reported
         for (const auto& error : errors) {
             auto& error_ref = error.get();
             if (error_ref.is_active && error_ref.is_reported == false) {

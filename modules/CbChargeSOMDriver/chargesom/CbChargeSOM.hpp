@@ -1,16 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
-#include <chrono>
+#include <atomic>
+#include <condition_variable>
+#include <queue>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
+#include <gpiod.hpp>
 #include <sigslot/signal.hpp>
 #include <generated/types/board_support_common.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include <uart.h>
-#include <cb_protocol.h>
+#include <ra-utils/uart.h>
+#include <ra-utils/cb_protocol.h>
 
 using namespace std::chrono_literals;
+
+///
+/// Various helper for debug messages
+///
+std::ostream& operator<<(std::ostream& os, enum cp_state state);
+std::ostream& operator<<(std::ostream& os, enum pp_state state);
+std::ostream& operator<<(std::ostream& os, enum contactor_state state);
+std::ostream& operator<<(std::ostream& os, enum estop_state state);
 
 ///
 /// A class for abstracting the safety processor UART interface on Charge SOM platform.
@@ -24,86 +37,207 @@ public:
     /// @brief Destructor.
     ~CbChargeSOM();
 
-    /// @brief Open the given UART and establish initial communication with safety controller.
+    /// @brief Resets the safety controller and opens the given UART.
+    /// @param reset_gpio_line_name The name of the GPIO line to reset the safety processor.
+    /// @param reset_active_low Flag whether the reset line has active-low polarity.
     /// @param serial_port The name of the UART device to use for communication with the safety processor.
     /// @param is_pluggable Tells whether the safety processor needs to observe the proximity pilot.
-    void init(const std::string& serial_port, bool is_pluggable);
+    /// @param serial_trace Enable debug traces in communication library if set to true.
+    void init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
+              bool is_pluggable, bool serial_trace);
 
-    // @brief Return the value of recovery_delay.
-    std::chrono::milliseconds get_recovery_delay_ms();
+    /// @brief Releases the reset of the safety controller and establish communication,
+    ///        i.e. if not yet done, retrieve firmware version etc.
+    void enable();
 
-    /// @brief Read the current Control Pilot voltage values, i.e. both signal sides.
-    /// @param positive_value Reference which will be updated with the current value of the positive side (in mV).
-    /// @param negative_value Reference which will be updated with the current value of the negative side (in mV).
-    void cp_get_values(int& positive_value, int& negative_value);
+    /// @brief Stop communication with safety controller and force the controller into reset.
+    void disable();
 
-    /// @brief Helper to map a measured voltage to a CP state (takes hysteresis into account)
-    types::cb_board_support::CPState cp_voltage_to_state(int voltage,
-                                                         types::cb_board_support::CPState previous_state) const;
+    /// @brief Helper to indicate termination wish
+    void terminate();
 
-    /// @brief Get the current duty cycle in percent.
-    /// @return The current duty cycle.
-    double cp_get_duty_cycle() const;
+    /// @brief Resets the safety controller.
+    void reset();
+
+    /// @brief Helper to map the internal PP enum to the EVerest type system.
+    ///        A 'std::runtime_error` is raised in case the mappig fails, e.g.
+    ///        when Type 1 related states are found.
+    /// @return A cable current rating using `types::board_support_common::Ampacity`
+    types::board_support_common::Ampacity pp_state_to_ampacity(enum pp_state pp_state);
+
+    /// @brief Reads the current (cached) cable rating from the safety controller.
+    ///        It uses `pp_state_to_ampacity`, in other words it raises an exception
+    ///        in case the value cannot be mapped.
+    /// @return A cable current rating using `types::board_support_common::Ampacity`
+    types::board_support_common::Ampacity get_ampacity();
+
+    /// @brief Signal used to inform about PP state changes.
+    ///        The parameter contains the new PP state.
+    sigslot::signal<const enum pp_state&> on_pp_change;
+
+    /// @brief Signal used to inform about CP state changes.
+    ///        The parameter is the new CP state.
+    sigslot::signal<const types::cb_board_support::CPState&> on_cp_change;
+
+    /// @brief Signal used to inform about various errors, e.g. CP Short Circuits,
+    ///        Diode Faults and contactor errors.
+    ///        Callee is expected to check in detail.
+    sigslot::signal<> on_cp_error;
+
+    /// @brief Signal used to inform about a charging stop caused by ESTOP signal.
+    ///        The first parameter is the number of the ESTOP signal which changed,
+    ///        the second parameter tells whether the signal is active.
+    sigslot::signal<const unsigned int&, const bool&> on_estop;
+
+    /// @brief Signal used to inform about errors during contactor switching.
+    ///        First parameter is the name of the contactor, second parameter is intended state
+    ///        and third parameter is actual state.
+    sigslot::signal<const std::string&, bool, types::cb_board_support::ContactorState> on_contactor_error;
+
+    /// @brief Return whether the safety controller detected an emergency state.
+    bool is_emergency();
 
     /// @brief Set a new duty cycle.
-    /// @param duty_cycle The desired duty cycle in percent.
-    void cp_set_duty_cycle(double duty_cycle);
+    /// @param duty_cycle The desired duty cycle in percent [0.1 %].
+    void set_duty_cycle(unsigned int duty_cycle);
 
-    /// @brief Check whether the current duty cycle is nominal.
-    /// @return True when configured duty cycle is >0 and <100% (nominal duty cycle),
-    ///         false otherwise.
-    bool cp_is_nominal_duty_cycle() const;
+    /// @brief Get the current/actual duty cycle in [0.1 %].
+    unsigned int get_duty_cycle();
 
-    /// @brief Check whether the PWM output is actively driven.
-    /// @return True when a signal is driven, false otherwise.
-    bool cp_is_enabled();
+    /// @brief Get the current state of the diode fault signal
+    bool get_diode_fault();
 
-    /// @brief Disable the pin output. This drives 100% for a short time to ensure a
-    ///        deterministic falling edge on the signal. Then the PWM is disabled.
-    void cp_disable();
+    /// @brief Get the current state of the CP short circuit signal
+    bool get_cp_short_circuit();
 
-    /// @brief Reads the current (cached) cable rating from safety controller.
-    ///        Throws a `std::underflow_error`exception in case the ADC reading is out of
-    ///        the expected range and cannot be mapped to a result value.
-    /// @param[out] voltage The physically measured voltage at the ADC input pin in mV
-    /// @return A cable current rating using enum types::board_support_common::Ampacity
-    types::board_support_common::Ampacity get_ampacity(int& voltage);
+    /// @brief Closes the contactor (on = true), or opens it (on = false):
+    ///        This is a synchronous call, i.e. it waits until it is confirmed
+    ///        by feedback signal (if used).
+    /// @return True on success, false on error.
+    bool switch_state(bool on);
 
-    /// @brief Allows the contactor to close or open it.
-    /// @param allow_power_on True allows the contactor to close, false opens the contactor.
-    void set_allow_power_on(bool allow_power_on);
+    /// @brief Return the current contactor state (even when no contactor is configured)
+    bool get_contactor_state();
 
-    /// @brief Performs a full communication exchange with the safety controller, i.e.
-    ///        all values are read back and our desired values are communicated to it.
-    ///        In case of error, it throws a `std::system_error` with the encountered errno.
-    ///        This high-level/public function ensures that `sc_mutex` is hold.
-    void sync();
+    /// @brief Remember whether the PT1000 State frame was received at least once.
+    bool temperature_data_is_valid {false};
 
-    /// @brief Signal used to inform about changed PP state.
-    sigslot::signal<> signal_pp_state_change;
+    /// @brief Retrieves the number of supported temperature channels.
+    /// @return The count of supported channels.
+    unsigned int get_temperature_channels() const;
 
-    /// @brief Signal used to inform about changed CP state.
-    sigslot::signal<> signal_cp_state_change;
+    /// @brief Returns whether the given temperature channel is enabled or not.
+    /// @return True if the channel is enabled, false otherwise.
+    bool is_temperature_enabled(unsigned int channel);
+
+    /// @brief Returns whether the given temperature channel passed the internal selftest.
+    /// @return True if the channel return valid measurements, false otherwise.
+    bool is_temperature_valid(unsigned int channel);
+
+    /// @brief Returns the temperature channel error flags
+    /// @return The flags for this channel
+    unsigned int get_temperature_errors(unsigned int channel);
+
+    /// @brief Retrieves the current temperature measured on a given channel.
+    /// @param channel The channel number
+    /// @return The temperature in °C
+    float get_temperature(unsigned int channel);
+
+    /// @brief Return a firmware information string, i.e. version, application type, git hash...
+    ///        The return value is filled once the communication with the safety controller is
+    ///        was started, but not before.
+    /// @return A string with the mentioned information.
+    const std::string& get_fw_info() const;
 
 private:
-    /// @brief The context for libcbuart to operate on.
-    struct safety_ctx ctx;
-
-    /// @brief Mutex to protect access to `ctx.data'.
-    ///        Note: It is expected that `ctx.data` is always kept in sync with the safety controller, so this mutex must also
-    ///              be held, when UART communication is done.
-    std::mutex ctx_mutex;
-
     /// @brief Remember whether the system is with fixed cable or not.
     bool is_pluggable {false};
 
-    /// @brief The recovery delay is an enforced time after an error occurred,
-    ///        which is given to the safety controller without any attempt of UART communication.
-    std::chrono::milliseconds recovery_delay_ms {100ms};
+    /// @brief Remembers the serial port device name
+    std::string serial_port;
 
-    /// @brief Performs a full communication exchange with the safety controller, i.e.
-    ///        all values are read back and our desired values are communicated to it.
-    ///        In case of error, it throws a `std::system_error` with the encountered errno.
-    ///        This is the low-level function which assumes that `ctx_mutex` is already held by caller.
-    void sync_with_hw();
+    /// @brief The UART context for libcbuart.
+    struct uart_ctx uart;
+
+    /// @brief The safety controller state context.
+    struct safety_controller ctx;
+
+    /// @brief The GPIO handle of the reset line for the safety controller.
+    std::unique_ptr<gpiod::line_request> mcu_reset;
+
+    /// @brief Time to hold the reset line active when resetting the safety controller.
+    std::chrono::milliseconds mcu_reset_duration {5ms};
+
+    /// @brief Holds the assembled firmware information string.
+    std::string fw_info;
+
+    /// @brief Remember whether EvseManager enabled this port.
+    std::atomic_bool evse_enabled {false};
+
+    /// @brief Flag to control sending of Charge Control messages
+    std::atomic_bool tx_cc_enabled {false};
+
+    /// @brief Flag whether we should expect frames from the safety controller.
+    std::atomic_bool rx_enabled {false};
+
+    /// @brief Thread for periodic transmitting UART frames
+    std::thread tx_thread;
+
+    /// @brief Prevents parallel sending of UART messages
+    std::mutex tx_mutex;
+
+    /// @brief Thread for receiving UART frames
+    std::thread rx_thread;
+
+    /// @brief Thread for processing notifications to higher layers.
+    std::thread notify_thread;
+
+    /// @brief Mutex to protect access to the `charge_state_changes` queue.
+    std::mutex notify_mutex;
+
+    /// @brief Condition variables used to wait for updates on `charge_state_changes`
+    std::condition_variable notify_cv;
+
+    /// @brief Queue used to serialize changes of Charge State frame for notifying
+    std::queue<uint64_t> charge_state_changes;
+
+    /// @brief Mutex to ensure that only one inquiry request is in-flight at the same time
+    std::mutex inquiry_mutex;
+
+    /// @brief Condition variables used to wait for a specific UART frame and/or update to the field in `ctx`
+    std::vector<std::condition_variable> rx_cv =
+        std::vector<std::condition_variable>(static_cast<std::size_t>(cb_uart_com::COM_MAX));
+
+    /// @brief Used to protect the access to the individual data fields in `ctx`.
+    std::vector<std::mutex> ctx_mutexes = std::vector<std::mutex>(static_cast<std::size_t>(cb_uart_com::COM_MAX));
+
+    /// @brief Helper to signal thread termination wish
+    std::atomic_bool termination_requested {false};
+
+    /// @brief Helper to track the current MCU reset state
+    ///        Background: using the GPIO line itself is heavy load due to call into kernel etc.
+    ///                    and it is available only after the GPIO was requested. But we launch
+    ///                    some threads before.
+    bool is_mcu_reset_active {true};
+
+    /// @brief Helper to toggle the reset pin
+    void set_mcu_reset(bool active);
+
+    /// @brief Helper to determine whether the received COM field is invalid (or better: not understood on our side).
+    bool is_unexpected_rx_com(enum cb_uart_com com);
+
+    /// @brief Helper to send out the charge control frame
+    void send_charge_control();
+
+    /// @brief Helper to request the given frame from safety controller
+    void send_inquiry(enum cb_uart_com com);
+
+    /// @brief Helper to request the given frame from safety controller
+    ///        and to wait until the response was received.
+    /// @return True, in case there was no response within a given timeout;
+    ///         false otherwise.
+    bool send_inquiry_and_wait(enum cb_uart_com com);
+
+    /// @brief Internal helper to determine the current contactor state.
+    bool get_contactor_state_no_lock();
 };

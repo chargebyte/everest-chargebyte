@@ -1,36 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
-#include <cerrno>
-#include <chrono>
 #include <cstdarg>
-#include <cstdio>
 #include <system_error>
-#include <thread>
-#include <libcbuart/logging.h>
+#include <ra-utils/logging.h>
 #include "CbChargeSOMDriver.hpp"
 #include "configuration.h"
 
 using namespace std::chrono_literals;
 
-// provide wrappers for libcbuart which add a tiny prefix and then passes on to EVerest logging
-static void libcbuart_log(bool debug, const char *format, va_list args) {
+static bool enable_ra_utils_debug_msg;
+
+// provide wrappers for libra-utils which add a tiny prefix and then passes on to EVerest logging
+static void ra_utils_log(bool debug, const char* format, va_list args) {
     char msg[255];
 
     vsnprintf(msg, sizeof(msg), format, args);
 
     if (debug) {
-        EVLOG_debug << "libcbuart: " << msg;
+        EVLOG_debug << msg;
     } else {
-        EVLOG_error << "libcbuart: " << msg;
+        EVLOG_error << msg;
     }
 }
 
-void libcbuart_debug_cb(const char *format, va_list args) {
-    libcbuart_log(true, format, args);
+void ra_utils_debug_cb(const char* format, va_list args) {
+    if (enable_ra_utils_debug_msg) {
+        ra_utils_log(true, format, args);
+    }
 }
 
-void libcbuart_error_cb(const char *format, va_list args) {
-    libcbuart_log(false, format, args);
+void ra_utils_error_cb(const char* format, va_list args) {
+    ra_utils_log(false, format, args);
 }
 
 namespace module {
@@ -41,34 +41,26 @@ void CbChargeSOMDriver::init() {
     bool is_pluggable = connector_type == types::evse_board_support::Connector_type::IEC62196Type2Socket;
 
     // register debug and error message callback functions
-    libcbuart_set_error_msg_cb(libcbuart_error_cb);
-    libcbuart_set_debug_msg_cb(libcbuart_debug_cb);
+    ra_utils_set_debug_msg_cb(ra_utils_debug_cb);
+    ra_utils_set_error_msg_cb(ra_utils_error_cb);
+    enable_ra_utils_debug_msg = this->config.serial_debug;
+
+    EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
 
     // instantiate UART controller object for communication with safety controller
-    this->controller.init(this->config.serial_port, is_pluggable);
+    this->controller.init(this->config.reset_gpio_line_name, this->config.reset_active_low, this->config.serial_port,
+                          is_pluggable, this->config.serial_trace);
+
+    EVLOG_info << "Safety Controller Firmware: " << this->controller.get_fw_info();
 
     // initialize the interfaces now
     invoke_init(*p_evse_board_support);
-
-    EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
+    invoke_init(*p_temperatures);
 }
 
 void CbChargeSOMDriver::ready() {
     invoke_ready(*p_evse_board_support);
-
-    while (!this->termination_requested) {
-        try {
-            this->controller.sync();
-        } catch (std::system_error& e) {
-            EVLOG_error << e.what();
-            // give the safety controller the chance to recover
-            std::this_thread::sleep_for(this->controller.get_recovery_delay_ms());
-        }
-
-        // FIXME this should be removed since we want to query the safety controller
-        //       as fast as possible and the usage of the recovery delay is confusing
-        std::this_thread::sleep_for(this->controller.get_recovery_delay_ms());
-    }
+    invoke_ready(*p_temperatures);
 }
 
 } // namespace module
