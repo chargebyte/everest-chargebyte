@@ -13,11 +13,12 @@ This repository includes the following modules:
 ## Compatibility matrix
 | Tag    | EVerest release              |
 |--------|------------------------------|
-| 0.21.0 | 2024.9.0 or newer[^or_newer] |
-| 0.20.0 | 2024.9.0 or newer[^or_newer] |
-| 0.19.0 | 2024.9.0 or newer[^or_newer] |
-| 0.18.0 | 2024.9.0 or newer[^or_newer] |
-| 0.17.0 | 2024.9.0 or newer[^or_newer] |
+| 0.22.0 | 2025.1.0 or newer[^or_newer] |
+| 0.21.0 | 2024.9.0 <br> 2025.1.0       |
+| 0.20.0 | 2024.9.0 <br> 2025.1.0       |
+| 0.19.0 | 2024.9.0 <br> 2025.1.0       |
+| 0.18.0 | 2024.9.0 <br> 2025.1.0       |
+| 0.17.0 | 2024.9.0 <br> 2025.1.0       |
 | 0.16.0 | 2024.8.0                     |
 | 0.15.0 | 2024.8.0                     |
 | 0.14.0 | 2024.7.1 <br> 2024.7.0       |

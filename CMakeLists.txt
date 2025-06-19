@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14.7)
 
-project(everest-chargebyte VERSION 0.21.0
+project(everest-chargebyte
+    VERSION 0.22.0
     DESCRIPTION "chargebyte's Hardware EVerest Modules"
     LANGUAGES C CXX)
 
