@@ -361,9 +361,6 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
 
     uart_trace(&this->uart, serial_trace);
 
-    // tell RX thread that we will receive frames soon
-    this->rx_enabled = true;
-
     // release reset to start safety controller
     this->set_mcu_reset(false);
 
@@ -378,12 +375,13 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
 }
 
 void CbChargeSOM::enable() {
+    // we hold the inquiry mutex here to ensure that nobody can switch
+    // RX path enable in parallel
+    std::scoped_lock inquiry_lock(this->inquiry_mutex);
+
     // we can directly return it was already enabled
     if (this->evse_enabled.exchange(true))
         return;
-
-    // tell RX thread that we will receive frames soon
-    this->rx_enabled = true;
 
     // release reset to start safety controller
     this->set_mcu_reset(false);
@@ -391,9 +389,15 @@ void CbChargeSOM::enable() {
     // start sending of periodic Charge Control frames
     this->tx_cc_enabled = true;
 
+    // tell RX thread that we will receive frames now
+    this->rx_enabled = true;
 }
 
 void CbChargeSOM::disable() {
+    // we hold the inquiry mutex here to ensure that nobody can switch
+    // RX path enable in parallel
+    std::scoped_lock inquiry_lock(this->inquiry_mutex);
+
     // we can directly return it was already disabled
     if (!this->evse_enabled.exchange(false))
         return;
@@ -472,6 +476,8 @@ void CbChargeSOM::send_inquiry(enum cb_uart_com com) {
 
 bool CbChargeSOM::send_inquiry_and_wait(enum cb_uart_com com) {
     size_t n = static_cast<std::size_t>(com);
+    bool old_rx_enabled;
+    bool rv;
 
     // ensure that only one inquiry is running
     std::scoped_lock inquiry_lock(this->inquiry_mutex);
@@ -482,8 +488,17 @@ bool CbChargeSOM::send_inquiry_and_wait(enum cb_uart_com com) {
 
     this->send_inquiry(com);
 
+    // enable RX path
+    old_rx_enabled = this->rx_enabled.exchange(true);
+
     // we should received a response at least within 1s
-    return this->rx_cv[n].wait_for(lock, 1s) == std::cv_status::timeout;
+    rv = this->rx_cv[n].wait_for(lock, 1s) == std::cv_status::timeout;
+
+    // in case RX path was disabled, disable it again
+    if (!old_rx_enabled)
+        this->rx_enabled.exchange(old_rx_enabled);
+
+    return rv;
 }
 
 types::board_support_common::Ampacity CbChargeSOM::pp_state_to_ampacity(enum pp_state pp_state) {
