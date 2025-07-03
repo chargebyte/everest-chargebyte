@@ -375,6 +375,8 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
 }
 
 void CbChargeSOM::enable() {
+    EVLOG_debug << "request to enable the EVSE";
+
     // we hold the inquiry mutex here to ensure that nobody can switch
     // RX path enable in parallel
     std::scoped_lock inquiry_lock(this->inquiry_mutex);
@@ -394,6 +396,8 @@ void CbChargeSOM::enable() {
 }
 
 void CbChargeSOM::disable() {
+    EVLOG_debug << "request to disable the EVSE";
+
     // we hold the inquiry mutex here to ensure that nobody can switch
     // RX path enable in parallel
     std::scoped_lock inquiry_lock(this->inquiry_mutex);
@@ -427,6 +431,8 @@ void CbChargeSOM::set_mcu_reset(bool active) {
     if (not active) {
         std::this_thread::sleep_for(std::chrono::milliseconds(CB_PROTO_STARTUP_DELAY));
     }
+
+    EVLOG_debug << "MCU reset line is now " << (active ? "ACTIVE" : "INACTIVE");
 }
 
 void CbChargeSOM::reset() {
