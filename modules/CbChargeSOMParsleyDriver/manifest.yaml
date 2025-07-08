@@ -1,0 +1,81 @@
+description: Hardware abstraction layer for chargebyte's Charge SOM
+config:
+  connector_type:
+    description: Type of charging connector available at this EVSE
+    type: string
+    enum:
+      - IEC62196Type2Cable
+      - IEC62196Type2Socket
+    default: IEC62196Type2Cable
+  min_current_A:
+    description: >-
+      The minimum current in ampere which can be imported/exported. The default value
+      of 6 A corresponds to the lowest value which is technically possible to signal
+      by the IEC 61851 standard via PWM.
+    type: number
+    default: 6
+  max_current_A:
+    description: >-
+      The maximum current in ampere which can be imported/exported. Here too,
+      the default corresponds to the maximum value which is possible to signal
+      with the IEC 61851 standard. The value should be adjusted if there is no
+      other limitating value/instance which represents the physical charger limits.
+    type: number
+    default: 80
+  serial_port:
+    description: >-
+      Device name of the serial port to use for communication with the
+      safety co-processor.
+    type: string
+    default: /dev/ttyLP2
+  serial_debug:
+    description: Enable debug messages in the communication library
+    type: boolean
+    default: false
+  serial_trace:
+    description: Enable debug output of the raw UART frames
+    type: boolean
+    default: false
+  reset_gpio_line_name:
+    description: >-
+      The GPIO line name which is connected to the reset input of the
+      safety co-processor.
+    type: string
+    default: nSAFETY_RESET_INT
+  reset_active_low:
+    description: The polarity of the reset GPIO line (active low = true, active high = false)
+    type: boolean
+    default: true
+  pt1000_1_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: PT1000-1
+  pt1000_2_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: PT1000-2
+  pt1000_3_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: PT1000-3
+  pt1000_4_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: PT1000-4
+provides:
+  evse_board_support:
+    description: >-
+      Provide the board support driver for the Charge SOM platform, e.g., control pilot
+      monitoring and controlling, contactor switching and similar.
+    interface: evse_board_support
+  temperatures:
+    description: Temperature readings as measured by the safety controller
+    interface: cb_chargesom_temperatures
+  mcs:
+    description: >-
+      Provide the Megawatt charging feature
+    interface: cb_chargesom_mcs
+metadata:
+  license: https://spdx.org/licenses/Apache-2.0.html
+  authors:
+    - chargebyte GmbH

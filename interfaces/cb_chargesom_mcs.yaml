@@ -1,0 +1,11 @@
+description: Interface for MCS support by chargebyte's Charge SOM platform
+cmds:
+  mcs_hlc_enable:
+    description: >-
+      Triggers state change from B0 to B in Megawatt charging
+    arguments:
+      value:
+        description: True switchs state from B0 to B
+        type: boolean
+errors:
+  - reference: /errors/generic
