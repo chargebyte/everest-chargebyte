@@ -28,23 +28,22 @@ std::ostream& operator<<(std::ostream& os, enum estop_state state);
 ///
 /// A class for abstracting the safety processor UART interface on Charge SOM platform.
 ///
-class CbChargeSOM {
+class CbParsley {
 
 public:
     /// @brief Default constructor.
-    CbChargeSOM();
+    CbParsley();
 
     /// @brief Destructor.
-    ~CbChargeSOM();
+    ~CbParsley();
 
     /// @brief Resets the safety controller and opens the given UART.
     /// @param reset_gpio_line_name The name of the GPIO line to reset the safety processor.
     /// @param reset_active_low Flag whether the reset line has active-low polarity.
     /// @param serial_port The name of the UART device to use for communication with the safety processor.
-    /// @param is_pluggable Tells whether the safety processor needs to observe the proximity pilot.
     /// @param serial_trace Enable debug traces in communication library if set to true.
     void init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
-              bool is_pluggable, bool serial_trace, bool mcs_hlc_enable);
+              bool serial_trace);
 
     /// @brief Releases the reset of the safety controller and establish communication,
     ///        i.e. if not yet done, retrieve firmware version etc.
@@ -58,6 +57,9 @@ public:
 
     /// @brief Resets the safety controller.
     void reset();
+
+    /// @brief Allow switching from B0 to B
+    void set_mcs_hlc_enable(bool enable);
 
     /// @brief Helper to map the internal PP enum to the EVerest type system.
     ///        A 'std::runtime_error` is raised in case the mappig fails, e.g.
@@ -148,8 +150,6 @@ public:
     ///        was started, but not before.
     /// @return A string with the mentioned information.
     const std::string& get_fw_info() const;
-
-    void set_mcs_hlc_enable(bool value);
 
 private:
     /// @brief Remember whether the system is with fixed cable or not.
@@ -242,6 +242,4 @@ private:
 
     /// @brief Internal helper to determine the current contactor state.
     bool get_contactor_state_no_lock();
-
-    std::atomic_bool mcs_hlc_enable {false};
 };

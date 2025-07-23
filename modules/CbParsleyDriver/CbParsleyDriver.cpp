@@ -3,7 +3,7 @@
 #include <cstdarg>
 #include <system_error>
 #include <ra-utils/logging.h>
-#include "CbChargeSOMParsleyDriver.hpp"
+#include "CbParsleyDriver.hpp"
 #include "configuration.h"
 
 using namespace std::chrono_literals;
@@ -35,11 +35,7 @@ void ra_utils_error_cb(const char* format, va_list args) {
 
 namespace module {
 
-void CbChargeSOMParsleyDriver::init() {
-    types::evse_board_support::Connector_type connector_type =
-        types::evse_board_support::string_to_connector_type(this->config.connector_type);
-    bool is_pluggable = connector_type == types::evse_board_support::Connector_type::IEC62196Type2Socket;
-
+void CbParsleyDriver::init() {
     // register debug and error message callback functions
     ra_utils_set_debug_msg_cb(ra_utils_debug_cb);
     ra_utils_set_error_msg_cb(ra_utils_error_cb);
@@ -49,7 +45,7 @@ void CbChargeSOMParsleyDriver::init() {
 
     // instantiate UART controller object for communication with safety controller
     this->controller.init(this->config.reset_gpio_line_name, this->config.reset_active_low, this->config.serial_port,
-                          is_pluggable, this->config.serial_trace);
+                          this->config.serial_trace);
 
     EVLOG_info << "Safety Controller Firmware: " << this->controller.get_fw_info();
 
@@ -58,7 +54,7 @@ void CbChargeSOMParsleyDriver::init() {
     invoke_init(*p_temperatures);
 }
 
-void CbChargeSOMParsleyDriver::ready() {
+void CbParsleyDriver::ready() {
     invoke_ready(*p_evse_board_support);
     invoke_ready(*p_temperatures);
 }

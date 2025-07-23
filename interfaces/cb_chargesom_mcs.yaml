@@ -1,4 +1,4 @@
-description: Interface for MCS support by chargebyte's Charge SOM platform
+description: Interface for MCS support related functionality
 cmds:
   mcs_hlc_enable:
     description: >-

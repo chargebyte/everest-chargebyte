@@ -13,9 +13,9 @@ ev_setup_cpp_module()
 find_package(PalSigslot REQUIRED)
 find_package(ra-utils REQUIRED)
 
-add_subdirectory("chargesom")
+add_subdirectory("parsley")
 
-set(MODULE_DESCRIPTION "chargebyte's Charge SOM EVerest module")
+set(MODULE_DESCRIPTION "chargebyte's Charge Control Y BSP module")
 set(MODULE_VERSION ${PROJECT_VERSION})
 
 # make CMake project variables usable in source code
@@ -27,7 +27,7 @@ configure_file(VERSION.in VERSION @ONLY)
 target_link_libraries(${MODULE_NAME}
     PRIVATE
         utils::cp
-        chargesom
+        parsley
         Pal::Sigslot
         nlohmann_json::nlohmann_json
 )
@@ -38,7 +38,7 @@ target_include_directories(${MODULE_NAME}
     PRIVATE
         ${CMAKE_CURRENT_BINARY_DIR}
         ${CP_INCLUDE_DIR}
-        ${CHARGESOM_INCLUDE_DIR}
+        ${PARSLEY_INCLUDE_DIR}
 )
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
 
@@ -46,6 +46,7 @@ target_sources(${MODULE_NAME}
     PRIVATE
         "evse_board_support/evse_board_supportImpl.cpp"
         "temperatures/cb_chargesom_temperaturesImpl.cpp"
+        "mcs/cb_chargesom_mcsImpl.cpp"
 )
 
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1

@@ -1,27 +1,5 @@
-description: Hardware abstraction layer for chargebyte's Charge SOM
+description: Hardware abstraction layer for chargebyte's Charge Control Y
 config:
-  connector_type:
-    description: Type of charging connector available at this EVSE
-    type: string
-    enum:
-      - IEC62196Type2Cable
-      - IEC62196Type2Socket
-    default: IEC62196Type2Cable
-  min_current_A:
-    description: >-
-      The minimum current in ampere which can be imported/exported. The default value
-      of 6 A corresponds to the lowest value which is technically possible to signal
-      by the IEC 61851 standard via PWM.
-    type: number
-    default: 6
-  max_current_A:
-    description: >-
-      The maximum current in ampere which can be imported/exported. Here too,
-      the default corresponds to the maximum value which is possible to signal
-      with the IEC 61851 standard. The value should be adjusted if there is no
-      other limitating value/instance which represents the physical charger limits.
-    type: number
-    default: 80
   serial_port:
     description: >-
       Device name of the serial port to use for communication with the
@@ -65,15 +43,14 @@ config:
 provides:
   evse_board_support:
     description: >-
-      Provide the board support driver for the Charge SOM platform, e.g., control pilot
-      monitoring and controlling, contactor switching and similar.
+      Provide the board support driver for the Charge Control Y platform, e.g.,
+      ID monitoring, CE controlling and similar.
     interface: evse_board_support
   temperatures:
     description: Temperature readings as measured by the safety controller
     interface: cb_chargesom_temperatures
   mcs:
-    description: >-
-      Provide the Megawatt charging feature
+    description: Provide the Megawatt Charging Service related features
     interface: cb_chargesom_mcs
 metadata:
   license: https://spdx.org/licenses/Apache-2.0.html

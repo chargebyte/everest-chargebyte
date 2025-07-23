@@ -20,7 +20,7 @@
 #include <ra-utils/cb_protocol.h>
 #include <gpiodUtils.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include "CbChargeSOM.hpp"
+#include "CbParsley.hpp"
 #include <everest/logging.hpp>
 
 using namespace std::chrono_literals;
@@ -41,7 +41,7 @@ std::ostream& operator<<(std::ostream& os, enum estop_state state) {
     return os << cb_proto_estop_state_to_str(state);
 }
 
-CbChargeSOM::CbChargeSOM() {
+CbParsley::CbParsley() {
     // clear the context structs before usage
     memset(&this->uart, 0, sizeof(this->uart));
     memset(&this->ctx, 0, sizeof(this->ctx));
@@ -148,7 +148,8 @@ CbChargeSOM::CbChargeSOM() {
             current_cp_state = cb_proto_get_cp_state(&tmpctx);
             if (current_cp_state != previous_cp_state) {
                 // the integer value representation of both enum classes are the same
-                types::cb_board_support::CPState new_cp_state = static_cast<types::cb_board_support::CPState>(current_cp_state);
+                types::cb_board_support::CPState new_cp_state =
+                    static_cast<types::cb_board_support::CPState>(current_cp_state);
 
                 if (previous_cp_state != CP_STATE_MAX) {
                     EVLOG_debug << "on_cp_change(" << previous_cp_state << " → " << current_cp_state << ")";
@@ -303,7 +304,7 @@ CbChargeSOM::CbChargeSOM() {
     });
 }
 
-CbChargeSOM::~CbChargeSOM() {
+CbParsley::~CbParsley() {
     this->evse_enabled = false;
     this->tx_cc_enabled = false;
 
@@ -324,22 +325,21 @@ CbChargeSOM::~CbChargeSOM() {
     }
 }
 
-void CbChargeSOM::terminate() {
+void CbParsley::terminate() {
     this->termination_requested = true;
 }
 
-void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
-                       bool is_pluggable, bool serial_trace) {
+void CbParsley::init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
+                     bool serial_trace) {
     int rv;
 
     // remember these settings
-    this->is_pluggable = is_pluggable;
     this->serial_port = serial_port;
 
     // acquire the safety controller reset line
     // in case this fails, e.g. gpio line name is wrong, this will raise an std::runtime_error
     this->mcu_reset =
-        std::make_unique<gpiod::line_request>(get_gpioline_by_name(reset_gpio_line_name, "CbChargeSOMParsleyDriver",
+        std::make_unique<gpiod::line_request>(get_gpioline_by_name(reset_gpio_line_name, "CbParsleyDriver",
                                                                    gpiod::line_settings()
                                                                        .set_direction(gpiod::line::direction::OUTPUT)
                                                                        .set_output_value(gpiod::line::value::ACTIVE)
@@ -374,7 +374,7 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
                     cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ")";
 }
 
-void CbChargeSOM::enable() {
+void CbParsley::enable() {
     EVLOG_debug << "request to enable the EVSE";
 
     // we hold the inquiry mutex here to ensure that nobody can switch
@@ -395,7 +395,7 @@ void CbChargeSOM::enable() {
     this->rx_enabled = true;
 }
 
-void CbChargeSOM::disable() {
+void CbParsley::disable() {
     EVLOG_debug << "request to disable the EVSE";
 
     // we hold the inquiry mutex here to ensure that nobody can switch
@@ -422,7 +422,7 @@ void CbChargeSOM::disable() {
     this->reset();
 }
 
-void CbChargeSOM::set_mcu_reset(bool active) {
+void CbParsley::set_mcu_reset(bool active) {
     this->mcu_reset->set_value(this->mcu_reset->offsets()[0],
                                active ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
     this->is_mcu_reset_active = active;
@@ -435,7 +435,7 @@ void CbChargeSOM::set_mcu_reset(bool active) {
     EVLOG_debug << "MCU reset line is now " << (active ? "ACTIVE" : "INACTIVE");
 }
 
-void CbChargeSOM::reset() {
+void CbParsley::reset() {
     std::scoped_lock lock(this->tx_mutex);
 
     this->set_mcu_reset(true);
@@ -450,7 +450,11 @@ void CbChargeSOM::reset() {
     this->set_mcu_reset(false);
 }
 
-void CbChargeSOM::send_charge_control() {
+void CbParsley::set_mcs_hlc_enable(bool enable) {
+    // FIXME
+}
+
+void CbParsley::send_charge_control() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
     std::scoped_lock lock(this->tx_mutex, this->ctx_mutexes[n]);
 
@@ -459,7 +463,7 @@ void CbChargeSOM::send_charge_control() {
     }
 }
 
-bool CbChargeSOM::is_unexpected_rx_com(enum cb_uart_com com) {
+bool CbParsley::is_unexpected_rx_com(enum cb_uart_com com) {
     switch (com) {
     case COM_CHARGE_STATE:
     case COM_PT1000_STATE:
@@ -471,7 +475,7 @@ bool CbChargeSOM::is_unexpected_rx_com(enum cb_uart_com com) {
     }
 }
 
-void CbChargeSOM::send_inquiry(enum cb_uart_com com) {
+void CbParsley::send_inquiry(enum cb_uart_com com) {
     std::scoped_lock lock(this->tx_mutex);
 
     if (cb_send_uart_inquiry(&this->uart, com)) {
@@ -480,7 +484,7 @@ void CbChargeSOM::send_inquiry(enum cb_uart_com com) {
     }
 }
 
-bool CbChargeSOM::send_inquiry_and_wait(enum cb_uart_com com) {
+bool CbParsley::send_inquiry_and_wait(enum cb_uart_com com) {
     size_t n = static_cast<std::size_t>(com);
     bool old_rx_enabled;
     bool rv;
@@ -507,7 +511,7 @@ bool CbChargeSOM::send_inquiry_and_wait(enum cb_uart_com com) {
     return rv;
 }
 
-types::board_support_common::Ampacity CbChargeSOM::pp_state_to_ampacity(enum pp_state pp_state) {
+types::board_support_common::Ampacity CbParsley::pp_state_to_ampacity(enum pp_state pp_state) {
     // we map only the well-known states in this method - for all other a std::runtime_error is raised
     switch (pp_state) {
     case pp_state::PP_STATE_NO_CABLE:
@@ -530,29 +534,24 @@ types::board_support_common::Ampacity CbChargeSOM::pp_state_to_ampacity(enum pp_
     }
 }
 
-types::board_support_common::Ampacity CbChargeSOM::get_ampacity() {
+types::board_support_common::Ampacity CbParsley::get_ampacity() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return this->pp_state_to_ampacity(cb_proto_get_pp_state(&this->ctx));
 }
 
-bool CbChargeSOM::is_emergency() {
+bool CbParsley::is_emergency() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
     std::scoped_lock lock(this->ctx_mutexes[n]);
     bool pp_error = false;
-
-    if (this->is_pluggable) {
-        // any state above this is considered an error for now
-        pp_error = cb_proto_get_pp_state(&this->ctx) > PP_STATE_63_70A;
-    }
 
     return pp_error or (cb_proto_get_cp_state(&this->ctx) == CP_STATE_INVALID) or
            (cb_proto_get_cp_errors(&this->ctx) != 0) or cb_proto_contactors_have_errors(&this->ctx) or
            cb_proto_estop_has_any_tripped(&this->ctx) or cb_proto_pt1000_have_errors(&this->ctx);
 }
 
-void CbChargeSOM::set_duty_cycle(unsigned int duty_cycle) {
+void CbParsley::set_duty_cycle(unsigned int duty_cycle) {
     // we need to take the lock to change the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
@@ -579,7 +578,7 @@ void CbChargeSOM::set_duty_cycle(unsigned int duty_cycle) {
     }
 }
 
-unsigned int CbChargeSOM::get_duty_cycle() {
+unsigned int CbParsley::get_duty_cycle() {
     // we need to take the lock to read the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
@@ -587,7 +586,7 @@ unsigned int CbChargeSOM::get_duty_cycle() {
     return cb_proto_get_actual_duty_cycle(&this->ctx);
 }
 
-bool CbChargeSOM::get_diode_fault() {
+bool CbParsley::get_diode_fault() {
     // we need to take the lock to read the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
@@ -595,7 +594,7 @@ bool CbChargeSOM::get_diode_fault() {
     return cb_proto_is_diode_fault(&this->ctx);
 }
 
-bool CbChargeSOM::get_cp_short_circuit() {
+bool CbParsley::get_cp_short_circuit() {
     // we need to take the lock to read the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
@@ -603,7 +602,7 @@ bool CbChargeSOM::get_cp_short_circuit() {
     return cb_proto_is_cp_short_circuit(&this->ctx);
 }
 
-bool CbChargeSOM::switch_state(bool on) {
+bool CbParsley::switch_state(bool on) {
     // we need to take the lock to change the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
@@ -635,7 +634,7 @@ bool CbChargeSOM::switch_state(bool on) {
     return this->rx_cv[n].wait_for(cs_lock, 1s, [&] { return this->get_contactor_state_no_lock() == on; });
 }
 
-bool CbChargeSOM::get_contactor_state_no_lock() {
+bool CbParsley::get_contactor_state_no_lock() {
     unsigned int i;
     bool at_least_one_is_configured = false;
     bool target_state = false;
@@ -660,49 +659,45 @@ bool CbChargeSOM::get_contactor_state_no_lock() {
         return target_state;
 }
 
-bool CbChargeSOM::get_contactor_state() {
+bool CbParsley::get_contactor_state() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return this->get_contactor_state_no_lock();
 }
 
-unsigned int CbChargeSOM::get_temperature_channels() const {
+unsigned int CbParsley::get_temperature_channels() const {
     return CB_PROTO_MAX_PT1000S;
 }
 
-float CbChargeSOM::get_temperature(unsigned int channel) {
+float CbParsley::get_temperature(unsigned int channel) {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return cb_proto_pt1000_get_temp(&this->ctx, channel);
 }
 
-bool CbChargeSOM::is_temperature_enabled(unsigned int channel) {
+bool CbParsley::is_temperature_enabled(unsigned int channel) {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return cb_proto_pt1000_is_active(&this->ctx, channel);
 }
 
-bool CbChargeSOM::is_temperature_valid(unsigned int channel) {
+bool CbParsley::is_temperature_valid(unsigned int channel) {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return !(cb_proto_pt1000_get_errors(&this->ctx, channel) & PT1000_SELFTEST_FAILED);
 }
 
-unsigned int CbChargeSOM::get_temperature_errors(unsigned int channel) {
+unsigned int CbParsley::get_temperature_errors(unsigned int channel) {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_PT1000_STATE);
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return cb_proto_pt1000_get_errors(&this->ctx, channel);
 }
 
-const std::string& CbChargeSOM::get_fw_info() const {
+const std::string& CbParsley::get_fw_info() const {
     return this->fw_info;
-}
-
-void CbChargeSOM::set_mcs_hlc_enable(bool value) {
-    this->mcs_hlc_enable = value;
 }

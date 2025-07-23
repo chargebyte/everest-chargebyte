@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
-#ifndef CB_CHARGE_SOMDRIVER_HPP
-#define CB_CHARGE_SOMDRIVER_HPP
+#ifndef CB_PARSLEY_DRIVER_HPP
+#define CB_PARSLEY_DRIVER_HPP
 
 //
 // AUTO GENERATED - MARKED REGIONS WILL BE KEPT
@@ -13,20 +13,18 @@
 // headers for provided interface implementations
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
 #include <generated/interfaces/cb_chargesom_temperatures/Implementation.hpp>
+#include <generated/interfaces/cb_chargesom_mcs/Implementation.hpp>
 
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
 
 #include <atomic>
-#include <CbChargeSOM.hpp>
+#include <CbParsley.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
 
 struct Conf {
-    std::string connector_type;
-    double min_current_A;
-    double max_current_A;
     std::string serial_port;
     bool serial_debug;
     bool serial_trace;
@@ -38,18 +36,21 @@ struct Conf {
     std::string pt1000_4_identification;
 };
 
-class CbChargeSOMParsleyDriver : public Everest::ModuleBase {
+class CbParsleyDriver : public Everest::ModuleBase {
 public:
-    CbChargeSOMParsleyDriver() = delete;
-    CbChargeSOMParsleyDriver(const ModuleInfo& info, std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
-                      std::unique_ptr<cb_chargesom_temperaturesImplBase> p_temperatures, Conf& config) :
+    CbParsleyDriver() = delete;
+    CbParsleyDriver(const ModuleInfo& info, std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
+                    std::unique_ptr<cb_chargesom_temperaturesImplBase> p_temperatures,
+                    std::unique_ptr<cb_chargesom_mcsImplBase> p_mcs, Conf& config) :
         ModuleBase(info),
         p_evse_board_support(std::move(p_evse_board_support)),
         p_temperatures(std::move(p_temperatures)),
+        p_mcs(std::move(p_mcs)),
         config(config) {};
 
     const std::unique_ptr<evse_board_supportImplBase> p_evse_board_support;
     const std::unique_ptr<cb_chargesom_temperaturesImplBase> p_temperatures;
+    const std::unique_ptr<cb_chargesom_mcsImplBase> p_mcs;
     const Conf& config;
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
@@ -59,7 +60,7 @@ public:
     std::atomic_bool termination_requested {false};
 
     /// @brief Safety controller UART Interface
-    CbChargeSOM controller;
+    CbParsley controller;
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
@@ -83,4 +84,4 @@ private:
 
 } // namespace module
 
-#endif // CB_CHARGE_SOMDRIVER_HPP
+#endif // CB_PARSLEY_DRIVER_HPP

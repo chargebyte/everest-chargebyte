@@ -10,7 +10,7 @@
 
 #include <generated/interfaces/cb_chargesom_temperatures/Implementation.hpp>
 
-#include "../CbChargeSOMParsleyDriver.hpp"
+#include "../CbParsleyDriver.hpp"
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
@@ -24,7 +24,7 @@ struct Conf {};
 class cb_chargesom_temperaturesImpl : public cb_chargesom_temperaturesImplBase {
 public:
     cb_chargesom_temperaturesImpl() = delete;
-    cb_chargesom_temperaturesImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbChargeSOMParsleyDriver>& mod,
+    cb_chargesom_temperaturesImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbParsleyDriver>& mod,
                                   Conf& config) :
         cb_chargesom_temperaturesImplBase(ev, "temperatures"), mod(mod), config(config) {};
 
@@ -39,12 +39,14 @@ public:
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
 
 protected:
+    // no commands defined for this interface
+
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
     // insert your protected definitions here
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
 
 private:
-    const Everest::PtrContainer<CbChargeSOMParsleyDriver>& mod;
+    const Everest::PtrContainer<CbParsleyDriver>& mod;
     const Conf& config;
 
     virtual void init() override;

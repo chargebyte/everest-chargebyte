@@ -33,24 +33,20 @@ namespace module {
 namespace evse_board_support {
 
 void evse_board_supportImpl::init() {
-    // configure hardware capabilities: use user-configurable settings for flexibility
-    // but use the same value for import and export - there seems to be no reason for AC
-    // that these values differ for import and export
-    this->hw_capabilities.min_current_A_import = this->mod->config.min_current_A;
-    this->hw_capabilities.max_current_A_import = this->mod->config.max_current_A;
-    this->hw_capabilities.min_current_A_export = this->mod->config.min_current_A;
-    this->hw_capabilities.max_current_A_export = this->mod->config.max_current_A;
-
-    // the Charge SOM is currently intended for DC only, there is no support in the
-    // safety controller firmware for AC nor phase count switching yet
-    this->hw_capabilities.supports_changing_phases_during_charging = false;
+    // configure hardware capabilities: we used hard-coded values here since these values
+    // are important for AC charging mostly and Charge Control Y is designed for DC only
+    this->hw_capabilities.min_current_A_import = 6;
+    this->hw_capabilities.max_current_A_import = 80;
+    this->hw_capabilities.min_current_A_export = 6;
+    this->hw_capabilities.max_current_A_export = 80;
     this->hw_capabilities.max_phase_count_import = 3;
     this->hw_capabilities.min_phase_count_import = 3;
     this->hw_capabilities.max_phase_count_export = 3;
     this->hw_capabilities.min_phase_count_export = 3;
+    this->hw_capabilities.supports_changing_phases_during_charging = false;
 
-    this->hw_capabilities.connector_type =
-        types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
+    // we lie also about the real connector, but fixed cable is correct
+    this->hw_capabilities.connector_type = types::evse_board_support::Connector_type::IEC62196Type2Cable;
 
     // register our callback handlers
 

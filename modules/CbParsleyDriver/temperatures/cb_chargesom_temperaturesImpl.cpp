@@ -19,12 +19,9 @@ void cb_chargesom_temperaturesImpl::init() {
 void cb_chargesom_temperaturesImpl::ready() {
     this->publish_thread = std::thread([&]() {
         unsigned int supported_channels = this->mod->controller.get_temperature_channels();
-        const std::vector<std::reference_wrapper<const std::string>> ident_config{
-            std::ref(this->mod->config.pt1000_1_identification),
-            std::ref(this->mod->config.pt1000_2_identification),
-            std::ref(this->mod->config.pt1000_3_identification),
-            std::ref(this->mod->config.pt1000_4_identification)
-        };
+        const std::vector<std::reference_wrapper<const std::string>> ident_config {
+            std::ref(this->mod->config.pt1000_1_identification), std::ref(this->mod->config.pt1000_2_identification),
+            std::ref(this->mod->config.pt1000_3_identification), std::ref(this->mod->config.pt1000_4_identification)};
 
         while (!this->mod->termination_requested) {
             std::vector<types::temperature::Temperature> v;

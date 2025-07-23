@@ -10,7 +10,7 @@
 
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
 
-#include "../CbChargeSOMParsleyDriver.hpp"
+#include "../CbParsleyDriver.hpp"
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
@@ -21,8 +21,7 @@
 #include <thread>
 #include <generated/types/cb_board_support.hpp>
 #include <CPUtils.hpp>
-#include <CbChargeSOM.hpp>
-
+#include <CbParsley.hpp>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -33,7 +32,7 @@ struct Conf {};
 class evse_board_supportImpl : public evse_board_supportImplBase {
 public:
     evse_board_supportImpl() = delete;
-    evse_board_supportImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbChargeSOMParsleyDriver>& mod,
+    evse_board_supportImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbParsleyDriver>& mod,
                            Conf& config) :
         evse_board_supportImplBase(ev, "evse_board_support"), mod(mod), config(config) {};
 
@@ -58,7 +57,7 @@ protected:
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
 
 private:
-    const Everest::PtrContainer<CbChargeSOMParsleyDriver>& mod;
+    const Everest::PtrContainer<CbParsleyDriver>& mod;
     const Conf& config;
 
     virtual void init() override;
@@ -93,7 +92,6 @@ private:
 
     /// @brief Flag to remember whether we already published a contactor fault.
     std::atomic_bool contactor_fault_reported {false};
-
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
