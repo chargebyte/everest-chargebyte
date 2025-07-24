@@ -30,6 +30,7 @@ target_link_libraries(${MODULE_NAME}
         parsley
         Pal::Sigslot
         nlohmann_json::nlohmann_json
+        ra-utils
 )
 
 get_property(CP_INCLUDE_DIR GLOBAL PROPERTY CP_INCLUDE_DIR)

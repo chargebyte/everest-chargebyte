@@ -25,20 +25,20 @@
 
 using namespace std::chrono_literals;
 
-std::ostream& operator<<(std::ostream& os, enum cp_state state) {
-    return os << cb_proto_cp_state_to_str(state);
+std::ostream& operator<<(std::ostream& os, enum cc2_ccs_ready state) {
+    return os << cb_proto_ccs_ready_to_str(state);
 }
 
-std::ostream& operator<<(std::ostream& os, enum pp_state state) {
-    return os << cb_proto_pp_state_to_str(state);
+std::ostream& operator<<(std::ostream& os, enum cs2_ce_state state) {
+    return os << cb_proto_ce_state_to_str(state);
 }
 
-std::ostream& operator<<(std::ostream& os, enum contactor_state state) {
-    return os << cb_proto_contactor_state_to_str(state);
+std::ostream& operator<<(std::ostream& os, enum cs2_id_state state) {
+    return os << cb_proto_id_state_to_str(state);
 }
 
-std::ostream& operator<<(std::ostream& os, enum estop_state state) {
-    return os << cb_proto_estop_state_to_str(state);
+std::ostream& operator<<(std::ostream& os, enum cs2_estop_reason state) {
+    return os << cb_proto_estop_reason_to_str(state);
 }
 
 CbParsley::CbParsley() {
@@ -52,23 +52,18 @@ CbParsley::CbParsley() {
     // we need a thread to call the notification signals asynchronously to the
     // frame receiving to avoid stalling and to not miss a single change
     this->notify_thread = std::thread([&]() {
-        enum cp_state previous_cp_state = CP_STATE_MAX;
-        enum pp_state previous_pp_state = PP_STATE_MAX;
-        unsigned int previous_cp_errors = 0;
-        bool previous_contactor_error[CB_PROTO_MAX_CONTACTORS] = {};
-        bool previous_estop_tripped[CB_PROTO_MAX_ESTOPS] = {};
+        enum cs2_id_state previous_id_state = CS2_ID_STATE_MAX;
+        enum cs2_ce_state previous_ce_state = CS2_CE_STATE_MAX;
+        enum cs2_estop_reason previous_estop_reason = CS2_ESTOP_REASON_MAX;
 
         EVLOG_debug << "Notify Thread started";
 
         while (!this->termination_requested) {
             // temporary helper variables for our access functions
             struct safety_controller tmpctx;
-            enum cp_state current_cp_state;
-            enum pp_state current_pp_state;
-            unsigned int current_cp_errors;
-            bool current_contactor_error[CB_PROTO_MAX_CONTACTORS];
-            bool current_estop_tripped[CB_PROTO_MAX_ESTOPS];
-            unsigned int i;
+            enum cs2_id_state current_id_state;
+            enum cs2_ce_state current_ce_state;
+            enum cs2_estop_reason current_estop_reason;
 
             // wait for changes
             std::unique_lock<std::mutex> lock(this->notify_mutex);
@@ -83,82 +78,38 @@ CbParsley::CbParsley() {
             tmpctx.charge_state = this->charge_state_changes.front();
             this->charge_state_changes.pop();
 
-            //
-            // check for errors before doing the normal PP / CP state processing
-            // this gives the upper layer the chance to report the error and/or set flags
-            // before the actual low-level change is processed
-            //
-
-            // check for CP related errors
-            current_cp_errors = cb_proto_get_cp_errors(&tmpctx);
-            if (current_cp_errors != previous_cp_errors) {
-                EVLOG_debug << "on_cp_error(0x" << std::hex << std::setw(2) << std::setfill('0') << previous_cp_errors
-                            << " → "
-                            << "0x" << std::hex << std::setw(2) << std::setfill('0') << current_cp_errors << ")";
-                this->on_cp_error();
-                previous_cp_errors = current_cp_errors;
+            // check for changed ESTOP reason
+            current_estop_reason = cb_proto_get_estop_reason(&tmpctx);
+            if (current_estop_reason != previous_estop_reason) {
+                EVLOG_debug << "on_estop(" << current_estop_reason << ")";
+                this->on_estop(current_estop_reason);
+                previous_estop_reason = current_estop_reason;
             }
 
-            // forward contactor errors
-            for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-                current_contactor_error[i] =
-                    cb_proto_contactorN_is_enabled(&tmpctx, i) && cb_proto_contactorN_has_error(&tmpctx, i);
-
-                if (current_contactor_error[i] != previous_contactor_error[i]) {
-                    std::string name = "Contactor " + std::to_string(i + 1);
-
-                    EVLOG_debug << "on_contactor_error: " << i;
-                    this->on_contactor_error(name, cb_proto_contactorN_get_target_state(&tmpctx, i),
-                                             cb_proto_contactorN_is_closed(&tmpctx, i)
-                                                 ? types::cb_board_support::ContactorState::Closed
-                                                 : types::cb_board_support::ContactorState::Open);
-                }
-            }
-
-            // check for ESTOP errors
-            for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
-                current_estop_tripped[i] =
-                    cb_proto_estopN_is_enabled(&tmpctx, i) && cb_proto_estopN_is_tripped(&tmpctx, i);
-                if (current_estop_tripped[i] != previous_estop_tripped[i]) {
-                    EVLOG_debug << "on_estop: " << i;
-                    this->on_estop(i, current_estop_tripped[i]);
-                    previous_estop_tripped[i] = current_estop_tripped[i];
-                }
-            }
-
-            // check for PP changes
-            current_pp_state = cb_proto_get_pp_state(&tmpctx);
-            if (current_pp_state != previous_pp_state) {
-                if (previous_pp_state != PP_STATE_MAX) {
-                    if (this->is_pluggable) {
-                        EVLOG_debug << "on_pp_change(" << previous_pp_state << " → " << current_pp_state << ")";
-                        this->on_pp_change(current_pp_state);
-                    } else {
-                        EVLOG_debug << "on_pp_change(" << previous_pp_state << " → " << current_pp_state << ")"
-                                    << " [suppressed, fixed cable]";
-                    }
+            // check for ID changes
+            current_id_state = cb_proto_get_id_state(&tmpctx);
+            if (current_id_state != previous_id_state) {
+                if (previous_id_state != CS2_ID_STATE_MAX) {
+                    EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")";
+                    this->on_id_change(current_id_state);
                 } else {
-                    EVLOG_debug << "on_pp_change(" << previous_pp_state << " → " << current_pp_state << ")"
+                    EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")"
                                 << " [suppressed]";
                 }
-                previous_pp_state = current_pp_state;
+                previous_id_state = current_id_state;
             }
 
-            // check for CP changes
-            current_cp_state = cb_proto_get_cp_state(&tmpctx);
-            if (current_cp_state != previous_cp_state) {
-                // the integer value representation of both enum classes are the same
-                types::cb_board_support::CPState new_cp_state =
-                    static_cast<types::cb_board_support::CPState>(current_cp_state);
-
-                if (previous_cp_state != CP_STATE_MAX) {
-                    EVLOG_debug << "on_cp_change(" << previous_cp_state << " → " << current_cp_state << ")";
-                    this->on_cp_change(new_cp_state);
+            // check for CE changes
+            current_ce_state = cb_proto_get_ce_state(&tmpctx);
+            if (current_ce_state != previous_ce_state) {
+                if (previous_ce_state != CS2_CE_STATE_MAX) {
+                    EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")";
+                    this->on_ce_change(current_ce_state);
                 } else {
-                    EVLOG_debug << "on_cp_change(" << previous_cp_state << " → " << current_cp_state << ")"
+                    EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")"
                                 << " [suppressed]";
                 }
-                previous_cp_state = current_cp_state;
+                previous_ce_state = current_ce_state;
             }
         }
 
@@ -225,7 +176,7 @@ CbParsley::CbParsley() {
             std::scoped_lock lock(this->ctx_mutexes[n]);
 
             switch (com) {
-            case cb_uart_com::COM_CHARGE_STATE:
+            case cb_uart_com::COM_CHARGE_STATE_2:
                 this->ctx.charge_state = payload;
                 // check if the previous value is different
                 notify = previous_charge_state != payload;
@@ -417,7 +368,7 @@ void CbParsley::disable() {
     std::this_thread::sleep_for(std::chrono::milliseconds(CB_UART_RECV_INTERVAL + CB_UART_RECV_INTERVAL / 2));
 
     // we must use `reset` here and not `set_mcu_reset` since we want to see state E
-    // on CP line which is done by the safety controller until we start talking
+    // on CE line which is done by the safety controller until we start talking
     // to it again
     this->reset();
 }
@@ -450,22 +401,31 @@ void CbParsley::reset() {
     this->set_mcu_reset(false);
 }
 
-void CbParsley::set_mcs_hlc_enable(bool enable) {
-    // FIXME
+void CbParsley::set_ccs_ready(bool enable) {
+    // we need to take the lock to change the field
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL_2);
+    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
+
+    cb_proto_set_ccs_ready(&this->ctx, enable);
+
+    // but release it now so that sending can take the lock again
+    cc_lock.unlock();
+
+    this->send_charge_control();
 }
 
 void CbParsley::send_charge_control() {
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL_2);
     std::scoped_lock lock(this->tx_mutex, this->ctx_mutexes[n]);
 
-    if (cb_uart_send(&this->uart, COM_CHARGE_CONTROL, this->ctx.charge_control)) {
+    if (cb_uart_send(&this->uart, COM_CHARGE_CONTROL_2, this->ctx.charge_control)) {
         throw std::system_error(errno, std::generic_category(), "Error while sending charge control frame");
     }
 }
 
 bool CbParsley::is_unexpected_rx_com(enum cb_uart_com com) {
     switch (com) {
-    case COM_CHARGE_STATE:
+    case COM_CHARGE_STATE_2:
     case COM_PT1000_STATE:
     case COM_FW_VERSION:
     case COM_GIT_HASH:
@@ -511,159 +471,14 @@ bool CbParsley::send_inquiry_and_wait(enum cb_uart_com com) {
     return rv;
 }
 
-types::board_support_common::Ampacity CbParsley::pp_state_to_ampacity(enum pp_state pp_state) {
-    // we map only the well-known states in this method - for all other a std::runtime_error is raised
-    switch (pp_state) {
-    case pp_state::PP_STATE_NO_CABLE:
-        return types::board_support_common::Ampacity::None;
-
-    case pp_state::PP_STATE_13A:
-        return types::board_support_common::Ampacity::A_13;
-
-    case pp_state::PP_STATE_20A:
-        return types::board_support_common::Ampacity::A_20;
-
-    case pp_state::PP_STATE_32A:
-        return types::board_support_common::Ampacity::A_32;
-
-    case pp_state::PP_STATE_63_70A:
-        return types::board_support_common::Ampacity::A_63_3ph_70_1ph;
-
-    default:
-        throw std::runtime_error("The measured voltage for the Proximity Pilot could not be mapped.");
-    }
-}
-
-types::board_support_common::Ampacity CbParsley::get_ampacity() {
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::scoped_lock lock(this->ctx_mutexes[n]);
-
-    return this->pp_state_to_ampacity(cb_proto_get_pp_state(&this->ctx));
-}
-
 bool CbParsley::is_emergency() {
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE_2);
     std::scoped_lock lock(this->ctx_mutexes[n]);
     bool pp_error = false;
 
     return pp_error or (cb_proto_get_cp_state(&this->ctx) == CP_STATE_INVALID) or
            (cb_proto_get_cp_errors(&this->ctx) != 0) or cb_proto_contactors_have_errors(&this->ctx) or
            cb_proto_estop_has_any_tripped(&this->ctx) or cb_proto_pt1000_have_errors(&this->ctx);
-}
-
-void CbParsley::set_duty_cycle(unsigned int duty_cycle) {
-    // we need to take the lock to change the field
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
-    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
-
-    cb_proto_set_pwm_active(&this->ctx, true);
-    cb_proto_set_duty_cycle(&this->ctx, duty_cycle);
-
-    // but release it now so that sending can take the lock again
-    cc_lock.unlock();
-
-    this->send_charge_control();
-
-    // then we take the lock to access Charge State to check for success
-    n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::unique_lock<std::mutex> cs_lock(this->ctx_mutexes[n]);
-
-    // we should see the new value reflected within at max 1s (FIXME)
-    if (not this->rx_cv[n].wait_for(cs_lock, 1s,
-                                    [&] { return cb_proto_get_actual_duty_cycle(&this->ctx) == duty_cycle; })) {
-        std::ostringstream oss;
-        oss << std::fixed << std::setprecision(1) << (duty_cycle / 10.0);
-
-        throw std::runtime_error("Safety Controller did not accept the new duty cycle of " + oss.str() + "%");
-    }
-}
-
-unsigned int CbParsley::get_duty_cycle() {
-    // we need to take the lock to read the field
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
-
-    return cb_proto_get_actual_duty_cycle(&this->ctx);
-}
-
-bool CbParsley::get_diode_fault() {
-    // we need to take the lock to read the field
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
-
-    return cb_proto_is_diode_fault(&this->ctx);
-}
-
-bool CbParsley::get_cp_short_circuit() {
-    // we need to take the lock to read the field
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
-
-    return cb_proto_is_cp_short_circuit(&this->ctx);
-}
-
-bool CbParsley::switch_state(bool on) {
-    // we need to take the lock to change the field
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
-    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
-    bool at_least_one_is_configured = false;
-    unsigned int i;
-
-    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-        // always remember the target state - without check whether it is configured at all
-        cb_proto_contactorN_set_state(&this->ctx, i, on);
-        if (cb_proto_contactorN_is_enabled(&this->ctx, i)) {
-            at_least_one_is_configured = true;
-        }
-    }
-
-    // but release it now so that sending can take the lock again
-    cc_lock.unlock();
-
-    this->send_charge_control();
-
-    // if no real contactor is used, we simply report success back
-    if (!at_least_one_is_configured)
-        return true;
-
-    // then we take the lock to access Charge State to check for success
-    n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::unique_lock<std::mutex> cs_lock(this->ctx_mutexes[n]);
-
-    // we should see the new value reflected within at max 1s (FIXME)
-    return this->rx_cv[n].wait_for(cs_lock, 1s, [&] { return this->get_contactor_state_no_lock() == on; });
-}
-
-bool CbParsley::get_contactor_state_no_lock() {
-    unsigned int i;
-    bool at_least_one_is_configured = false;
-    bool target_state = false;
-    bool actual_state = false;
-
-    for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-        if (cb_proto_contactorN_is_enabled(&this->ctx, i)) {
-            at_least_one_is_configured = true;
-
-            // don't overwrite, but merge the state
-            actual_state |= cb_proto_contactorN_is_closed(&this->ctx, i);
-        }
-
-        // fallback in the same loop in case no contactor is actually in use
-        // don't overwrite, but merge the state
-        target_state |= cb_proto_contactorN_get_target_state(&this->ctx, i);
-    }
-
-    if (at_least_one_is_configured)
-        return actual_state;
-    else
-        return target_state;
-}
-
-bool CbParsley::get_contactor_state() {
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::scoped_lock lock(this->ctx_mutexes[n]);
-
-    return this->get_contactor_state_no_lock();
 }
 
 unsigned int CbParsley::get_temperature_channels() const {

@@ -20,10 +20,10 @@ using namespace std::chrono_literals;
 ///
 /// Various helper for debug messages
 ///
-std::ostream& operator<<(std::ostream& os, enum cp_state state);
-std::ostream& operator<<(std::ostream& os, enum pp_state state);
-std::ostream& operator<<(std::ostream& os, enum contactor_state state);
-std::ostream& operator<<(std::ostream& os, enum estop_state state);
+std::ostream& operator<<(std::ostream& os, enum cc2_ccs_ready state);
+std::ostream& operator<<(std::ostream& os, enum cs2_ce_state state);
+std::ostream& operator<<(std::ostream& os, enum cs2_id_state state);
+std::ostream& operator<<(std::ostream& os, enum cs2_estop_reason state);
 
 ///
 /// A class for abstracting the safety processor UART interface on Charge SOM platform.
@@ -59,67 +59,22 @@ public:
     void reset();
 
     /// @brief Allow switching from B0 to B
-    void set_mcs_hlc_enable(bool enable);
+    void set_ccs_ready(bool enable);
 
-    /// @brief Helper to map the internal PP enum to the EVerest type system.
-    ///        A 'std::runtime_error` is raised in case the mappig fails, e.g.
-    ///        when Type 1 related states are found.
-    /// @return A cable current rating using `types::board_support_common::Ampacity`
-    types::board_support_common::Ampacity pp_state_to_ampacity(enum pp_state pp_state);
+    /// @brief Signal used to inform about ID state changes.
+    ///        The parameter contains the new ID state.
+    sigslot::signal<const enum cs2_id_state&> on_id_change;
 
-    /// @brief Reads the current (cached) cable rating from the safety controller.
-    ///        It uses `pp_state_to_ampacity`, in other words it raises an exception
-    ///        in case the value cannot be mapped.
-    /// @return A cable current rating using `types::board_support_common::Ampacity`
-    types::board_support_common::Ampacity get_ampacity();
+    /// @brief Signal used to inform about CE state changes.
+    ///        The parameter is the new CE state.
+    sigslot::signal<const enum cs2_ce_state&> on_ce_change;
 
-    /// @brief Signal used to inform about PP state changes.
-    ///        The parameter contains the new PP state.
-    sigslot::signal<const enum pp_state&> on_pp_change;
-
-    /// @brief Signal used to inform about CP state changes.
-    ///        The parameter is the new CP state.
-    sigslot::signal<const types::cb_board_support::CPState&> on_cp_change;
-
-    /// @brief Signal used to inform about various errors, e.g. CP Short Circuits,
-    ///        Diode Faults and contactor errors.
-    ///        Callee is expected to check in detail.
-    sigslot::signal<> on_cp_error;
-
-    /// @brief Signal used to inform about a charging stop caused by ESTOP signal.
-    ///        The first parameter is the number of the ESTOP signal which changed,
-    ///        the second parameter tells whether the signal is active.
-    sigslot::signal<const unsigned int&, const bool&> on_estop;
-
-    /// @brief Signal used to inform about errors during contactor switching.
-    ///        First parameter is the name of the contactor, second parameter is intended state
-    ///        and third parameter is actual state.
-    sigslot::signal<const std::string&, bool, types::cb_board_support::ContactorState> on_contactor_error;
+    /// @brief Signal used to inform about the reason for a stopped charging.
+    ///        The parameter is the latest reason as reported by the safety controller.
+    sigslot::signal<const enum cs2_estop_reason&> on_estop;
 
     /// @brief Return whether the safety controller detected an emergency state.
     bool is_emergency();
-
-    /// @brief Set a new duty cycle.
-    /// @param duty_cycle The desired duty cycle in percent [0.1 %].
-    void set_duty_cycle(unsigned int duty_cycle);
-
-    /// @brief Get the current/actual duty cycle in [0.1 %].
-    unsigned int get_duty_cycle();
-
-    /// @brief Get the current state of the diode fault signal
-    bool get_diode_fault();
-
-    /// @brief Get the current state of the CP short circuit signal
-    bool get_cp_short_circuit();
-
-    /// @brief Closes the contactor (on = true), or opens it (on = false):
-    ///        This is a synchronous call, i.e. it waits until it is confirmed
-    ///        by feedback signal (if used).
-    /// @return True on success, false on error.
-    bool switch_state(bool on);
-
-    /// @brief Return the current contactor state (even when no contactor is configured)
-    bool get_contactor_state();
 
     /// @brief Remember whether the PT1000 State frame was received at least once.
     bool temperature_data_is_valid {false};
@@ -152,9 +107,6 @@ public:
     const std::string& get_fw_info() const;
 
 private:
-    /// @brief Remember whether the system is with fixed cable or not.
-    bool is_pluggable {false};
-
     /// @brief Remembers the serial port device name
     std::string serial_port;
 

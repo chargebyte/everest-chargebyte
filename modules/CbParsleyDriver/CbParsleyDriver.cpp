@@ -52,11 +52,13 @@ void CbParsleyDriver::init() {
     // initialize the interfaces now
     invoke_init(*p_evse_board_support);
     invoke_init(*p_temperatures);
+    invoke_init(*p_mcs);
 }
 
 void CbParsleyDriver::ready() {
     invoke_ready(*p_evse_board_support);
     invoke_ready(*p_temperatures);
+    invoke_ready(*p_mcs);
 }
 
 } // namespace module

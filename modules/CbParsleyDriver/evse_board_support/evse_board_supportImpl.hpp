@@ -20,7 +20,6 @@
 #include <mutex>
 #include <thread>
 #include <generated/types/cb_board_support.hpp>
-#include <CPUtils.hpp>
 #include <CbParsley.hpp>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
@@ -73,25 +72,23 @@ private:
     std::atomic_bool is_enabled {false};
 
     /// @brief Tracks the last published CP state.
-    std::atomic<types::cb_board_support::CPState> cp_current_state {types::cb_board_support::CPState::PowerOn};
+    types::cb_board_support::CPState cp_current_state {types::cb_board_support::CPState::PowerOn};
 
-    /// @brief Store CP state errors
-    CPUtils::cp_state_errors cp_errors {};
-
-    /// @brief Mutex to protect `cp_errors` and `cp_current_state`.
+    /// @brief Mutex to protect `cp_current_state`.
     std::mutex cp_mutex;
 
-    /// @brief Last published/detected ampacity
-    types::board_support_common::ProximityPilot pp_ampacity {.ampacity = types::board_support_common::Ampacity::None};
+    /// @brief Flag to remember whether we already published an ID fault
+    bool id_fault_reported {false};
 
-    /// @brief Flag to remember whether we already published a proximity error
-    bool pp_fault_reported {false};
+    /// @brief Mutex to protect `pp_ampacity` and `id_fault_reported`
+    std::mutex id_mutex;
 
-    /// @brief Mutex to protect `pp_ampacity` and `pp_fault_reported`
-    std::mutex pp_mutex;
+    /// @brief Flag to remember the desired and reported contactor state.
+    ///        Since there is no contactor controlling on our side, we use this flag
+    ///        to remember the current state and judge whether we have to report the
+    ///        state change.
+    std::atomic_bool contactor_state {false};
 
-    /// @brief Flag to remember whether we already published a contactor fault.
-    std::atomic_bool contactor_fault_reported {false};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
