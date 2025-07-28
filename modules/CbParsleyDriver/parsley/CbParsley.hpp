@@ -11,6 +11,8 @@
 #include <gpiod.hpp>
 #include <sigslot/signal.hpp>
 #include <generated/types/board_support_common.hpp>
+// B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
+#undef B0
 #include <generated/types/cb_board_support.hpp>
 #include <ra-utils/uart.h>
 #include <ra-utils/cb_protocol.h>
@@ -67,7 +69,7 @@ public:
 
     /// @brief Signal used to inform about CE state changes.
     ///        The parameter is the new CE state.
-    sigslot::signal<const enum cs2_ce_state&> on_ce_change;
+    sigslot::signal<const types::cb_board_support::CEState&> on_ce_change;
 
     /// @brief Signal used to inform about the reason for a stopped charging.
     ///        The parameter is the latest reason as reported by the safety controller.

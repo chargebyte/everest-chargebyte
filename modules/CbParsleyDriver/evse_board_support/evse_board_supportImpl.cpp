@@ -5,31 +5,31 @@
 #include <iomanip>
 #include <stdexcept>
 #include <ra-utils/cb_protocol.h>
+// B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
+#undef B0
 #include <generated/types/cb_board_support.hpp>
 #include "evse_board_supportImpl.hpp"
 
 using namespace std::chrono_literals;
 
-types::cb_board_support::CPState cs2_ce_state_to_cpstate(const enum cs2_ce_state ce_state) {
+types::cb_board_support::CPState cestate_to_cpstate(const types::cb_board_support::CEState ce_state) {
     switch (ce_state) {
-    case cs2_ce_state::CS2_CE_STATE_UNKNOWN:
+    case types::cb_board_support::CEState::PowerOn:
         return types::cb_board_support::CPState::PowerOn;
-    case cs2_ce_state::CS2_CE_STATE_A:
+    case types::cb_board_support::CEState::A:
         return types::cb_board_support::CPState::A;
-    case cs2_ce_state::CS2_CE_STATE_B0:
+    case types::cb_board_support::CEState::B0:
         return types::cb_board_support::CPState::D;
-    case cs2_ce_state::CS2_CE_STATE_B:
+    case types::cb_board_support::CEState::B:
         return types::cb_board_support::CPState::B;
-    case cs2_ce_state::CS2_CE_STATE_C:
+    case types::cb_board_support::CEState::C:
         return types::cb_board_support::CPState::C;
-    case cs2_ce_state::CS2_CE_STATE_E:
+    case types::cb_board_support::CEState::E:
         return types::cb_board_support::CPState::E;
-    case cs2_ce_state::CS2_CE_STATE_EC:
+    case types::cb_board_support::CEState::EC:
         return types::cb_board_support::CPState::F;
-    case cs2_ce_state::CS2_CE_STATE_INVALID:
-        return types::cb_board_support::CPState::PilotFault;
     default:
-        throw std::runtime_error(static_cast<std::string>("Unable to map the value '") + cb_proto_ce_state_to_str(ce_state) + "'.");
+        return types::cb_board_support::CPState::PilotFault;
     }
 }
 
@@ -73,28 +73,13 @@ void evse_board_supportImpl::init() {
 
     // register our callback handlers
 
-    this->mod->controller.on_ce_change.connect([&](const enum cs2_ce_state& current_ce_state) {
+    this->mod->controller.on_ce_change.connect([&](const types::cb_board_support::CEState& ce_state) {
         std::scoped_lock lock(this->cp_mutex);
-        auto current_cp_state = cs2_ce_state_to_cpstate(current_ce_state);
+        auto current_cp_state = cestate_to_cpstate(ce_state);
 
         // B0 is mapped to D; we need to ignore B0 and not forward it here
         if (current_cp_state == types::cb_board_support::CPState::D)
             return;
-#if 0
-        // FIXME REVISIT
-       // safety controller can report CP state unknown (which maps to our PowerOn here) in case
-       // of e.g short-circuit (should be clarified with safety fw development whether better report E)
-       if (current_cp_state == types::cb_board_support::CPState::PowerOn)
-           return;
-
-       // FIXME REVISIT special case: during power on filter out transient state E
-       if (this->cp_current_state == types::cb_board_support::CPState::PowerOn &&
-           current_cp_state == types::cb_board_support::CPState::E) {
-           EVLOG_debug << "CP state change from " << this->cp_current_state << " to " << current_cp_state
-                       << " [filtered]";
-           return;
-       }
-#endif
 
         EVLOG_info << "CP state change from " << this->cp_current_state << " to " << current_cp_state;
         this->cp_current_state = current_cp_state;
@@ -151,9 +136,6 @@ void evse_board_supportImpl::handle_pwm_off() {
         std::scoped_lock lock(this->cp_mutex);
 
         EVLOG_info << "handle_pwm_off: recovering after safety state";
-
-        // reset ready flag
-        this->mod->controller.set_ccs_ready(false);
 
         // disable resets the controller and goes shortly to state E
         this->mod->controller.disable();

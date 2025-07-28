@@ -19,8 +19,9 @@
 #include <chrono>
 #include <mutex>
 #include <thread>
+// B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
+#undef B0
 #include <generated/types/cb_board_support.hpp>
-#include <CbParsley.hpp>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -77,18 +78,11 @@ private:
     /// @brief Mutex to protect `cp_current_state`.
     std::mutex cp_mutex;
 
-    /// @brief Flag to remember whether we already published an ID fault
-    bool id_fault_reported {false};
-
-    /// @brief Mutex to protect `pp_ampacity` and `id_fault_reported`
-    std::mutex id_mutex;
-
     /// @brief Flag to remember the desired and reported contactor state.
     ///        Since there is no contactor controlling on our side, we use this flag
     ///        to remember the current state and judge whether we have to report the
     ///        state change.
     std::atomic_bool contactor_state {false};
-
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

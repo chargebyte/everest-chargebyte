@@ -19,6 +19,8 @@
 #include <ra-utils/uart.h>
 #include <ra-utils/cb_protocol.h>
 #include <gpiodUtils.hpp>
+// B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
+#undef B0
 #include <generated/types/cb_board_support.hpp>
 #include "CbParsley.hpp"
 #include <everest/logging.hpp>
@@ -39,6 +41,30 @@ std::ostream& operator<<(std::ostream& os, enum cs2_id_state state) {
 
 std::ostream& operator<<(std::ostream& os, enum cs2_estop_reason state) {
     return os << cb_proto_estop_reason_to_str(state);
+}
+
+types::cb_board_support::CEState ce_state_to_CEState(enum cs2_ce_state ce_state) {
+    // use a switch case because cs2_ce_state are not continuously
+    switch (ce_state) {
+    case cs2_ce_state::CS2_CE_STATE_UNKNOWN:
+        return types::cb_board_support::CEState::PowerOn;
+    case cs2_ce_state::CS2_CE_STATE_A:
+        return types::cb_board_support::CEState::A;
+    case cs2_ce_state::CS2_CE_STATE_B0:
+        return types::cb_board_support::CEState::B0;
+    case cs2_ce_state::CS2_CE_STATE_B:
+        return types::cb_board_support::CEState::B;
+    case cs2_ce_state::CS2_CE_STATE_C:
+            return types::cb_board_support::CEState::C;
+    case cs2_ce_state::CS2_CE_STATE_E:
+            return types::cb_board_support::CEState::E;
+    case cs2_ce_state::CS2_CE_STATE_EC:
+            return types::cb_board_support::CEState::EC;
+    case cs2_ce_state::CS2_CE_STATE_INVALID:
+            return types::cb_board_support::CEState::Invalid;
+    default:
+        throw std::runtime_error("Unable to map CE State value '" + std::to_string(static_cast<unsigned int>(ce_state)) + "'.");
+    }
 }
 
 CbParsley::CbParsley() {
@@ -90,7 +116,8 @@ CbParsley::CbParsley() {
             current_id_state = cb_proto_get_id_state(&tmpctx);
             if (current_id_state != previous_id_state) {
                 if (previous_id_state != CS2_ID_STATE_MAX) {
-                    EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")";
+                    // since there are no subscribers for ID changes yet, we log it as info with different "style"
+                    EVLOG_info << "ID change detected: " << previous_id_state << " → " << current_id_state;
                     this->on_id_change(current_id_state);
                 } else {
                     EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")"
@@ -104,7 +131,8 @@ CbParsley::CbParsley() {
             if (current_ce_state != previous_ce_state) {
                 if (previous_ce_state != CS2_CE_STATE_MAX) {
                     EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")";
-                    this->on_ce_change(current_ce_state);
+                    auto ce_state = ce_state_to_CEState(current_ce_state);
+                    this->on_ce_change(ce_state);
                 } else {
                     EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")"
                                 << " [suppressed]";
@@ -474,11 +502,10 @@ bool CbParsley::send_inquiry_and_wait(enum cb_uart_com com) {
 bool CbParsley::is_emergency() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE_2);
     std::scoped_lock lock(this->ctx_mutexes[n]);
-    bool pp_error = false;
 
-    return pp_error or (cb_proto_get_cp_state(&this->ctx) == CP_STATE_INVALID) or
-           (cb_proto_get_cp_errors(&this->ctx) != 0) or cb_proto_contactors_have_errors(&this->ctx) or
-           cb_proto_estop_has_any_tripped(&this->ctx) or cb_proto_pt1000_have_errors(&this->ctx);
+    return (cb_proto_get_id_state(&this->ctx) == CS2_ID_STATE_INVALID) or
+           (cb_proto_get_ce_state(&this->ctx) == CS2_CE_STATE_INVALID) or
+           (cb_proto_get_estop_reason(&this->ctx) != CS2_ESTOP_REASON_NO_STOP);
 }
 
 unsigned int CbParsley::get_temperature_channels() const {

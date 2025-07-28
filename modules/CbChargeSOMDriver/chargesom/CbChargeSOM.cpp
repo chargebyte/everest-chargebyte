@@ -19,6 +19,8 @@
 #include <ra-utils/uart.h>
 #include <ra-utils/cb_protocol.h>
 #include <gpiodUtils.hpp>
+// B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
+#undef B0
 #include <generated/types/cb_board_support.hpp>
 #include "CbChargeSOM.hpp"
 #include <everest/logging.hpp>

@@ -11,6 +11,8 @@
 #include <gpiod.hpp>
 #include <sigslot/signal.hpp>
 #include <generated/types/board_support_common.hpp>
+// B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
+#undef B0
 #include <generated/types/cb_board_support.hpp>
 #include <ra-utils/uart.h>
 #include <ra-utils/cb_protocol.h>
