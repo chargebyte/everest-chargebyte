@@ -55,15 +55,16 @@ types::cb_board_support::CEState ce_state_to_CEState(enum cs2_ce_state ce_state)
     case cs2_ce_state::CS2_CE_STATE_B:
         return types::cb_board_support::CEState::B;
     case cs2_ce_state::CS2_CE_STATE_C:
-            return types::cb_board_support::CEState::C;
+        return types::cb_board_support::CEState::C;
     case cs2_ce_state::CS2_CE_STATE_E:
-            return types::cb_board_support::CEState::E;
+        return types::cb_board_support::CEState::E;
     case cs2_ce_state::CS2_CE_STATE_EC:
-            return types::cb_board_support::CEState::EC;
+        return types::cb_board_support::CEState::EC;
     case cs2_ce_state::CS2_CE_STATE_INVALID:
-            return types::cb_board_support::CEState::Invalid;
+        return types::cb_board_support::CEState::Invalid;
     default:
-        throw std::runtime_error("Unable to map CE State value '" + std::to_string(static_cast<unsigned int>(ce_state)) + "'.");
+        throw std::runtime_error("Unable to map CE State value '" +
+                                 std::to_string(static_cast<unsigned int>(ce_state)) + "'.");
     }
 }
 
@@ -432,14 +433,13 @@ void CbParsley::reset() {
 void CbParsley::set_ccs_ready(bool enable) {
     // we need to take the lock to change the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL_2);
-    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
+    std::scoped_lock cc_lock(this->ctx_mutexes[n]);
 
     cb_proto_set_ccs_ready(&this->ctx, enable);
 
-    // but release it now so that sending can take the lock again
-    cc_lock.unlock();
-
-    this->send_charge_control();
+    // Note: we don't send this immediately out because we cannot guarantee that
+    // we receive this request at a time when we actually want to communicate - so
+    // we just store the flag and periodic communication will send it next time
 }
 
 void CbParsley::send_charge_control() {
