@@ -5,7 +5,7 @@ config:
       Device name of the serial port to use for communication with the
       safety co-processor.
     type: string
-    default: /dev/ttyLP2
+    default: /dev/ttyLP1
   serial_debug:
     description: Enable debug messages in the communication library
     type: boolean
