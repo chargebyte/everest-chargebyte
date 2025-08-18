@@ -151,7 +151,14 @@ void evse_board_supportImpl::handle_pwm_off() {
 }
 
 void evse_board_supportImpl::handle_pwm_F() {
-    EVLOG_info << "handle_pwm_F: generating CP state F (ignored)";
+    std::scoped_lock lock(this->cp_mutex);
+    try {
+        EVLOG_info << "handle_pwm_F: generating CP state F (aka EC)";
+
+        this->mod->controller.set_ec_state();
+    } catch (std::exception& e) {
+        EVLOG_error << e.what();
+    }
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {

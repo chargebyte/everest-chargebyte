@@ -63,6 +63,9 @@ public:
     /// @brief Allow switching from B0 to B
     void set_ccs_ready(bool enable);
 
+    /// @brief Switch to EC state to signal error condition
+    void set_ec_state();
+
     /// @brief Signal used to inform about ID state changes.
     ///        The parameter contains the new ID state.
     sigslot::signal<const enum cs2_id_state&> on_id_change;

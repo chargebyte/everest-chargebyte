@@ -442,6 +442,29 @@ void CbParsley::set_ccs_ready(bool enable) {
     // we just store the flag and periodic communication will send it next time
 }
 
+void CbParsley::set_ec_state() {
+    // we need to take the lock to change the field
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL_2);
+    std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
+
+    cb_proto_set_estop(&this->ctx, true);
+
+    // but release it now so that sending can take the lock again
+    cc_lock.unlock();
+
+    this->send_charge_control();
+
+    // then we take the lock to access Charge State to check for success
+    n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE_2);
+    std::unique_lock<std::mutex> cs_lock(this->ctx_mutexes[n]);
+
+    // we should see the new value reflected within at max 1s (FIXME)
+    if (not this->rx_cv[n].wait_for(cs_lock, 1s,
+                                    [&] { return cb_proto_get_ce_state(&this->ctx) == CS2_CE_STATE_EC; })) {
+        throw std::runtime_error("Safety Controller did not set EC state on CE");
+    }
+}
+
 void CbParsley::send_charge_control() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL_2);
     std::scoped_lock lock(this->tx_mutex, this->ctx_mutexes[n]);
