@@ -233,27 +233,9 @@ void InfypowerCANController::setup_can_bcm() {
     // we actually only register Rx for Read Power Module Status here since we have to
     // periodically report voltage and current to EVerest
     struct {
-        struct bcm_msg_head bcm_msg_head;
         struct can_frame can_frame[2];
+        struct bcm_msg_head bcm_msg_head;
     } __attribute__((packed)) bcm_rx_setup = {
-        .bcm_msg_head =
-            {
-                .opcode = RX_SETUP,
-                .flags = SETTIMER | RX_ANNOUNCE_RESUME,
-                .count = 0,
-                .ival1 =
-                    {
-                        .tv_sec = 0,
-                        .tv_usec = 385000, // expect frames in intervals of 375 ms plus 10 ms safety margin
-                    },
-                .ival2 =
-                    {
-                        .tv_sec = 0,
-                        .tv_usec = 250000, // limit updates to once every 250ms (see EVerest's recommendation)
-                    },
-                .can_id = can_id_rx,
-                .nframes = 2,
-            },
         .can_frame =
             {
                 {
@@ -273,6 +255,24 @@ void InfypowerCANController::setup_can_bcm() {
                     .data = {0x11, 0x10, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff}, // mask for power module status
                 },
             },
+        .bcm_msg_head =
+            {
+                .opcode = RX_SETUP,
+                .flags = SETTIMER | RX_ANNOUNCE_RESUME,
+                .count = 0,
+                .ival1 =
+                    {
+                        .tv_sec = 0,
+                        .tv_usec = 385000, // expect frames in intervals of 375 ms plus 10 ms safety margin
+                    },
+                .ival2 =
+                    {
+                        .tv_sec = 0,
+                        .tv_usec = 250000, // limit updates to once every 250ms (see EVerest's recommendation)
+                    },
+                .can_id = can_id_rx,
+                .nframes = 2,
+            },
     };
 
     // push the setup request to CAN BCM
@@ -280,8 +280,8 @@ void InfypowerCANController::setup_can_bcm() {
                           "Couldn't register response frames with BCM");
 
     struct {
-        struct bcm_msg_head bcm_msg_head;
         struct can_frame can_frame[3];
+        struct bcm_msg_head bcm_msg_head;
     } __attribute__((packed)) bcm_tx_setup;
 
     memset(&bcm_tx_setup, 0, sizeof(bcm_tx_setup));
@@ -572,8 +572,8 @@ bool InfypowerCANController::process_cmd(InfypowerCANCmd& cmd) {
 
 void InfypowerCANController::can_bcm_rx_worker() {
     struct {
-        struct bcm_msg_head bcm_msg_head;
         struct can_frame can_frame;
+        struct bcm_msg_head bcm_msg_head;
     } __attribute__((packed)) bcm_frame;
     bool timeout_reported {false};
 
