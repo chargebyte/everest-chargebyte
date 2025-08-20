@@ -43,6 +43,10 @@ std::ostream& operator<<(std::ostream& os, enum cs2_estop_reason state) {
     return os << cb_proto_estop_reason_to_str(state);
 }
 
+std::ostream& operator<<(std::ostream& os, enum cs_safestate_active state) {
+    return os << cb_proto_safe_state_active_to_str(state);
+}
+
 types::cb_board_support::CEState ce_state_to_CEState(enum cs2_ce_state ce_state) {
     // use a switch case because cs2_ce_state are not continuously
     switch (ce_state) {
@@ -76,12 +80,16 @@ CbParsley::CbParsley() {
     // set to invalid fd so that destructor knows whether it must close something
     this->uart.fd = -1;
 
+    /* switch context to MCS mode */
+    cb_proto_set_mcs_mode(&this->ctx, true);
+
     // we need a thread to call the notification signals asynchronously to the
     // frame receiving to avoid stalling and to not miss a single change
     this->notify_thread = std::thread([&]() {
         enum cs2_id_state previous_id_state = CS2_ID_STATE_MAX;
         enum cs2_ce_state previous_ce_state = CS2_CE_STATE_MAX;
         enum cs2_estop_reason previous_estop_reason = CS2_ESTOP_REASON_MAX;
+        enum cs_safestate_active previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
 
         EVLOG_debug << "Notify Thread started";
 
@@ -91,6 +99,7 @@ CbParsley::CbParsley() {
             enum cs2_id_state current_id_state;
             enum cs2_ce_state current_ce_state;
             enum cs2_estop_reason current_estop_reason;
+            enum cs_safestate_active current_safestate_active;
 
             // wait for changes
             std::unique_lock<std::mutex> lock(this->notify_mutex);
@@ -111,6 +120,22 @@ CbParsley::CbParsley() {
                 EVLOG_debug << "on_estop(" << current_estop_reason << ")";
                 this->on_estop(current_estop_reason);
                 previous_estop_reason = current_estop_reason;
+            }
+
+            // check for changed safe state active state
+            current_safestate_active = cb_proto_get_safe_state_active(&tmpctx);
+            if (current_safestate_active != previous_safestate_active) {
+                // we suppress the normal/expected state change during boot into "normal" mode
+                EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")";
+                if (previous_safestate_active == CS_SAFESTATE_ACTIVE_MAX &&
+                    current_safestate_active == CS_SAFESTATE_ACTIVE_NORMAL) {
+                    EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")"
+                                << " [suppressed]";
+                } else {
+                    EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")";
+                    this->on_safestate_active(current_safestate_active);
+                }
+                previous_safestate_active = current_safestate_active;
             }
 
             // check for ID changes
@@ -528,7 +553,8 @@ bool CbParsley::is_emergency() {
 
     return (cb_proto_get_id_state(&this->ctx) == CS2_ID_STATE_INVALID) or
            (cb_proto_get_ce_state(&this->ctx) == CS2_CE_STATE_INVALID) or
-           (cb_proto_get_estop_reason(&this->ctx) != CS2_ESTOP_REASON_NO_STOP);
+           (cb_proto_get_estop_reason(&this->ctx) != CS2_ESTOP_REASON_NO_STOP) or
+           (cb_proto_get_safe_state_active(&this->ctx) != CS_SAFESTATE_ACTIVE_NORMAL);
 }
 
 unsigned int CbParsley::get_temperature_channels() const {

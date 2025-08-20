@@ -83,6 +83,12 @@ private:
     ///        to remember the current state and judge whether we have to report the
     ///        state change.
     std::atomic_bool contactor_state {false};
+
+    /// @brief Remember the raised error.
+    Everest::error::Error last_error;
+
+    /// @brief Flag that we raised an error.
+    bool error_raised;
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

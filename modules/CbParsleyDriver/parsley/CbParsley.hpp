@@ -26,6 +26,7 @@ std::ostream& operator<<(std::ostream& os, enum cc2_ccs_ready state);
 std::ostream& operator<<(std::ostream& os, enum cs2_ce_state state);
 std::ostream& operator<<(std::ostream& os, enum cs2_id_state state);
 std::ostream& operator<<(std::ostream& os, enum cs2_estop_reason state);
+std::ostream& operator<<(std::ostream& os, enum cs_safestate_active state);
 
 ///
 /// A class for abstracting the safety processor UART interface on Charge SOM platform.
@@ -77,6 +78,10 @@ public:
     /// @brief Signal used to inform about the reason for a stopped charging.
     ///        The parameter is the latest reason as reported by the safety controller.
     sigslot::signal<const enum cs2_estop_reason&> on_estop;
+
+    /// @brief Signal used to inform about changed safe state
+    ///        The parameter is the latest state as reported by the safety controller.
+    sigslot::signal<const enum cs_safestate_active&> on_safestate_active;
 
     /// @brief Return whether the safety controller detected an emergency state.
     bool is_emergency();
