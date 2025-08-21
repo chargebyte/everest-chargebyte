@@ -117,8 +117,13 @@ CbParsley::CbParsley() {
             // check for changed ESTOP reason
             current_estop_reason = cb_proto_get_estop_reason(&tmpctx);
             if (current_estop_reason != previous_estop_reason) {
-                EVLOG_debug << "on_estop(" << current_estop_reason << ")";
-                this->on_estop(current_estop_reason);
+                if (previous_estop_reason == CS2_ESTOP_REASON_MAX) {
+                    EVLOG_debug << "on_estop(" << current_estop_reason << ")"
+                                << " [suppressed]";
+                } else {
+                    EVLOG_debug << "on_estop(" << current_estop_reason << ")";
+                    this->on_estop(current_estop_reason);
+                }
                 previous_estop_reason = current_estop_reason;
             }
 

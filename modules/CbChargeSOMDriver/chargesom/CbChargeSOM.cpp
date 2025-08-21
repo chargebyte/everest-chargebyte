@@ -130,8 +130,13 @@ CbChargeSOM::CbChargeSOM() {
             // check for changed safe state reason
             current_safestate_reason = cb_proto_get_safestate_reason(&tmpctx);
             if (current_safestate_reason != previous_safestate_reason) {
-                EVLOG_debug << "on_estop(" << current_safestate_reason << ")";
-                this->on_estop(current_safestate_reason);
+                if (previous_safestate_reason == CS1_SAFESTATE_REASON_MAX) {
+                    EVLOG_debug << "on_estop(" << current_safestate_reason << ")"
+                                << " [suppressed]";
+                } else {
+                    EVLOG_debug << "on_estop(" << current_safestate_reason << ")";
+                    this->on_estop(current_safestate_reason);
+                }
                 previous_safestate_reason = current_safestate_reason;
             }
 
