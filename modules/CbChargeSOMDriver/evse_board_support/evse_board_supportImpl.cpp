@@ -8,6 +8,8 @@
 #include <CPUtils.hpp>
 #include "evse_board_supportImpl.hpp"
 
+const std::string safestate_active_error_subtype = "Safe State";
+
 using namespace std::chrono_literals;
 
 types::board_support_common::BspEvent cpstate_to_bspevent(const types::cb_board_support::CPState& other) {
@@ -180,11 +182,74 @@ void evse_board_supportImpl::init() {
             }
         });
 
-    this->mod->controller.on_estop.connect([&](const unsigned int& estop, const bool& active) {
-        if (active)
-            EVLOG_warning << "Emergency Stop " << (estop + 1) << " TRIPPED";
-        else
-            EVLOG_info << "Emergency Stop " << (estop + 1) << " released";
+    this->mod->controller.on_estop.connect([&](const enum cs1_safestate_reason& reason) {
+        if (reason == CS1_SAFESTATE_REASON_NO_STOP) {
+            EVLOG_info << "Emergency Stop Cause disappeared";
+            if (this->last_reported_fault.sub_type != safestate_active_error_subtype) {
+                this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
+                this->generic_fault_reported = false;
+            }
+        } else {
+            std::string error_subtype = cb_proto_safestate_reason_to_str(reason);
+            std::ostringstream errmsg;
+
+            errmsg << "Safety Controller issued an Emergency Stop due to " << reason;
+
+            switch (reason) {
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_PP_MALFUNCTION:
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_CP_MALFUNCTION:
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_CP_SHORT_CIRCUIT:
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_CP_DIODE_FAULT:
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION:
+                // these errors are already handled via other means
+                return;
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_EMERGENCY_INPUT_1:
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_EMERGENCY_INPUT_2:
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_EMERGENCY_INPUT_3:
+                EVLOG_error << errmsg.str() << ", raising MREC8EmergencyStop.";
+                this->last_reported_fault =
+                    this->error_factory->create_error("evse_board_support/MREC8EmergencyStop", error_subtype,
+                                                      errmsg.str(), Everest::error::Severity::High);
+                break;
+            default:
+                EVLOG_error << errmsg.str() << ", raising VendorError.";
+                this->last_reported_fault = this->error_factory->create_error(
+                    "evse_board_support/VendorError", error_subtype, errmsg.str(), Everest::error::Severity::High);
+            }
+
+            this->raise_error(this->last_reported_fault);
+            this->generic_fault_reported = true;
+        }
+    });
+
+    this->mod->controller.on_safestate_active.connect([&](const enum cs_safestate_active& state) {
+        // Note: this handler is always called after the estop processing above is already done
+
+        switch (state) {
+        case cs_safestate_active::CS_SAFESTATE_ACTIVE_NORMAL:
+            EVLOG_info << "Safety Controller back in normal mode";
+            if (this->generic_fault_reported and
+                (this->last_reported_fault.sub_type == safestate_active_error_subtype)) {
+                this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
+            }
+            break;
+        case cs_safestate_active::CS_SAFESTATE_ACTIVE_SAFESTATE:
+            EVLOG_error << "Safety Controller entered safe state";
+            // usually the estop handling above already raised the error, but in case
+            // the safe state is triggered without an estop reason, we ensure here, that
+            // EVerest is informed
+            if (not this->generic_fault_reported) {
+                this->last_reported_fault = this->error_factory->create_error(
+                    "evse_board_support/VendorError", safestate_active_error_subtype,
+                    "Safety MCU switched to safe state", Everest::error::Severity::High);
+                this->raise_error(this->last_reported_fault);
+                this->generic_fault_reported = true;
+            }
+            break;
+        default:
+            // all other values: we don't care
+            ;
+        }
     });
 }
 
@@ -230,7 +295,7 @@ void evse_board_supportImpl::handle_pwm_off() {
     if (this->mod->controller.is_emergency()) {
         std::scoped_lock lock(this->cp_mutex);
 
-        EVLOG_info << "handle_pwm_off: recovering after safety state";
+        EVLOG_info << "handle_pwm_off: recovering after safe state";
 
         // disable resets the controller and goes shortly to state E
         this->mod->controller.disable();

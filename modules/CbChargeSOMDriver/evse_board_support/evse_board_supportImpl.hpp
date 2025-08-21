@@ -94,6 +94,11 @@ private:
     /// @brief Flag to remember whether we already published a contactor fault.
     std::atomic_bool contactor_fault_reported {false};
 
+    /// @brief Remember the raised error.
+    Everest::error::Error last_reported_fault;
+
+    /// @brief Flag that we raised an error (common flag for all not-yet-covered ones).
+    bool generic_fault_reported {false};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

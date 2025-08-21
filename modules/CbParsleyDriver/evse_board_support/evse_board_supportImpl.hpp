@@ -85,10 +85,10 @@ private:
     std::atomic_bool contactor_state {false};
 
     /// @brief Remember the raised error.
-    Everest::error::Error last_error;
+    Everest::error::Error last_reported_fault;
 
-    /// @brief Flag that we raised an error.
-    bool error_raised;
+    /// @brief Flag that we raised an error (common flag for all not-yet-covered ones).
+    bool generic_fault_reported {false};
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

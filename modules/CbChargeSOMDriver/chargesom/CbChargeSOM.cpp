@@ -43,6 +43,14 @@ std::ostream& operator<<(std::ostream& os, enum estop_state state) {
     return os << cb_proto_estop_state_to_str(state);
 }
 
+std::ostream& operator<<(std::ostream& os, enum cs1_safestate_reason reason) {
+    return os << cb_proto_safestate_reason_to_str(reason);
+}
+
+std::ostream& operator<<(std::ostream& os, enum cs_safestate_active state) {
+    return os << cb_proto_safe_state_active_to_str(state);
+}
+
 CbChargeSOM::CbChargeSOM() {
     // clear the context structs before usage
     memset(&this->uart, 0, sizeof(this->uart));
@@ -58,7 +66,8 @@ CbChargeSOM::CbChargeSOM() {
         enum pp_state previous_pp_state = PP_STATE_MAX;
         unsigned int previous_cp_errors = 0;
         bool previous_contactor_error[CB_PROTO_MAX_CONTACTORS] = {};
-        bool previous_estop_tripped[CB_PROTO_MAX_ESTOPS] = {};
+        enum cs1_safestate_reason previous_safestate_reason = CS1_SAFESTATE_REASON_MAX;
+        enum cs_safestate_active previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
 
         EVLOG_debug << "Notify Thread started";
 
@@ -69,7 +78,8 @@ CbChargeSOM::CbChargeSOM() {
             enum pp_state current_pp_state;
             unsigned int current_cp_errors;
             bool current_contactor_error[CB_PROTO_MAX_CONTACTORS];
-            bool current_estop_tripped[CB_PROTO_MAX_ESTOPS];
+            enum cs1_safestate_reason current_safestate_reason;
+            enum cs_safestate_active current_safestate_active;
             unsigned int i;
 
             // wait for changes
@@ -117,15 +127,28 @@ CbChargeSOM::CbChargeSOM() {
                 }
             }
 
-            // check for ESTOP errors
-            for (i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
-                current_estop_tripped[i] =
-                    cb_proto_estopN_is_enabled(&tmpctx, i) && cb_proto_estopN_is_tripped(&tmpctx, i);
-                if (current_estop_tripped[i] != previous_estop_tripped[i]) {
-                    EVLOG_debug << "on_estop: " << i;
-                    this->on_estop(i, current_estop_tripped[i]);
-                    previous_estop_tripped[i] = current_estop_tripped[i];
+            // check for changed safe state reason
+            current_safestate_reason = cb_proto_get_safestate_reason(&tmpctx);
+            if (current_safestate_reason != previous_safestate_reason) {
+                EVLOG_debug << "on_estop(" << current_safestate_reason << ")";
+                this->on_estop(current_safestate_reason);
+                previous_safestate_reason = current_safestate_reason;
+            }
+
+            // check for changed safe state active state
+            current_safestate_active = cb_proto_get_safe_state_active(&tmpctx);
+            if (current_safestate_active != previous_safestate_active) {
+                // we suppress the normal/expected state change during boot into "normal" mode
+                EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")";
+                if (previous_safestate_active == CS_SAFESTATE_ACTIVE_MAX &&
+                    current_safestate_active == CS_SAFESTATE_ACTIVE_NORMAL) {
+                    EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")"
+                                << " [suppressed]";
+                } else {
+                    EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")";
+                    this->on_safestate_active(current_safestate_active);
                 }
+                previous_safestate_active = current_safestate_active;
             }
 
             // check for PP changes
@@ -150,7 +173,8 @@ CbChargeSOM::CbChargeSOM() {
             current_cp_state = cb_proto_get_cp_state(&tmpctx);
             if (current_cp_state != previous_cp_state) {
                 // the integer value representation of both enum classes are the same
-                types::cb_board_support::CPState new_cp_state = static_cast<types::cb_board_support::CPState>(current_cp_state);
+                types::cb_board_support::CPState new_cp_state =
+                    static_cast<types::cb_board_support::CPState>(current_cp_state);
 
                 if (previous_cp_state != CP_STATE_MAX) {
                     EVLOG_debug << "on_cp_change(" << previous_cp_state << " → " << current_cp_state << ")";

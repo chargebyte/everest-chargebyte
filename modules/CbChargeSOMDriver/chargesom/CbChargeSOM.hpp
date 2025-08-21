@@ -26,6 +26,8 @@ std::ostream& operator<<(std::ostream& os, enum cp_state state);
 std::ostream& operator<<(std::ostream& os, enum pp_state state);
 std::ostream& operator<<(std::ostream& os, enum contactor_state state);
 std::ostream& operator<<(std::ostream& os, enum estop_state state);
+std::ostream& operator<<(std::ostream& os, enum cs1_safestate_reason reason);
+std::ostream& operator<<(std::ostream& os, enum cs_safestate_active state);
 
 ///
 /// A class for abstracting the safety processor UART interface on Charge SOM platform.
@@ -86,10 +88,13 @@ public:
     ///        Callee is expected to check in detail.
     sigslot::signal<> on_cp_error;
 
-    /// @brief Signal used to inform about a charging stop caused by ESTOP signal.
-    ///        The first parameter is the number of the ESTOP signal which changed,
-    ///        the second parameter tells whether the signal is active.
-    sigslot::signal<const unsigned int&, const bool&> on_estop;
+    /// @brief Signal used to inform about the reason for a stopped charging.
+    ///        The parameter is the latest reason as reported by the safety controller.
+    sigslot::signal<const enum cs1_safestate_reason&> on_estop;
+
+    /// @brief Signal used to inform about changed safe state
+    ///        The parameter is the latest state as reported by the safety controller.
+    sigslot::signal<const enum cs_safestate_active&> on_safestate_active;
 
     /// @brief Signal used to inform about errors during contactor switching.
     ///        First parameter is the name of the contactor, second parameter is intended state

@@ -98,9 +98,9 @@ void evse_board_supportImpl::init() {
     this->mod->controller.on_estop.connect([&](const enum cs2_estop_reason& reason) {
         if (reason == CS2_ESTOP_REASON_NO_STOP) {
             EVLOG_info << "Emergency Stop Cause disappeared";
-            if (this->last_error.sub_type != safestate_active_error_subtype) {
-                this->clear_error(this->last_error.type, this->last_error.sub_type);
-                this->error_raised = false;
+            if (this->last_reported_fault.sub_type != safestate_active_error_subtype) {
+                this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
+                this->generic_fault_reported = false;
             }
         } else {
             std::string error_subtype = cb_proto_estop_reason_to_str(reason);
@@ -111,17 +111,17 @@ void evse_board_supportImpl::init() {
             switch (reason) {
             case cs2_estop_reason::CS2_ESTOP_REASON_EMERGENCY_INPUT:
                 EVLOG_error << errmsg.str() << ", raising MREC8EmergencyStop.";
-                this->last_error = this->error_factory->create_error("evse_board_support/MREC8EmergencyStop", "",
-                                                                     errmsg.str(), Everest::error::Severity::High);
+                this->last_reported_fault = this->error_factory->create_error(
+                    "evse_board_support/MREC8EmergencyStop", "", errmsg.str(), Everest::error::Severity::High);
                 break;
             default:
                 EVLOG_error << errmsg.str() << ", raising VendorError.";
-                this->last_error = this->error_factory->create_error("evse_board_support/VendorError", error_subtype,
-                                                                     errmsg.str(), Everest::error::Severity::High);
+                this->last_reported_fault = this->error_factory->create_error(
+                    "evse_board_support/VendorError", error_subtype, errmsg.str(), Everest::error::Severity::High);
             }
 
-            this->raise_error(this->last_error);
-            this->error_raised = true;
+            this->raise_error(this->last_reported_fault);
+            this->generic_fault_reported = true;
         }
     });
 
@@ -131,8 +131,9 @@ void evse_board_supportImpl::init() {
         switch (state) {
         case cs_safestate_active::CS_SAFESTATE_ACTIVE_NORMAL:
             EVLOG_info << "Safety Controller back in normal mode";
-            if (this->error_raised and (this->last_error.sub_type == safestate_active_error_subtype)) {
-                this->clear_error(this->last_error.type, this->last_error.sub_type);
+            if (this->generic_fault_reported and
+                (this->last_reported_fault.sub_type == safestate_active_error_subtype)) {
+                this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
             }
             break;
         case cs_safestate_active::CS_SAFESTATE_ACTIVE_SAFESTATE:
@@ -140,12 +141,12 @@ void evse_board_supportImpl::init() {
             // usually the estop handling above already raised the error, but in case
             // the safe state is triggered without an estop reason, we ensure here, that
             // EVerest is informed
-            if (not this->error_raised) {
-                this->last_error = this->error_factory->create_error(
+            if (not this->generic_fault_reported) {
+                this->last_reported_fault = this->error_factory->create_error(
                     "evse_board_support/VendorError", safestate_active_error_subtype,
                     "Safety MCU switched to safe state", Everest::error::Severity::High);
-                this->raise_error(this->last_error);
-                this->error_raised = true;
+                this->raise_error(this->last_reported_fault);
+                this->generic_fault_reported = true;
             }
             break;
         default:
