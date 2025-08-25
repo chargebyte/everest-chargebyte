@@ -443,9 +443,7 @@ void CbParsley::disable() {
     // so that the RX thread can start aligned again
     std::this_thread::sleep_for(std::chrono::milliseconds(CB_UART_RECV_INTERVAL + CB_UART_RECV_INTERVAL / 2));
 
-    // we must use `reset` here and not `set_mcu_reset` since we want to see state E
-    // on CE line which is done by the safety controller until we start talking
-    // to it again
+    // we must use `reset` here and not `set_mcu_reset`
     this->reset();
 }
 
