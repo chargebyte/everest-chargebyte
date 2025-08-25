@@ -88,7 +88,7 @@ The module [CbChargeSOMDriver](modules/CbChargeSOMDriver) depends on the library
 It must be installed manually, for example with the following steps:
 
 ```bash
-git clone https://github.com/chargebyte/ra-utils
+git clone https://github.com/chargebyte/ra-utils.git
 cd ra-utils
 mkdir build
 cd build
