@@ -96,7 +96,7 @@ cmake ..
 sudo make install
 ```
 
-The module [CbSystem](modules/CbSystem) depends on libsystemd. The library is included as package in Ubuntu
+The module [CbSystem](modules/CbSystem) depends on libsystemd. The library is included as a package in Ubuntu
 and also available in Yocto.
 
 ```bash
