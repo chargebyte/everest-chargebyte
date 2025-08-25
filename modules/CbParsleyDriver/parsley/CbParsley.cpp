@@ -134,7 +134,7 @@ CbParsley::CbParsley() {
             // check for changed ESTOP reason
             current_estop_reason = cb_proto_get_estop_reason(&tmpctx);
             if (current_estop_reason != previous_estop_reason) {
-                if (previous_estop_reason == CS2_ESTOP_REASON_MAX) {
+                if (previous_estop_reason == CS2_ESTOP_REASON_MAX && current_estop_reason == CS2_ESTOP_REASON_NO_STOP) {
                     EVLOG_debug << "on_estop(" << current_estop_reason << ")"
                                 << " [suppressed]";
                 } else {
@@ -163,13 +163,13 @@ CbParsley::CbParsley() {
             // check for ID changes
             current_id_state = cb_proto_get_id_state(&tmpctx);
             if (current_id_state != previous_id_state) {
-                if (previous_id_state != CS2_ID_STATE_MAX) {
+                if (previous_id_state == CS2_ID_STATE_MAX && current_id_state == CS2_ID_STATE_NOT_CONNECTED) {
+                    EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")"
+                                << " [suppressed]";
+                } else {
                     EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")";
                     auto id_state = id_state_to_IDState(current_id_state);
                     this->on_id_change(id_state);
-                } else {
-                    EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")"
-                                << " [suppressed]";
                 }
                 previous_id_state = current_id_state;
             }
@@ -177,13 +177,14 @@ CbParsley::CbParsley() {
             // check for CE changes
             current_ce_state = cb_proto_get_ce_state(&tmpctx);
             if (current_ce_state != previous_ce_state) {
-                if (previous_ce_state != CS2_CE_STATE_MAX) {
+                // special case: boot into expected default state
+                if (previous_ce_state == CS2_CE_STATE_MAX && current_ce_state == CS2_CE_STATE_A) {
+                    EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")"
+                                << " [suppressed]";
+                } else {
                     EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")";
                     auto ce_state = ce_state_to_CEState(current_ce_state);
                     this->on_ce_change(ce_state);
-                } else {
-                    EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")"
-                                << " [suppressed]";
                 }
                 previous_ce_state = current_ce_state;
             }
