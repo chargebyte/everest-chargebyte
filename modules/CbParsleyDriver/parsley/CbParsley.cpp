@@ -474,6 +474,10 @@ void CbParsley::reset() {
     }
 
     this->set_mcu_reset(false);
+
+    // before releasing the TX mutex we need to "release" a potentially force EC mode;
+    // this is why we remembered the CCS ready bit
+    this->set_ccs_ready(this->ccs_ready);
 }
 
 void CbParsley::set_ccs_ready(bool enable) {
@@ -482,6 +486,7 @@ void CbParsley::set_ccs_ready(bool enable) {
     std::scoped_lock cc_lock(this->ctx_mutexes[n]);
 
     cb_proto_set_ccs_ready(&this->ctx, enable);
+    this->ccs_ready = enable;
 
     // Note: we don't send this immediately out because we cannot guarantee that
     // we receive this request at a time when we actually want to communicate - so

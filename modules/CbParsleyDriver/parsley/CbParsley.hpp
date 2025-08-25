@@ -184,6 +184,11 @@ private:
     ///                    some threads before.
     bool is_mcu_reset_active {true};
 
+    /// @brief Helper to remember the CCS ready state over a MCU reset.
+    ///        Since the signal value is mixed with forcing EC state, we store it so that
+    ///        we can send a clean valuer after MCU is alive after reset.
+    bool ccs_ready {false};
+
     /// @brief Helper to toggle the reset pin
     void set_mcu_reset(bool active);
 
