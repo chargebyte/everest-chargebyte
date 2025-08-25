@@ -13,6 +13,10 @@ cmds:
         false otherwise.
       type: boolean
 vars:
+  id_state:
+    description: Insertion Detection (MCS) state as seen by the safety controller
+    type: string
+    $ref: /cb_board_support#/IDState
   ce_state:
     description: Charge Enable (MCS) state as seen by the safety controller
     type: string

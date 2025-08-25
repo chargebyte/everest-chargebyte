@@ -69,7 +69,7 @@ public:
 
     /// @brief Signal used to inform about ID state changes.
     ///        The parameter contains the new ID state.
-    sigslot::signal<const enum cs2_id_state&> on_id_change;
+    sigslot::signal<const types::cb_board_support::IDState&> on_id_change;
 
     /// @brief Signal used to inform about CE state changes.
     ///        The parameter is the new CE state.

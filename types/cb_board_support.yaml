@@ -19,6 +19,21 @@ types:
       - E
       - F
       - PilotFault
+  IDState:
+    description: >-
+      Insertion Detection (MCS) related states.
+
+      PowerOn: initial state when powering on, for nice logging.
+
+      NotConnected/Connected: as named
+
+      Invalid: Measured signal out of expected range.
+    type: string
+    enum:
+      - PowerOn
+      - NotConnected
+      - Connected
+      - Invalid
   CEState:
     description: >-
       Charge Enable (MCS) related states.

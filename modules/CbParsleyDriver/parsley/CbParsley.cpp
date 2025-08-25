@@ -47,8 +47,25 @@ std::ostream& operator<<(std::ostream& os, enum cs_safestate_active state) {
     return os << cb_proto_safe_state_active_to_str(state);
 }
 
+types::cb_board_support::IDState id_state_to_IDState(enum cs2_id_state id_state) {
+    // use a switch case because cs2_id_state values are not continuous
+    switch (id_state) {
+    case cs2_id_state::CS2_ID_STATE_UNKNOWN:
+        return types::cb_board_support::IDState::PowerOn;
+    case cs2_id_state::CS2_ID_STATE_NOT_CONNECTED:
+        return types::cb_board_support::IDState::NotConnected;
+    case cs2_id_state::CS2_ID_STATE_CONNECTED:
+        return types::cb_board_support::IDState::Connected;
+    case cs2_id_state::CS2_ID_STATE_INVALID:
+        return types::cb_board_support::IDState::Invalid;
+    default:
+        throw std::runtime_error("Unable to map ID State value '" +
+                                 std::to_string(static_cast<unsigned int>(id_state)) + "'.");
+    }
+}
+
 types::cb_board_support::CEState ce_state_to_CEState(enum cs2_ce_state ce_state) {
-    // use a switch case because cs2_ce_state are not continuously
+    // use a switch case because cs2_ce_state values are not continuous
     switch (ce_state) {
     case cs2_ce_state::CS2_CE_STATE_UNKNOWN:
         return types::cb_board_support::CEState::PowerOn;
@@ -147,9 +164,9 @@ CbParsley::CbParsley() {
             current_id_state = cb_proto_get_id_state(&tmpctx);
             if (current_id_state != previous_id_state) {
                 if (previous_id_state != CS2_ID_STATE_MAX) {
-                    // since there are no subscribers for ID changes yet, we log it as info with different "style"
-                    EVLOG_info << "ID change detected: " << previous_id_state << " → " << current_id_state;
-                    this->on_id_change(current_id_state);
+                    EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")";
+                    auto id_state = id_state_to_IDState(current_id_state);
+                    this->on_id_change(id_state);
                 } else {
                     EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")"
                                 << " [suppressed]";
