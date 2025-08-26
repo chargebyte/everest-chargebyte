@@ -498,6 +498,10 @@ void CbParsley::set_ec_state() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL_2);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
 
+    // if safety controller is already in safe state, we don't need to request it
+    if (cb_proto_get_safe_state_active(&this->ctx) == CS_SAFESTATE_ACTIVE_SAFESTATE)
+        return;
+
     cb_proto_set_estop(&this->ctx, true);
 
     // but release it now so that sending can take the lock again
@@ -509,10 +513,10 @@ void CbParsley::set_ec_state() {
     n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE_2);
     std::unique_lock<std::mutex> cs_lock(this->ctx_mutexes[n]);
 
-    // we should see the new value reflected within at max 1s (FIXME)
-    if (not this->rx_cv[n].wait_for(cs_lock, 1s,
-                                    [&] { return cb_proto_get_ce_state(&this->ctx) == CS2_CE_STATE_EC; })) {
-        throw std::runtime_error("Safety Controller did not set EC state on CE");
+    // we should see that the safety controller enters safe state within at max 1s (FIXME)
+    if (not this->rx_cv[n].wait_for(
+            cs_lock, 1s, [&] { return cb_proto_get_safe_state_active(&this->ctx) == CS_SAFESTATE_ACTIVE_SAFESTATE; })) {
+        throw std::runtime_error("Safety Controller did not entered safe state as requested");
     }
 }
 
