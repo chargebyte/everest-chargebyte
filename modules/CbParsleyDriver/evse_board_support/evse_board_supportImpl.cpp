@@ -86,6 +86,19 @@ void evse_board_supportImpl::init() {
         EVLOG_info << "CP state change from " << this->cp_current_state << " to " << current_cp_state;
         this->cp_current_state = current_cp_state;
 
+        // in case safety controller was in emergency state and EV is gone,
+        // we have to reset safety controller with a disable -> enable toggle
+        if (current_cp_state == types::cb_board_support::CPState::A and
+            this->mod->controller.is_emergency()) {
+            EVLOG_info << "recovering after safe state";
+
+            // disable resets the controller
+            this->mod->controller.disable();
+
+            // enable starts UART frame processing again
+            this->mod->controller.enable();
+        }
+
         try {
             const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
             this->publish_event(tmp);
@@ -183,23 +196,6 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
 }
 
 void evse_board_supportImpl::handle_pwm_off() {
-    // in case safety controller was in emergency state, we have to reset it
-    // with a disable -> enable toggle
-    if (this->mod->controller.is_emergency()) {
-        std::scoped_lock lock(this->cp_mutex);
-
-        EVLOG_info << "handle_pwm_off: recovering after safe state";
-
-        // disable resets the controller and goes shortly to state E
-        this->mod->controller.disable();
-
-        // reset the remembered state
-        this->cp_current_state = types::cb_board_support::CPState::PowerOn;
-
-        // enable starts UART frame processing again
-        this->mod->controller.enable();
-    }
-
     EVLOG_info << "handle_pwm_off: setting new duty cycle of 100.0% (ignored)";
 }
 
