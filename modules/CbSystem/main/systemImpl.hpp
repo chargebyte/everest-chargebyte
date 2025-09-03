@@ -66,10 +66,10 @@ private:
     std::atomic<bool> interrupt_firmware_download;
     std::atomic<bool> interrupt_log_upload;
 
-    bool log_upload_running;
-    bool standard_firmware_update_running;
-    bool firmware_download_running;
-    bool firmware_installation_running;
+    bool log_upload_running {false};
+    bool standard_firmware_update_running {false};
+    bool firmware_download_running {false};
+    bool firmware_installation_running {false};
     types::system::BootReason boot_reason {types::system::BootReason::PowerUp};
 
     std::condition_variable log_upload_cv;
