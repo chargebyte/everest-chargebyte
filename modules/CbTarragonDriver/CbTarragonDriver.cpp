@@ -68,12 +68,11 @@ void CbTarragonDriver::init() {
                 types::board_support_common::Event tmp_event = types::board_support_common::Event::PowerOff;
                 types::board_support_common::BspEvent tmp {tmp_event};
                 this->p_evse_board_support->publish_event(tmp);
-            }
 
-            if (rcm_tripped)
                 EVLOG_warning << "RCM fault occurred";
-            else
+            } else {
                 EVLOG_info << "RCM fault released";
+            }
         });
     }
 }

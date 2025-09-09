@@ -90,8 +90,8 @@ fs::path create_temp_file(const fs::path& dir, const std::string& prefix) {
 
     // close the file descriptor
     close(fd);
-
-    return fn_template_buffer.data();
+    fs::path temp_fn {fn_template_buffer.data()};
+    return temp_fn;
 }
 
 void systemImpl::init() {
