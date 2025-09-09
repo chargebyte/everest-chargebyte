@@ -84,6 +84,24 @@ cd build
 sudo make install
 ```
 
+The module [CbChargeSOMDriver](modules/CbChargeSOMDriver) depends on the library [ra-utils](https://github.com/chargebyte/ra-utils).
+It must be installed manually, for example with the following steps:
+
+```bash
+git clone https://github.com/chargebyte/ra-utils.git
+cd ra-utils
+mkdir build
+cd build
+cmake ..
+sudo make install
+```
+
+The module [CbSystem](modules/CbSystem) depends on libsystemd. The library is included as a package in Ubuntu
+and also available in Yocto.
+
+```bash
+sudo apt install libsystemd-dev
+```
 
 Remember that, when cross-compiling for the target platforms, all libraries must be included in your SYSROOT environment.
 
@@ -102,6 +120,7 @@ Finally, to build the modules, execute the following commands:
 ```bash
 mkdir build # inside everest-chargebyte
 cd build
+cmake ..
 make install -j$(nproc)
 ```
 
