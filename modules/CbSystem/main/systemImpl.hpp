@@ -69,7 +69,7 @@ private:
     bool log_upload_running {false};
     bool standard_firmware_update_running {false};
     bool firmware_download_running {false};
-    bool firmware_installation_running {false};
+    std::atomic<bool> firmware_installation_running {false};
     types::system::BootReason boot_reason {types::system::BootReason::PowerUp};
 
     std::condition_variable log_upload_cv;
@@ -84,6 +84,8 @@ private:
     Everest::SteadyTimer standard_update_firmware_timer;
     Everest::SteadyTimer signed_firmware_update_download_timer;
     Everest::SteadyTimer signed_firmware_update_install_timer;
+
+    std::string boot_reason_key;
 
     /**
      * @brief Executes a standard firmware update using the given \p firmware_update_request
