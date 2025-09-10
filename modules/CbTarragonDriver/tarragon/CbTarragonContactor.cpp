@@ -55,6 +55,10 @@ void CbTarragonContactor::set_expected_feedback_change(bool on) {
     this->relay->set_expected_feedback_change(on);
 }
 
+bool CbTarragonContactor::wait_for_feedback() {
+    return this->relay->wait_for_feedback();
+}
+
 std::chrono::milliseconds CbTarragonContactor::get_closing_delay_left() const {
     return this->relay->get_closing_delay_left();
 }

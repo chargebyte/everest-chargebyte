@@ -77,10 +77,7 @@ bool CbTarragonContactorControlSerial::switch_state(bool on) {
             // switch_contactor would have raised an error in case we had waited
             // but since we didn't we have to take care here
             if (!rv_secondary) {
-                auto actual_contactor_state {on ? types::cb_board_support::ContactorState::Open
-                                                : types::cb_board_support::ContactorState::Closed};
-
-                this->on_error(this->secondary.get_name(), on, actual_contactor_state);
+                this->on_error(this->secondary.get_name(), on, types::cb_board_support::ContactorState::Open);
 
                 // switch back both to be on safe side
                 this->switch_contactor(this->primary, false, false);

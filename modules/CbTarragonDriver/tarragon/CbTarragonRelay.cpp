@@ -112,6 +112,26 @@ void CbTarragonRelay::feedback_monitor_worker() {
     EVLOG_debug << "feedback_monitor_worker for '" << this->relay_name << "' stopped";
 }
 
+bool CbTarragonRelay::wait_for_feedback_lock(std::unique_lock<std::mutex>& lock) {
+    // in case we have no feedback to verify our operation, or we don't expect a state change,
+    // then just return success
+    if (!this->feedback or !this->expected_edge.has_value())
+        return true;
+
+    // sleep until the edge was seen or a timeout occurred
+    this->cv_expected_edge.wait_for(lock, this->feedback_timeout,
+                                    [&] { return this->expected_edge_matched.has_value(); });
+
+    // take over the result (or false on timeout)
+    return this->expected_edge_matched.value_or(false);
+}
+
+bool CbTarragonRelay::wait_for_feedback() {
+    std::unique_lock<std::mutex> lock(this->expected_edge_mutex);
+
+    return this->wait_for_feedback_lock(lock);
+}
+
 bool CbTarragonRelay::set_actuator_state(bool on, bool wait_for_feedback) {
     // Remember the desired switch direction. This must be done outside holding the lock.
     // Explanation: consider a thread calling set_actuator_state(true), i.e. it wants to
@@ -151,17 +171,11 @@ bool CbTarragonRelay::set_actuator_state(bool on, bool wait_for_feedback) {
     if (on)
         this->last_closed_ts = std::chrono::steady_clock::now();
 
-    // in case we have no feedback to verify our operation, or we don't expect a state change,
-    // or we don't want to wait, then just return success
-    if (!this->feedback or !this->expected_edge.has_value() or !wait_for_feedback)
+    // in case we don't want to wait, then just return success
+    if (!wait_for_feedback)
         return true;
 
-    // sleep until the edge was seen or a timeout occurred
-    this->cv_expected_edge.wait_for(lock, this->feedback_timeout,
-                                    [&] { return this->expected_edge_matched.has_value(); });
-
-    // take over the result (or false on timeout)
-    return this->expected_edge_matched.value_or(false);
+    return this->wait_for_feedback_lock(lock);
 }
 
 void CbTarragonRelay::set_expected_edge(bool on) {
