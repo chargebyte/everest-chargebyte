@@ -245,6 +245,7 @@ CbParsley::CbParsley() {
             }
 
             // ignore all unknown COM values
+            // note: let's do _not_ log it to be upwards compatible since this could potentially flood the logs
             if (this->is_unexpected_rx_com(com))
                 continue;
 
@@ -393,8 +394,11 @@ void CbParsley::init(const std::string& reset_gpio_line_name, bool reset_active_
     this->set_mcu_reset(false);
 
     // query firmware version and Git hash
-    if (this->send_inquiry_and_wait(COM_FW_VERSION) or this->send_inquiry_and_wait(COM_GIT_HASH)) {
-        throw std::runtime_error("Could not determine safety controller firmware information.");
+    if (this->send_inquiry_and_wait(COM_FW_VERSION)) {
+        throw std::runtime_error("Could not determine safety controller's firmware version.");
+    }
+    if (this->send_inquiry_and_wait(COM_GIT_HASH)) {
+        throw std::runtime_error("Could not determine safety controller firmware's git hash.");
     }
 
     this->fw_info = std::string(this->ctx.fw_version_str) + " (g" + this->ctx.git_hash_str + ", " +
