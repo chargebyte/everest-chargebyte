@@ -792,12 +792,12 @@ types::system::BootReason systemImpl::handle_get_boot_reason() {
     }
     auto reason_variant = this->mod->r_store.at(0)->call_load(boot_reason_key);
     auto* reason = std::get_if<std::string>(&reason_variant);
-    std::string final_reason{boot_reason_to_string(this->boot_reason)}; // fallback: rauc-based
+    auto final_reason{this->boot_reason}; // fallback: rauc-based
     if (reason != nullptr) {
-        final_reason = *reason;
+        final_reason = types::system::string_to_boot_reason(*reason);
     }
     this->mod->r_store.at(0)->call_delete(boot_reason_key);
-    return types::system::string_to_boot_reason(final_reason);
+    return final_reason;
 }
 
 } // namespace main
