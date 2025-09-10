@@ -70,9 +70,7 @@ bool CbTarragonContactorControlSerial::switch_state(bool on) {
 
         // now the secondary contactor should have also switched
         if (this->phase_count == 3) {
-            auto secondary_contactor_state {this->secondary.get_feedback_state()};
-
-            rv_secondary = secondary_contactor_state == types::cb_board_support::ContactorState::Closed;
+            rv_secondary = this->secondary.wait_for_feedback();
 
             // switch_contactor would have raised an error in case we had waited
             // but since we didn't we have to take care here
