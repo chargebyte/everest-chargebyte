@@ -378,7 +378,7 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
                                                                        .set_active_low(reset_active_low)));
 
     // open the configured device with well-known baudrate
-    rv = uart_open(&this->uart, serial_port.c_str(), 115200);
+    rv = uart_open(&this->uart, this->serial_port.c_str(), 115200);
     if (rv) {
         throw std::system_error(errno, std::generic_category(), "Failed to open '" + this->serial_port + "'");
     }
