@@ -47,6 +47,11 @@ public:
     ///        ourself, e.g. because of a special serial wiring of multiple contactors.
     void set_expected_feedback_change(bool on);
 
+    /// @brief Sleeps until the next change event on the feedback signal occurs.
+    /// @return Returns false if the new state could not reached successfully (based on sense signal evaluation
+    ///         if configured and thus it is probably a contactor error), true otherwise.
+    bool wait_for_feedback();
+
     /// @brief Return the time to wait until the contactor can be closed again.
     std::chrono::milliseconds get_closing_delay_left() const;
 

@@ -58,6 +58,11 @@ public:
     ///        a call to `set_actuator_state`, e.g. because of a special serial wiring of multiple contactors.
     void set_expected_feedback_change(bool on);
 
+    /// @brief Sleeps until the next change event on the feedback signal occurs.
+    /// @return Returns false if the new state could not reached successfully (based on sense signal evaluation
+    ///         if configured and thus it is probably a contactor error), true otherwise.
+    bool wait_for_feedback();
+
     /// @brief Return the time to wait until the relay can be closed again.
     std::chrono::milliseconds get_closing_delay_left() const;
 
@@ -94,6 +99,12 @@ private:
     /// @brief Set the next expected feedback edge event type
     ///        Must be called with the mutex `expected_edge_mutex` hold.
     void set_expected_edge(bool on);
+
+    /// @brief Sleeps until the next change event on the feedback signal occurs.
+    /// @param lock Reference to the lock to re-use.
+    /// @return Returns false if the new state could not reached successfully (based on sense signal evaluation
+    ///         if configured and thus it is probably a contactor error), true otherwise.
+    bool wait_for_feedback_lock(std::unique_lock<std::mutex>& lock);
 
     /// @brief This is basically the return value of `set_actuator_state`.
     std::optional<bool> expected_edge_matched;
