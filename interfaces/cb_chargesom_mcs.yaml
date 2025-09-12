@@ -1,0 +1,25 @@
+description: Interface for MCS support related functionality
+cmds:
+  mcs_hlc_enable:
+    description: >-
+      Signal to allow/disallow the state change from B0 to B in Megawatt charging
+    arguments:
+      value:
+        description: True to allow safety controller switching state from B0 to B
+        type: boolean
+    result:
+      description: >-
+        Returns true when the flag was communicated successfully to safety controller,
+        false otherwise.
+      type: boolean
+vars:
+  id_state:
+    description: Insertion Detection (MCS) state as seen by the safety controller
+    type: string
+    $ref: /cb_board_support#/IDState
+  ce_state:
+    description: Charge Enable (MCS) state as seen by the safety controller
+    type: string
+    $ref: /cb_board_support#/CEState
+errors:
+  - reference: /errors/generic

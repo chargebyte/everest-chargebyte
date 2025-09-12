@@ -1,0 +1,5 @@
+#pragma once
+
+#define MODULE_NAME        "@MODULE_NAME@"
+#define MODULE_DESCRIPTION "@MODULE_DESCRIPTION@"
+#define MODULE_VERSION     "@MODULE_VERSION@"
