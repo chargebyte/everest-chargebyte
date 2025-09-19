@@ -101,6 +101,12 @@ public:
     ///        and third parameter is actual state.
     sigslot::signal<const std::string&, bool, types::cb_board_support::ContactorState> on_contactor_error;
 
+    /// @brief Signal used to inform about received error message
+    ///        The parameter is filled with the data from the latest error message string.
+    sigslot::signal<bool, unsigned int, const std::string&, unsigned int, const std::string&, unsigned int,
+                    unsigned int>
+        on_errmsg;
+
     /// @brief Return whether the safety controller detected an emergency state.
     bool is_emergency();
 
@@ -207,6 +213,18 @@ private:
 
     /// @brief Queue used to serialize changes of Charge State frame for notifying
     std::queue<uint64_t> charge_state_changes;
+
+    /// @brief Thread for pushing received error messages to higher layers.
+    std::thread errmsg_thread;
+
+    /// @brief Mutex to protect access to the `error_messages` queue.
+    std::mutex errmsg_mutex;
+
+    /// @brief Condition variables used to wait for updates on `error_messages`
+    std::condition_variable errmsg_cv;
+
+    /// @brief Queue used to serialize Error Message frames for notifying
+    std::queue<uint64_t> errmsg_queue;
 
     /// @brief Mutex to ensure that only one inquiry request is in-flight at the same time
     std::mutex inquiry_mutex;
