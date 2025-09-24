@@ -88,8 +88,7 @@ void evse_board_supportImpl::init() {
 
         // in case safety controller was in emergency state and EV is gone,
         // we have to reset safety controller with a disable -> enable toggle
-        if (current_cp_state == types::cb_board_support::CPState::A and
-            this->mod->controller.is_emergency()) {
+        if (current_cp_state == types::cb_board_support::CPState::A and this->mod->controller.is_emergency()) {
             EVLOG_info << "recovering after safe state";
 
             // disable resets the controller
@@ -173,9 +172,8 @@ void evse_board_supportImpl::init() {
                                                 unsigned int additional_data1, unsigned int additional_data2) {
         if (is_active) {
             std::ostringstream errmsg;
-            errmsg << reason_str << " (" << std::showbase << std::setw(4) << std::setfill('0') << std::hex << reason
-                   << "), " << std::showbase << std::setw(4) << std::setfill('0') << std::hex << additional_data1
-                   << ", " << std::showbase << std::setw(4) << std::setfill('0') << std::hex << additional_data2;
+            errmsg << std::showbase << std::setw(4) << std::setfill('0') << std::hex;
+            errmsg << reason_str << " (" << reason << "), " << additional_data1 << ", " << additional_data2;
 
             EVLOG_warning << "Safety Controller reported error: " << module_str << "(" << std::showbase << std::setw(4)
                           << std::setfill('0') << std::hex << module << "), " << errmsg.str();

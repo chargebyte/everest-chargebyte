@@ -83,8 +83,8 @@ public:
     ///        The parameter is the latest state as reported by the safety controller.
     sigslot::signal<const enum cs_safestate_active&> on_safestate_active;
 
-    /// @brief Signal used to inform about received error message
-    ///        The parameter is filled with the data from the latest error message string.
+    /// @brief Signal emitted whenever an error message is received.
+    ///        The parameters are filled with the data from the latest error message.
     sigslot::signal<bool, unsigned int, const std::string&, unsigned int, const std::string&, unsigned int,
                     unsigned int>
         on_errmsg;

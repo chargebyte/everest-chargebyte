@@ -101,8 +101,8 @@ public:
     ///        and third parameter is actual state.
     sigslot::signal<const std::string&, bool, types::cb_board_support::ContactorState> on_contactor_error;
 
-    /// @brief Signal used to inform about received error message
-    ///        The parameter is filled with the data from the latest error message string.
+    /// @brief Signal emitted whenever an error message is received.
+    ///        The parameters are filled with the data from the latest error message.
     sigslot::signal<bool, unsigned int, const std::string&, unsigned int, const std::string&, unsigned int,
                     unsigned int>
         on_errmsg;

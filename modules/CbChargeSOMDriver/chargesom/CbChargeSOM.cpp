@@ -227,8 +227,8 @@ CbChargeSOM::CbChargeSOM() {
             reason = cb_proto_errmsg_get_reason(&tmpctx);
             additional_data1 = cb_proto_errmsg_get_additional_data_1(&tmpctx);
             additional_data2 = cb_proto_errmsg_get_additional_data_2(&tmpctx);
-            std::string module_str{cb_proto_errmsg_module_to_str(module)};
-            std::string reason_str{cb_proto_errmsg_reason_to_str(module, reason)};
+            std::string module_str {cb_proto_errmsg_module_to_str(module)};
+            std::string reason_str {cb_proto_errmsg_reason_to_str(module, reason)};
 
             this->on_errmsg(is_active, static_cast<unsigned int>(module), module_str, reason, reason_str,
                             additional_data1, additional_data2);
@@ -319,14 +319,16 @@ CbChargeSOM::CbChargeSOM() {
                 // but it also does not hurt
                 break;
 
-            case cb_uart_com::COM_ERROR_MESSAGE: {
+            case cb_uart_com::COM_ERROR_MESSAGE:
                 this->ctx.error_message = payload;
                 // it is not necessary to wake-up the "normal" waiters
                 notify = false;
-                std::scoped_lock notify_lock(this->errmsg_mutex);
-                this->errmsg_queue.push(payload);
+                {
+                    std::scoped_lock errmsg_lock(this->errmsg_mutex);
+                    this->errmsg_queue.push(payload);
+                }
                 this->errmsg_cv.notify_one();
-            } break;
+                break;
 
             case cb_uart_com::COM_FW_VERSION:
                 this->ctx.fw_version = payload;
