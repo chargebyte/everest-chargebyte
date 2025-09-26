@@ -19,12 +19,9 @@ void cb_chargesom_temperaturesImpl::init() {
 void cb_chargesom_temperaturesImpl::ready() {
     this->publish_thread = std::thread([&]() {
         unsigned int supported_channels = this->mod->controller.get_temperature_channels();
-        const std::vector<std::reference_wrapper<const std::string>> ident_config{
-            std::ref(this->mod->config.pt1000_1_identification),
-            std::ref(this->mod->config.pt1000_2_identification),
-            std::ref(this->mod->config.pt1000_3_identification),
-            std::ref(this->mod->config.pt1000_4_identification)
-        };
+        const std::vector<std::reference_wrapper<const std::string>> ident_config {
+            std::ref(this->mod->config.pt1000_1_identification), std::ref(this->mod->config.pt1000_2_identification),
+            std::ref(this->mod->config.pt1000_3_identification), std::ref(this->mod->config.pt1000_4_identification)};
 
         while (!this->mod->termination_requested) {
             std::vector<types::temperature::Temperature> v;
@@ -56,22 +53,39 @@ void cb_chargesom_temperaturesImpl::ready() {
 
                 if (flags & PT1000_CHARGING_STOPPED) {
                     if (!this->charging_abort_cause_reported[i]) {
-                        EVLOG_warning << t.identification.value() << " caused charging abort: " << std::fixed
-                                      << std::setprecision(1) << t.temperature << " °C";
+                        std::ostringstream errmsg;
+                        errmsg << t.identification.value() << " caused charging abort: " << std::fixed
+                               << std::setprecision(1) << t.temperature << " °C";
+                        EVLOG_error << errmsg.str();
+
+                        auto e = this->error_factory->create_error("cb_chargesom_temperatures/ChargingAbort",
+                                                                   t.identification.value(), errmsg.str(),
+                                                                   Everest::error::Severity::High);
+                        this->raise_error(e);
+
                         this->charging_abort_cause_reported[i] = true;
                     }
                 } else {
                     // we can just reset the flag here since we don't want to
                     // notify the user explicitly because the port was reset completely
                     if (this->charging_abort_cause_reported[i]) {
-                        EVLOG_warning << t.identification.value() << " charging abort flag reset";
+                        EVLOG_info << t.identification.value() << " charging abort flag reset";
+                        this->clear_error("cb_chargesom_temperatures/ChargingAbort", t.identification.value());
                         this->charging_abort_cause_reported[i] = false;
                     }
                 }
 
                 if (flags & PT1000_SELFTEST_FAILED) {
                     if (!this->selftest_failed_reported[i]) {
-                        EVLOG_error << "Self-test for " << t.identification.value() << " failed.";
+                        std::ostringstream errmsg;
+                        errmsg << "Self-test for " << t.identification.value() << " failed.";
+                        EVLOG_error << errmsg.str();
+
+                        auto e = this->error_factory->create_error("cb_chargesom_temperatures/SelftestFailed",
+                                                                   t.identification.value(), errmsg.str(),
+                                                                   Everest::error::Severity::High);
+                        this->raise_error(e);
+
                         this->selftest_failed_reported[i] = true;
                     }
                     // unsure whether the data is (still) valid at all, so don't forward it anymore
@@ -80,7 +94,8 @@ void cb_chargesom_temperaturesImpl::ready() {
                     // we can just reset the flag here since we don't want to
                     // notify the user explicitly because the port was reset completely
                     if (this->selftest_failed_reported[i]) {
-                        EVLOG_warning << t.identification.value() << " selftest failed flag reset";
+                        EVLOG_info << t.identification.value() << " selftest failed flag reset";
+                        this->clear_error("cb_chargesom_temperatures/SelftestFailed", t.identification.value());
                         this->selftest_failed_reported[i] = false;
                     }
                 }

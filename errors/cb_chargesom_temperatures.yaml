@@ -1,0 +1,7 @@
+description: >-
+  Errors used by Charge SOM temperature interface
+errors:
+  - name: SelftestFailed
+    description: Temperature channel failed the internal selftest.
+  - name: ChargingAbort
+    description: Temperature channel caused a charging session abort.

@@ -1,8 +1,12 @@
 *build
-*build-cross
+*build-*
 *.cache
 *.cproject
 *.project
 *.settings
 *.vscode
 workspace.yaml
+*.orig
+*.patch
+*.diff
+*.rej

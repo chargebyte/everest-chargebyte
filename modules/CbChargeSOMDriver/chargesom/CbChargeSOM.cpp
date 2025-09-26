@@ -195,6 +195,48 @@ CbChargeSOM::CbChargeSOM() {
         EVLOG_debug << "Notify Thread terminated";
     });
 
+    // we need a thread to handle all the error message notifications asynchronously
+    // to the frame receiving to avoid stalling and to not miss a single one
+    this->errmsg_thread = std::thread([&]() {
+        EVLOG_debug << "Error Message Thread started";
+
+        while (!this->termination_requested) {
+            // temporary helper variables for our access functions
+            struct safety_controller tmpctx;
+            bool is_active;
+            enum errmsg_module module;
+            unsigned int reason;
+            unsigned int additional_data1;
+            unsigned int additional_data2;
+
+            // wait for events
+            std::unique_lock<std::mutex> lock(this->errmsg_mutex);
+            this->errmsg_cv.wait(lock, [&]() {
+                return (!this->errmsg_queue.empty() && this->evse_enabled) || this->termination_requested;
+            });
+
+            if (this->termination_requested)
+                break;
+
+            // remove from queue
+            tmpctx.error_message = this->errmsg_queue.front();
+            this->errmsg_queue.pop();
+
+            is_active = cb_proto_errmsg_is_active(&tmpctx);
+            module = cb_proto_errmsg_get_module(&tmpctx);
+            reason = cb_proto_errmsg_get_reason(&tmpctx);
+            additional_data1 = cb_proto_errmsg_get_additional_data_1(&tmpctx);
+            additional_data2 = cb_proto_errmsg_get_additional_data_2(&tmpctx);
+            std::string module_str {cb_proto_errmsg_module_to_str(module)};
+            std::string reason_str {cb_proto_errmsg_reason_to_str(module, reason)};
+
+            this->on_errmsg(is_active, static_cast<unsigned int>(module), module_str, reason, reason_str,
+                            additional_data1, additional_data2);
+        }
+
+        EVLOG_debug << "Error Message Thread terminated";
+    });
+
     // launch processing of received frames
     this->rx_thread = std::thread([&]() {
         // used to detect changes
@@ -275,6 +317,17 @@ CbChargeSOM::CbChargeSOM() {
                 // note: notifying is not strictly needed here since the
                 // temperature interface polls in regular intervals by itself
                 // but it also does not hurt
+                break;
+
+            case cb_uart_com::COM_ERROR_MESSAGE:
+                this->ctx.error_message = payload;
+                // it is not necessary to wake-up the "normal" waiters
+                notify = false;
+                {
+                    std::scoped_lock errmsg_lock(this->errmsg_mutex);
+                    this->errmsg_queue.push(payload);
+                }
+                this->errmsg_cv.notify_one();
                 break;
 
             case cb_uart_com::COM_FW_VERSION:

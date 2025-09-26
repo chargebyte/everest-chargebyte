@@ -251,6 +251,34 @@ void evse_board_supportImpl::init() {
             ;
         }
     });
+
+    this->mod->controller.on_errmsg.connect([&](bool is_active, unsigned int module, const std::string& module_str,
+                                                unsigned int reason, const std::string& reason_str,
+                                                unsigned int additional_data1, unsigned int additional_data2) {
+        if (is_active) {
+            std::ostringstream errmsg;
+            errmsg << std::showbase << std::setw(4) << std::setfill('0') << std::hex;
+            errmsg << reason_str << " (" << reason << "), " << additional_data1 << ", " << additional_data2;
+
+            EVLOG_warning << "Safety Controller reported error: " << module_str << "(" << std::showbase << std::setw(4)
+                          << std::setfill('0') << std::hex << module << "), " << errmsg.str();
+
+            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg.str(),
+                                                       Everest::error::Severity::High);
+
+            this->raise_error(e);
+
+        } else {
+            std::ostringstream errmsg;
+            errmsg << reason_str << " (" << std::showbase << std::setw(4) << std::setfill('0') << std::hex << reason
+                   << ")";
+
+            EVLOG_info << "Safety Controller cleared error: " << module_str << "(" << std::showbase << std::setw(4)
+                       << std::setfill('0') << std::hex << module << "), " << errmsg.str();
+
+            this->clear_error("evse_board_support/VendorWarning", module_str);
+        }
+    });
 }
 
 void evse_board_supportImpl::ready() {
