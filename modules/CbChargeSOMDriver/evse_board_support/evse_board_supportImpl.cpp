@@ -161,6 +161,24 @@ void evse_board_supportImpl::init() {
         }
     });
 
+    this->mod->controller.on_contactor_change.connect(
+        [&](const std::string& source, types::cb_board_support::ContactorState actual_state) {
+            // ignore the source for now, just log it
+            EVLOG_debug << source << " state change detected: now " << actual_state;
+
+            bool current_contactor_state = this->mod->controller.get_contactor_state();
+            bool previous_state_reporetd = this->contactor_state_reported.exchange(current_contactor_state);
+
+            if (previous_state_reporetd != current_contactor_state) {
+                // publish PowerOn or PowerOff event
+                types::board_support_common::Event tmp_event = current_contactor_state
+                                                                   ? types::board_support_common::Event::PowerOn
+                                                                   : types::board_support_common::Event::PowerOff;
+                types::board_support_common::BspEvent tmp {tmp_event};
+                this->publish_event(tmp);
+            }
+        });
+
     this->mod->controller.on_contactor_error.connect(
         [&](const std::string& source, bool desired_state, types::cb_board_support::ContactorState actual_state) {
             // An error occurred while switching - i.e. feedback does not match our expected new state.
@@ -362,8 +380,7 @@ void evse_board_supportImpl::handle_pwm_F() {
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
     // this method is called very often, even the contactor state is already matching the desired one
-    // so let's use this as helper to control the log noise a little bit and whether we actually
-    // need to report a BSP event
+    // so let's use this as helper to control the log noise a little bit
     bool state_change = value.allow_power_on != this->mod->controller.get_contactor_state();
 
     if (value.allow_power_on && this->cp_current_state == types::cb_board_support::CPState::PilotFault) {
@@ -381,31 +398,17 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
         return;
     }
 
-    if (state_change)
-        EVLOG_info << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN")
-                   << " the contactor";
-    else
+    if (!state_change) {
         EVLOG_debug << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN")
                     << " the contactor";
-
-    // exit early if we don't actually change the state
-    if (!state_change) {
-        EVLOG_info << "Current (unchanged) state: "
-                   << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
+        EVLOG_debug << "Current (unchanged) state: "
+                    << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
         return;
     }
 
-    if (this->mod->controller.switch_state(value.allow_power_on)) {
-        EVLOG_info << "Current state: " << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
-
-        // publish PowerOn or PowerOff event
-        types::board_support_common::Event tmp_event = value.allow_power_on
-                                                           ? types::board_support_common::Event::PowerOn
-                                                           : types::board_support_common::Event::PowerOff;
-        types::board_support_common::BspEvent tmp {tmp_event};
-        this->publish_event(tmp);
-    }
-    // Note: errors while switching the contactor are reported and handled via on_error slot
+    EVLOG_info << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN") << " the contactor";
+    this->mod->controller.switch_state(value.allow_power_on);
+    // Note: actual switching and errors while switching are reported via slots
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {

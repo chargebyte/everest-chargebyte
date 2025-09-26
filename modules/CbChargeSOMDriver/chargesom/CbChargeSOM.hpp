@@ -96,6 +96,10 @@ public:
     ///        The parameter is the latest state as reported by the safety controller.
     sigslot::signal<const enum cs_safestate_active&> on_safestate_active;
 
+    /// @brief Signal emitted whenever a contactor switch is detected.
+    ///        First parameter is the name of the contactor, second parameter is actual state.
+    sigslot::signal<const std::string&, types::cb_board_support::ContactorState> on_contactor_change;
+
     /// @brief Signal used to inform about errors during contactor switching.
     ///        First parameter is the name of the contactor, second parameter is intended state
     ///        and third parameter is actual state.
