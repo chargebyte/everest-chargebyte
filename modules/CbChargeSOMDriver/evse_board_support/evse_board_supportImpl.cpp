@@ -164,7 +164,7 @@ void evse_board_supportImpl::init() {
     this->mod->controller.on_contactor_change.connect(
         [&](const std::string& source, types::cb_board_support::ContactorState actual_state) {
             // ignore the source for now, just log it
-            EVLOG_debug << source << " state change detected: now " << actual_state;
+            EVLOG_info << source << " state change detected: now " << actual_state;
 
             bool current_contactor_state = this->mod->controller.get_contactor_state();
             bool previous_state_reporetd = this->contactor_state_reported.exchange(current_contactor_state);
@@ -398,15 +398,14 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
         return;
     }
 
+    EVLOG_info << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN") << " the contactor";
+
     if (!state_change) {
-        EVLOG_debug << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN")
-                    << " the contactor";
         EVLOG_debug << "Current (unchanged) state: "
                     << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
         return;
     }
 
-    EVLOG_info << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN") << " the contactor";
     this->mod->controller.switch_state(value.allow_power_on);
     // Note: actual switching and errors while switching are reported via slots
 }
