@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14.7)
 
 project(everest-chargebyte
-    VERSION 0.23.0
+    VERSION 0.24.0
     DESCRIPTION "chargebyte's Hardware EVerest Modules"
     LANGUAGES C CXX)
 
@@ -31,7 +31,7 @@ else()
     find_package(everest-core REQUIRED)
 endif()
 
-# gpiod utils
+# gpiod and CP utils
 add_subdirectory("utils")
 
 # make custom interfaces and types visible
