@@ -91,6 +91,9 @@ private:
     /// @brief Mutex to protect `pp_ampacity` and `pp_fault_reported`
     std::mutex pp_mutex;
 
+    /// @brief Flag to remember which cumulative contactor state we reported last.
+    std::atomic_bool contactor_state_reported {false};
+
     /// @brief Flag to remember whether we already published a contactor fault.
     std::atomic_bool contactor_fault_reported {false};
 
