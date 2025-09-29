@@ -167,9 +167,9 @@ void evse_board_supportImpl::init() {
             EVLOG_info << source << " state change detected: now " << actual_state;
 
             bool current_contactor_state = this->mod->controller.get_contactor_state();
-            bool previous_state_reporetd = this->contactor_state_reported.exchange(current_contactor_state);
+            bool previous_state_reported = this->contactor_state_reported.exchange(current_contactor_state);
 
-            if (previous_state_reporetd != current_contactor_state) {
+            if (previous_state_reported != current_contactor_state) {
                 // publish PowerOn or PowerOff event
                 types::board_support_common::Event tmp_event = current_contactor_state
                                                                    ? types::board_support_common::Event::PowerOn
