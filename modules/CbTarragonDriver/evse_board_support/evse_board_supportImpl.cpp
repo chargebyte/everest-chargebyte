@@ -484,6 +484,11 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         if (this->termination_requested)
             break;
 
+        if (!this->pwm_controller.is_enabled()) {
+            std::this_thread::sleep_for(2ms);
+            continue;
+        }
+
         // do the actual measurement
         this->cp_controller.get_values(positive_side.voltage, negative_side.voltage);
 
