@@ -385,6 +385,11 @@ types::cb_board_support::CPState
 evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
                                            const CPUtils::cp_state_signal_side& cp_state_negative_side,
                                            const double& duty_cycle, bool& is_cp_error) {
+    // In case the PWM is disabled, we cannot trust the peak detectors
+    if (!this->pwm_controller.is_enabled()) {
+        return types::cb_board_support::CPState::E;
+    }
+
     // In case we drive state F (0% PWM), then we cannot trust the peak detectors
     if (duty_cycle == 0.0) {
         return types::cb_board_support::CPState::F;
