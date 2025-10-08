@@ -160,10 +160,17 @@ void evse_board_supportImpl::ready() {
 void evse_board_supportImpl::update_cp_state_internally(types::cb_board_support::CPState state,
                                                         const CPUtils::cp_state_signal_side& negative_side,
                                                         const CPUtils::cp_state_signal_side& positive_side) {
+    std::stringstream duty_msg;
+
+    if (this->pwm_controller.is_enabled())
+        duty_msg << std::fixed << std::setprecision(2) << this->pwm_controller.get_duty_cycle() << "%)";
+    else
+        duty_msg << "off";
+
     EVLOG_info << "CP state change from " << this->cp_current_state << " to " << state << ", "
                << "U_CP+: " << positive_side.voltage << " mV, "
                << "U_CP-: " << negative_side.voltage << " mV, "
-               << "PWM: " << std::fixed << std::setprecision(2) << this->pwm_controller.get_duty_cycle() << "%)";
+               << "PWM: " << duty_msg.str();
     this->cp_current_state = state;
 }
 
