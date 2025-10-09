@@ -238,11 +238,15 @@ void evse_board_supportImpl::handle_pwm_F() {
 }
 
 bool evse_board_supportImpl::handle_cp_power_off() {
-    return false;
+    EVLOG_info << "handle_cp_power_off: Disable PWM";
+    this->pwm_controller.disable();
+    return true;
 }
 
 bool evse_board_supportImpl::handle_cp_power_on() {
-    return false;
+    EVLOG_info << "handle_cp_power_on: Enable PWM";
+    this->pwm_controller.set_duty_cycle(100.0);
+    return true;
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
