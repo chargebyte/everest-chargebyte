@@ -27,7 +27,6 @@
 #include <CbTarragonPP.hpp>
 #include <CbTarragonContactorControl.hpp>
 #include <CPUtils.hpp>
-
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -53,6 +52,8 @@ protected:
     virtual void handle_pwm_on(double& value) override;
     virtual void handle_pwm_off() override;
     virtual void handle_pwm_F() override;
+    virtual bool handle_cp_power_off() override;
+    virtual bool handle_cp_power_on() override;
     virtual void handle_allow_power_on(types::evse_board_support::PowerOnOff& value) override;
     virtual void handle_ac_switch_three_phases_while_charging(bool& value) override;
     virtual void handle_evse_replug(int& value) override;
@@ -145,7 +146,6 @@ private:
 
     /// @brief Main function of the PP observation thread
     void pp_observation_worker(void);
-
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

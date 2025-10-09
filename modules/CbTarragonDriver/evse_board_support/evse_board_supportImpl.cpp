@@ -237,6 +237,14 @@ void evse_board_supportImpl::handle_pwm_F() {
     this->pwm_controller.set_duty_cycle(0.0);
 }
 
+bool evse_board_supportImpl::handle_cp_power_off() {
+    return false;
+}
+
+bool evse_board_supportImpl::handle_cp_power_on() {
+    return false;
+}
+
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
     // this method is called very often, even the contactor state is already matching the desired one
     // so let's use this as helper to control the log noise a little bit and whether we actually
