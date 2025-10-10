@@ -313,17 +313,8 @@ void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& 
 }
 
 void evse_board_supportImpl::handle_evse_replug(int& value) {
-    types::board_support_common::BspEvent start {types::board_support_common::Event::EvseReplugStarted};
-    types::board_support_common::BspEvent finish {types::board_support_common::Event::EvseReplugFinished};
-
-    EVLOG_info << "handle_evse_replug: Disable PWM";
-    this->pwm_controller.disable();
-    this->publish_event(start);
-    std::this_thread::sleep_for(std::chrono::milliseconds(value));
-
-    EVLOG_info << "handle_evse_replug: Enable PWM";
-    this->pwm_controller.set_duty_cycle(100.0);
-    this->publish_event(finish);
+    // your code for cmd evse_replug goes here
+    (void)value;
 }
 
 types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
