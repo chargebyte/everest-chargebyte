@@ -496,7 +496,8 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
 
     this->fw_info = std::string(this->ctx.fw_version_str) + " (g" + this->ctx.git_hash_str + ", " +
                     cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&this->ctx)) + ", " +
-                    cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ")";
+                    cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) +
+                    ", Parameter Version: " + std::to_string(cb_proto_fw_get_param_version(&this->ctx)) + ")";
 }
 
 void CbChargeSOM::enable() {
