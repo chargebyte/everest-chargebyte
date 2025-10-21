@@ -593,6 +593,7 @@ bool CbParsley::is_unexpected_rx_com(enum cb_uart_com com) {
     case COM_PT1000_STATE:
     case COM_FW_VERSION:
     case COM_GIT_HASH:
+    case COM_ERROR_MESSAGE:
         return false;
     default:
         return true;
