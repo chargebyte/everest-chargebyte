@@ -30,6 +30,7 @@ target_link_libraries(${MODULE_NAME}
         parsley
         Pal::Sigslot
         nlohmann_json::nlohmann_json
+        fmt::fmt
         ra-utils
 )
 
