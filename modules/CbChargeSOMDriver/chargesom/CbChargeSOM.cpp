@@ -671,9 +671,7 @@ bool CbChargeSOM::is_emergency() {
         pp_error = cb_proto_get_pp_state(&this->ctx) > PP_STATE_63_70A;
     }
 
-    return pp_error or (cb_proto_get_cp_state(&this->ctx) == CP_STATE_INVALID) or
-           (cb_proto_get_cp_errors(&this->ctx) != 0) or cb_proto_contactors_have_errors(&this->ctx) or
-           cb_proto_estop_has_any_tripped(&this->ctx) or cb_proto_pt1000_have_errors(&this->ctx);
+    return pp_error or cb_proto_get_safe_state_active(&this->ctx) == CS_SAFESTATE_ACTIVE_SAFESTATE;
 }
 
 void CbChargeSOM::set_duty_cycle(unsigned int duty_cycle) {

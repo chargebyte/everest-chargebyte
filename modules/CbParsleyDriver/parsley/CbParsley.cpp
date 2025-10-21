@@ -640,10 +640,7 @@ bool CbParsley::is_emergency() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE_2);
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
-    return (cb_proto_get_id_state(&this->ctx) == CS2_ID_STATE_INVALID) or
-           (cb_proto_get_ce_state(&this->ctx) == CS2_CE_STATE_INVALID) or
-           (cb_proto_get_estop_reason(&this->ctx) != CS2_ESTOP_REASON_NO_STOP) or
-           (cb_proto_get_safe_state_active(&this->ctx) != CS_SAFESTATE_ACTIVE_NORMAL);
+    return cb_proto_get_safe_state_active(&this->ctx) == CS_SAFESTATE_ACTIVE_SAFESTATE;
 }
 
 unsigned int CbParsley::get_temperature_channels() const {
