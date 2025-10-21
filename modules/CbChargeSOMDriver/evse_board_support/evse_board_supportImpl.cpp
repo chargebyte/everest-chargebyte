@@ -163,6 +163,11 @@ void evse_board_supportImpl::init() {
 
     this->mod->controller.on_contactor_change.connect(
         [&](const std::string& source, types::cb_board_support::ContactorState actual_state) {
+            if (actual_state == types::cb_board_support::ContactorState::Unknown) {
+                EVLOG_debug << source << " state change detected: now " << actual_state;
+                return;
+            }
+
             // ignore the source for now, just log it
             EVLOG_info << source << " state change detected: now " << actual_state;
 
