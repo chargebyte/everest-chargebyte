@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <stdexcept>
 #include <fmt/core.h>
+#include <fmt/ostream.h>
 #include <generated/types/cb_board_support.hpp>
 #include <CPUtils.hpp>
 #include "evse_board_supportImpl.hpp"
@@ -31,6 +32,8 @@ types::board_support_common::BspEvent cpstate_to_bspevent(const types::cb_board_
         throw std::runtime_error("Unable to map the value '" + cpstate_to_string(other) + "'.");
     }
 }
+
+template <> struct fmt::formatter<types::evse_board_support::Reason> : fmt::ostream_formatter {};
 
 namespace module {
 namespace evse_board_support {
@@ -400,7 +403,8 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
         return;
     }
 
-    EVLOG_info << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN") << " the contactor";
+    EVLOG_info << fmt::format("handle_allow_power_on: request to {} the contactor ({})",
+                              value.allow_power_on ? "CLOSE" : "OPEN", value.reason);
 
     if (!state_change) {
         EVLOG_debug << "Current (unchanged) state: "
