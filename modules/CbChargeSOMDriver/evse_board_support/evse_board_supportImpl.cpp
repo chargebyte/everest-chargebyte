@@ -4,6 +4,8 @@
 #include <chrono>
 #include <iomanip>
 #include <stdexcept>
+#include <fmt/core.h>
+#include <fmt/ostream.h>
 #include <generated/types/cb_board_support.hpp>
 #include <CPUtils.hpp>
 #include "evse_board_supportImpl.hpp"
@@ -30,6 +32,8 @@ types::board_support_common::BspEvent cpstate_to_bspevent(const types::cb_board_
         throw std::runtime_error("Unable to map the value '" + cpstate_to_string(other) + "'.");
     }
 }
+
+template <> struct fmt::formatter<types::evse_board_support::Reason> : fmt::ostream_formatter {};
 
 namespace module {
 namespace evse_board_support {
@@ -163,6 +167,11 @@ void evse_board_supportImpl::init() {
 
     this->mod->controller.on_contactor_change.connect(
         [&](const std::string& source, types::cb_board_support::ContactorState actual_state) {
+            if (actual_state == types::cb_board_support::ContactorState::Unknown) {
+                EVLOG_debug << source << " state change detected: now " << actual_state;
+                return;
+            }
+
             // ignore the source for now, just log it
             EVLOG_info << source << " state change detected: now " << actual_state;
 
@@ -274,25 +283,21 @@ void evse_board_supportImpl::init() {
                                                 unsigned int reason, const std::string& reason_str,
                                                 unsigned int additional_data1, unsigned int additional_data2) {
         if (is_active) {
-            std::ostringstream errmsg;
-            errmsg << std::showbase << std::setw(4) << std::setfill('0') << std::hex;
-            errmsg << reason_str << " (" << reason << "), " << additional_data1 << ", " << additional_data2;
+            std::string errmsg =
+                fmt::format("{} ({:#06x}), {:#06x}, {:#06x}", reason_str, reason, additional_data1, additional_data2);
 
-            EVLOG_warning << "Safety Controller reported error: " << module_str << "(" << std::showbase << std::setw(4)
-                          << std::setfill('0') << std::hex << module << "), " << errmsg.str();
+            EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                                         errmsg);
 
-            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg.str(),
+            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg,
                                                        Everest::error::Severity::High);
 
             this->raise_error(e);
 
         } else {
-            std::ostringstream errmsg;
-            errmsg << reason_str << " (" << std::showbase << std::setw(4) << std::setfill('0') << std::hex << reason
-                   << ")";
+            std::string errmsg = fmt::format("{} ({:#06x})", reason_str, reason);
 
-            EVLOG_info << "Safety Controller cleared error: " << module_str << "(" << std::showbase << std::setw(4)
-                       << std::setfill('0') << std::hex << module << "), " << errmsg.str();
+            EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module, errmsg);
 
             this->clear_error("evse_board_support/VendorWarning", module_str);
         }
@@ -398,7 +403,8 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
         return;
     }
 
-    EVLOG_info << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN") << " the contactor";
+    EVLOG_info << fmt::format("handle_allow_power_on: request to {} the contactor ({})",
+                              value.allow_power_on ? "CLOSE" : "OPEN", value.reason);
 
     if (!state_change) {
         EVLOG_debug << "Current (unchanged) state: "

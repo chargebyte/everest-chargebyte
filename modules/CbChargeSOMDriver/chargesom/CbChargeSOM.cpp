@@ -76,7 +76,7 @@ CbChargeSOM::CbChargeSOM() {
         enum cp_state previous_cp_state = CP_STATE_MAX;
         enum pp_state previous_pp_state = PP_STATE_MAX;
         unsigned int previous_cp_errors = 0;
-        bool previous_contactor_error[CB_PROTO_MAX_CONTACTORS] = {};
+        bool previous_contactor_error = false;
         enum contactor_state previous_contactor_state[CB_PROTO_MAX_CONTACTORS];
         bool initial_contactor_states_seen = false;
         enum cs1_safestate_reason previous_safestate_reason = CS1_SAFESTATE_REASON_MAX;
@@ -90,7 +90,7 @@ CbChargeSOM::CbChargeSOM() {
             enum cp_state current_cp_state;
             enum pp_state current_pp_state;
             unsigned int current_cp_errors;
-            bool current_contactor_error[CB_PROTO_MAX_CONTACTORS];
+            bool current_contactor_error;
             enum contactor_state current_contactor_state[CB_PROTO_MAX_CONTACTORS];
             enum cs1_safestate_reason current_safestate_reason;
             enum cs_safestate_active current_safestate_active;
@@ -126,21 +126,18 @@ CbChargeSOM::CbChargeSOM() {
             }
 
             // forward contactor errors
-            for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-                current_contactor_error[i] =
-                    cb_proto_contactorN_is_enabled(&tmpctx, i) && cb_proto_contactorN_has_error(&tmpctx, i);
+            current_contactor_error =
+                cb_proto_get_safestate_reason(&tmpctx) == CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION;
+            if (current_contactor_error != previous_contactor_error) {
+                std::string name = "Contactor";
 
-                if (current_contactor_error[i] != previous_contactor_error[i]) {
-                    std::string name = "Contactor " + std::to_string(i + 1);
-
-                    EVLOG_debug << "on_contactor_error: " << i;
-                    this->on_contactor_error(name, cb_proto_contactorN_get_target_state(&tmpctx, i),
-                                             cb_proto_contactorN_is_closed(&tmpctx, i)
-                                                 ? types::cb_board_support::ContactorState::Closed
-                                                 : types::cb_board_support::ContactorState::Open);
-
-                    previous_contactor_error[i] = current_contactor_error[i];
-                }
+                EVLOG_debug << "on_contactor_error()";
+                // FIXME: for now, we only look at the first contactor since we assume a DC use-case
+                this->on_contactor_error(name, cb_proto_contactorN_get_target_state(&this->ctx, 0),
+                                         cb_proto_contactorN_is_closed(&tmpctx, 0)
+                                             ? types::cb_board_support::ContactorState::Closed
+                                             : types::cb_board_support::ContactorState::Open);
+                previous_contactor_error = current_contactor_error;
             }
 
             // notify on contactor state changes
@@ -496,7 +493,8 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
 
     this->fw_info = std::string(this->ctx.fw_version_str) + " (g" + this->ctx.git_hash_str + ", " +
                     cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&this->ctx)) + ", " +
-                    cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ")";
+                    cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) +
+                    ", Parameter Version: " + std::to_string(cb_proto_fw_get_param_version(&this->ctx)) + ")";
 }
 
 void CbChargeSOM::enable() {
@@ -590,6 +588,7 @@ bool CbChargeSOM::is_unexpected_rx_com(enum cb_uart_com com) {
     case COM_PT1000_STATE:
     case COM_FW_VERSION:
     case COM_GIT_HASH:
+    case COM_ERROR_MESSAGE:
         return false;
     default:
         return true;
@@ -672,9 +671,7 @@ bool CbChargeSOM::is_emergency() {
         pp_error = cb_proto_get_pp_state(&this->ctx) > PP_STATE_63_70A;
     }
 
-    return pp_error or (cb_proto_get_cp_state(&this->ctx) == CP_STATE_INVALID) or
-           (cb_proto_get_cp_errors(&this->ctx) != 0) or cb_proto_contactors_have_errors(&this->ctx) or
-           cb_proto_estop_has_any_tripped(&this->ctx) or cb_proto_pt1000_have_errors(&this->ctx);
+    return pp_error or cb_proto_get_safe_state_active(&this->ctx) == CS_SAFESTATE_ACTIVE_SAFESTATE;
 }
 
 void CbChargeSOM::set_duty_cycle(unsigned int duty_cycle) {
