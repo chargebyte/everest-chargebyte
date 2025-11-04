@@ -4,6 +4,7 @@ add_library(tarragon STATIC)
 
 target_sources(tarragon
     PRIVATE
+        "CbActuator.cpp"
         "CbTarragonPWM.cpp"
         "CbTarragonCP.cpp"
         "CbTarragonCPADC.cpp"
