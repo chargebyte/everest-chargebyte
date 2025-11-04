@@ -44,12 +44,18 @@ public:
     /// @return A reference to the output stream operated on.
     friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlSerial& c);
 
-private:
+protected:
     /// @brief The primary contactor and its feedback abstraction.
     CbTarragonContactor primary;
 
     /// @brief The secondary contactor and its feedback abstraction.
     CbTarragonContactor secondary;
+
+    /// @brief Split `switch_state` into two dedicated functions so that we can override in derived classes.
+    virtual bool switch_state_on();
+
+    /// @brief Split `switch_state` into two dedicated functions so that we can override in derived classes.
+    virtual bool switch_state_off();
 
     /// @brief Helper to feed a string representation into an output stream.
     /// @param os Output stream reference to operate on.
