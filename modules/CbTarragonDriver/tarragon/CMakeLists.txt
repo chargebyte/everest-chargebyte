@@ -15,6 +15,7 @@ target_sources(tarragon
         "CbTarragonContactorControl.cpp"
         "CbTarragonContactorControlSimple.cpp"
         "CbTarragonContactorControlSerial.cpp"
+        "CbTarragonContactorControlSimultaneous.cpp"
         "CbTarragonContactorControlMutual.cpp"
 )
 
