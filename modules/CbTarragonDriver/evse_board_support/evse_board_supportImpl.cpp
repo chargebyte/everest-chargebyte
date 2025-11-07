@@ -516,6 +516,11 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         if ((current_cp_state != this->cp_current_state) || is_cp_error) {
             this->update_cp_state_internally(current_cp_state, negative_side, positive_side);
         }
+
+        // clear a possible ProximityFault error on transition to state A
+        if (current_cp_state == types::cb_board_support::CPState::A && this->pp_fault_reported.exchange(false)) {
+            this->clear_error("evse_board_support/MREC23ProximityFault");
+        }
     }
 
     EVLOG_info << "Control Pilot Observation Thread terminated";
