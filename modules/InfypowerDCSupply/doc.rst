@@ -78,6 +78,23 @@ existing controller class as base class later, and derive power module specific
 sub-classes. These classes can then implement specific functionality while
 providing the same interface to higher layers.
 
+Hardware Compatibility
+======================
+
+Supported InfyPower Models:
+
+- **BEG Series**: BEG1K075G and compatible models
+- **Protocol Version**: V1.04 and compatible versions
+
+Manufacturer Information:
+
+- **Manufacturer**: Shenzhen Infypower Co., Ltd
+- **Website**: http://www.infypower.com
+- **Protocol Version**: V1.04 (this driver implementation)
+- **Document Reference**: "BEC/BEG Power Module CAN Communication Protocol V1.04"
+
+**Note**: Ensure your InfyPower modules support V1.04 protocol or compatible versions. Older protocol versions may not be fully compatible with this driver.
+
 Open TODOs/Ideas
 ================
 
