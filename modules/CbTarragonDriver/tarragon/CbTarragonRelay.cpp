@@ -36,6 +36,10 @@ CbTarragonRelay::~CbTarragonRelay() {
 
     // safety: explicitly open the relay, but don't wait for any feedback
     this->set_actuator_state(false, false);
+
+    // join the thread before its destruction
+    if (this->feedback_monitor.joinable())
+        this->feedback_monitor.join();
 }
 
 void CbTarragonRelay::start(bool use_feedback, bool active_low) {

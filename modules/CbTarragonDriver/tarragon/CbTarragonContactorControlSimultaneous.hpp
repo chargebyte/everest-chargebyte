@@ -35,6 +35,9 @@ public:
                                            std::unique_ptr<CbTarragonRelay> secondary_relay,
                                            const std::string& secondary_contactor_feedback_type);
 
+    /// @brief Destructor.
+    virtual ~CbTarragonContactorControlSimultaneous() = default;
+
     virtual bool get_state() const override;
 
     /// @brief Feeds a string representation of the given CbTarragonContactorControlSimultaneous
