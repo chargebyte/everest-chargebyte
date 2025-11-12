@@ -269,12 +269,6 @@ void evse_board_supportImpl::handle_evse_replug(int& value) {
     (void)value;
 }
 
-types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
-    EVLOG_error << "handle_ac_read_pp_ampacity() was called, this is probably a configuration error.";
-
-    return {.ampacity = types::board_support_common::Ampacity::None};
-}
-
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
     // your code for cmd ac_set_overcurrent_limit_A goes here
     (void)value;
