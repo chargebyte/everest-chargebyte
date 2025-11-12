@@ -40,7 +40,7 @@ config:
     type: integer
     minimum: 0
     maximum: 3300
-    default: 700
+    default: 850
   drv8872_in1_gpio_line_name:
     description: The GPIO line name which controls the motor driver pin 'in1'
     type: string
