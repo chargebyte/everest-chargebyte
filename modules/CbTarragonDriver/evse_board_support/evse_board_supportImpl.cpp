@@ -372,30 +372,28 @@ void evse_board_supportImpl::pp_observation_worker(void) {
                     (this->cp_current_state == types::cb_board_support::CPState::C ||
                      this->cp_current_state == types::cb_board_support::CPState::D)) {
                     // publish a ProximityFault
-                    Everest::error::Error error_object = this->error_factory->create_error(
-                        "evse_board_support/MREC23ProximityFault", "", "Plug removed from socket during charge",
-                        Everest::error::Severity::High);
-                    this->raise_error(error_object);
-                    this->pp_fault_reported = true;
+                    if (!this->pp_fault_reported.exchange(true)) {
+                        Everest::error::Error error_object = this->error_factory->create_error(
+                            "evse_board_support/MREC23ProximityFault", "", "Plug removed from socket during charge",
+                            Everest::error::Severity::High);
+                        this->raise_error(error_object);
+                    }
                 }
 
+                // clear a ProximityFault error on PP state change to a valid value but only if it exists
                 if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None &&
-                    this->pp_fault_reported) {
-                    // clear a ProximityFault error on PP state change to a valid value but only if it exists
+                    this->pp_fault_reported.exchange(false)) {
                     this->clear_error("evse_board_support/MREC23ProximityFault");
-                    this->pp_fault_reported = false;
                 }
             }
         } catch (std::underflow_error& e) {
-            if (!this->pp_fault_reported) {
+            if (!this->pp_fault_reported.exchange(true)) {
                 EVLOG_error << e.what();
 
                 // publish a ProximityFault
                 Everest::error::Error error_object = this->error_factory->create_error(
                     "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
                 this->raise_error(error_object);
-
-                this->pp_fault_reported = true;
             }
         }
 
@@ -517,6 +515,11 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         }
         if ((current_cp_state != this->cp_current_state) || is_cp_error) {
             this->update_cp_state_internally(current_cp_state, negative_side, positive_side);
+        }
+
+        // clear a possible ProximityFault error on transition to state A
+        if (current_cp_state == types::cb_board_support::CPState::A && this->pp_fault_reported.exchange(false)) {
+            this->clear_error("evse_board_support/MREC23ProximityFault");
         }
     }
 
