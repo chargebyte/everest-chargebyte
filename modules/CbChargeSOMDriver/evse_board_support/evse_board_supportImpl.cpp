@@ -60,51 +60,44 @@ void evse_board_supportImpl::init() {
 
     // register our callback handlers
 
-    this->mod->controller.on_pp_change.connect([&](const enum pp_state& new_pp_state) {
-        std::scoped_lock lock(this->pp_mutex);
+    this->mod->controller.on_pp_change.connect([&](const types::board_support_common::Ampacity& new_ampacity) {
+        if (new_ampacity == types::board_support_common::Ampacity::None) {
+            EVLOG_info << "PP noticed plug removal from socket";
+        } else {
+            EVLOG_info << "PP ampacity change from " << this->pp_ampacity.ampacity << " to " << new_ampacity;
+        }
 
-        try {
-            // saved previous value
-            types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
+        this->pp_ampacity.ampacity = new_ampacity;
 
-            this->pp_ampacity.ampacity = this->mod->controller.pp_state_to_ampacity(new_pp_state);
+        // we received a valid measurement update, so clear any possible error raised before
+        if (this->pp_fault_reported.exchange(false)) {
+            this->clear_error("evse_board_support/MREC23ProximityFault");
+        }
 
-            if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None) {
-                EVLOG_info << "PP noticed plug removal from socket";
-            } else {
-                EVLOG_info << "PP ampacity change from " << prev_value << " to " << this->pp_ampacity.ampacity;
-            }
+        // publish new value
+        this->publish_ac_pp_ampacity(this->pp_ampacity);
 
-            // publish new value, upper layer should decide how to handle the change
-            this->publish_ac_pp_ampacity(this->pp_ampacity);
-
-            if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None &&
-                (this->cp_current_state == types::cb_board_support::CPState::C ||
-                 this->cp_current_state == types::cb_board_support::CPState::D)) {
-                // publish a ProximityFault
+        // publish a ProximityFault when this we detected a plug removal during charging
+        if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None &&
+            (this->cp_current_state == types::cb_board_support::CPState::C ||
+             this->cp_current_state == types::cb_board_support::CPState::D)) {
+            if (!this->pp_fault_reported.exchange(true)) {
                 Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/MREC23ProximityFault", "", "Plug removed from socket during charge",
+                    "evse_board_support/MREC23ProximityFault", "PlugRemoval", "Plug removed from socket during charge",
                     Everest::error::Severity::High);
                 this->raise_error(error_object);
-                this->pp_fault_reported = true;
             }
+        }
+    });
 
-            if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None && this->pp_fault_reported) {
-                // clear a ProximityFault error on PP state change to a valid value but only if it exists
-                this->clear_error("evse_board_support/MREC23ProximityFault");
-                this->pp_fault_reported = false;
-            }
-        } catch (std::runtime_error& e) {
-            if (!this->pp_fault_reported) {
-                EVLOG_error << e.what();
+    this->mod->controller.on_pp_error.connect([&](const std::string& err_msg) {
+        // publish a ProximityFault
+        if (!this->pp_fault_reported.exchange(true)) {
+            EVLOG_error << err_msg;
 
-                // publish a ProximityFault
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
-                this->raise_error(error_object);
-
-                this->pp_fault_reported = true;
-            }
+            Everest::error::Error error_object = this->error_factory->create_error(
+                "evse_board_support/MREC23ProximityFault", "MeasurementError", err_msg, Everest::error::Severity::High);
+            this->raise_error(error_object);
         }
     });
 
@@ -147,6 +140,11 @@ void evse_board_supportImpl::init() {
         } catch (std::runtime_error& e) {
             // should never happen, when all invalid states are handled correctly
             EVLOG_warning << e.what();
+        }
+
+        // clear a possible ProximityFault error on transition to state A
+        if (current_cp_state == types::cb_board_support::CPState::A && this->pp_fault_reported.exchange(false)) {
+            this->clear_error("evse_board_support/MREC23ProximityFault");
         }
     });
 
@@ -425,41 +423,6 @@ void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& 
 void evse_board_supportImpl::handle_evse_replug(int& value) {
     // your code for cmd evse_replug goes here
     (void)value;
-}
-
-types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
-    std::scoped_lock lock(this->pp_mutex);
-
-    // save old value and pre-init to None
-    types::board_support_common::Ampacity old_ampacity = this->pp_ampacity.ampacity;
-    this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
-
-    try {
-        // this could raise a std::runtime_error
-        this->pp_ampacity.ampacity = this->mod->controller.get_ampacity();
-
-        if (old_ampacity != this->pp_ampacity.ampacity) {
-            EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity;
-        }
-
-        if (this->pp_fault_reported)
-            this->clear_error("evse_board_support/MREC23ProximityFault");
-
-        // reset possible set flag since we successfully read a valid value
-        this->pp_fault_reported = false;
-    } catch (std::runtime_error& e) {
-        EVLOG_error << e.what();
-
-        // publish a ProximityFault
-        Everest::error::Error error_object = this->error_factory->create_error(
-            "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
-        this->raise_error(error_object);
-
-        // remember that we just reported the fault
-        this->pp_fault_reported = true;
-    }
-
-    return this->pp_ampacity;
 }
 
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {

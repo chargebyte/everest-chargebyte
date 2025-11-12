@@ -195,8 +195,14 @@ CbChargeSOM::CbChargeSOM() {
             if (current_pp_state != previous_pp_state) {
                 if (previous_pp_state != PP_STATE_MAX) {
                     if (this->is_pluggable) {
-                        EVLOG_debug << "on_pp_change(" << previous_pp_state << " → " << current_pp_state << ")";
-                        this->on_pp_change(current_pp_state);
+                        try {
+                            auto new_ampacity = this->pp_state_to_ampacity(current_pp_state);
+                            EVLOG_debug << "on_pp_change(" << previous_pp_state << " → " << current_pp_state << ")";
+                            this->on_pp_change(new_ampacity);
+                        } catch (std::runtime_error& e) {
+                            EVLOG_debug << "on_pp_error(" << e.what() << ")";
+                            this->on_pp_error(e.what());
+                        }
                     } else {
                         EVLOG_debug << "on_pp_change(" << previous_pp_state << " → " << current_pp_state << ")"
                                     << " [suppressed, fixed cable]";
@@ -652,13 +658,6 @@ types::board_support_common::Ampacity CbChargeSOM::pp_state_to_ampacity(enum pp_
     default:
         throw std::runtime_error("The measured voltage for the Proximity Pilot could not be mapped.");
     }
-}
-
-types::board_support_common::Ampacity CbChargeSOM::get_ampacity() {
-    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
-    std::scoped_lock lock(this->ctx_mutexes[n]);
-
-    return this->pp_state_to_ampacity(cb_proto_get_pp_state(&this->ctx));
 }
 
 bool CbChargeSOM::is_emergency() {

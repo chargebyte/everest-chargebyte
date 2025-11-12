@@ -50,7 +50,6 @@ protected:
     virtual void handle_allow_power_on(types::evse_board_support::PowerOnOff& value) override;
     virtual void handle_ac_switch_three_phases_while_charging(bool& value) override;
     virtual void handle_evse_replug(int& value) override;
-    virtual types::board_support_common::ProximityPilot handle_ac_read_pp_ampacity() override;
     virtual void handle_ac_set_overcurrent_limit_A(double& value) override;
 
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
@@ -86,10 +85,7 @@ private:
     types::board_support_common::ProximityPilot pp_ampacity {.ampacity = types::board_support_common::Ampacity::None};
 
     /// @brief Flag to remember whether we already published a proximity error
-    bool pp_fault_reported {false};
-
-    /// @brief Mutex to protect `pp_ampacity` and `pp_fault_reported`
-    std::mutex pp_mutex;
+    std::atomic_bool pp_fault_reported {false};
 
     /// @brief Flag to remember which cumulative contactor state we reported last.
     std::atomic_bool contactor_state_reported {false};
