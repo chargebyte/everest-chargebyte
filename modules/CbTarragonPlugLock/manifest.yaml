@@ -77,7 +77,7 @@ config:
   enable_monitoring:
     description: Whether to monitor the plug lock for unexpected opening or closing and raising errors
     type: boolean
-    default: true
+    default: false
 provides:
   connector_lock:
     description: Provide a generic driver for plug lock control (defaults suitable for a KUESTER02S plug lock motor)
