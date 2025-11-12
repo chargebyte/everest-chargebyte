@@ -63,21 +63,13 @@ public:
     /// @brief Resets the safety controller.
     void reset();
 
-    /// @brief Helper to map the internal PP enum to the EVerest type system.
-    ///        A 'std::runtime_error` is raised in case the mappig fails, e.g.
-    ///        when Type 1 related states are found.
-    /// @return A cable current rating using `types::board_support_common::Ampacity`
-    types::board_support_common::Ampacity pp_state_to_ampacity(enum pp_state pp_state);
-
-    /// @brief Reads the current (cached) cable rating from the safety controller.
-    ///        It uses `pp_state_to_ampacity`, in other words it raises an exception
-    ///        in case the value cannot be mapped.
-    /// @return A cable current rating using `types::board_support_common::Ampacity`
-    types::board_support_common::Ampacity get_ampacity();
-
     /// @brief Signal used to inform about PP state changes.
-    ///        The parameter contains the new PP state.
-    sigslot::signal<const enum pp_state&> on_pp_change;
+    ///        The parameter contains the new ampacity.
+    sigslot::signal<const types::board_support_common::Ampacity&> on_pp_change;
+
+    /// @brief Signal used to inform about PP (measurement) errors.
+    ///        The parameter contains an error reason/description.
+    sigslot::signal<const std::string&> on_pp_error;
 
     /// @brief Signal used to inform about CP state changes.
     ///        The parameter is the new CP state.
@@ -269,4 +261,10 @@ private:
 
     /// @brief Internal helper to determine the current contactor state.
     bool get_contactor_state_no_lock();
+
+    /// @brief Helper to map the internal PP enum to the EVerest type system.
+    ///        A 'std::runtime_error` is raised in case the mapping fails, e.g.
+    ///        when Type 1 related states are found.
+    /// @return A cable current rating using `types::board_support_common::Ampacity`
+    types::board_support_common::Ampacity pp_state_to_ampacity(enum pp_state pp_state);
 };
