@@ -19,6 +19,9 @@ public:
     /// @brief Constructor.
     CbTarragonContactorControl() {};
 
+    /// @brief Destructor.
+    virtual ~CbTarragonContactorControl() = default;
+
     /// @brief Checks the actual states of actuator and feedback for plausibility.
     ///        This is intended to be called once during startup only, since
     ///        error reporting is limited during this phase.

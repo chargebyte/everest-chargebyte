@@ -22,6 +22,9 @@ public:
     CbTarragonContactor(const std::string& name, std::unique_ptr<CbTarragonRelay> relay,
                         const std::string& contactor_feedback_type);
 
+    /// @brief Destructor.
+    ~CbTarragonContactor() = default;
+
     /// @brief Returns the contactor name
     /// @return The contactor name
     const std::string& get_name() const;

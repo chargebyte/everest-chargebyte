@@ -24,6 +24,9 @@ public:
     CbTarragonContactorControlSimple(std::unique_ptr<CbTarragonRelay> relay,
                                      const std::string& contactor_feedback_type);
 
+    /// @brief Destructor.
+    virtual ~CbTarragonContactorControlSimple() = default;
+
     virtual bool is_inconsistent_state(std::ostringstream& error_hint) const override;
     virtual bool switch_state(bool on) override;
     virtual bool get_state() const override;

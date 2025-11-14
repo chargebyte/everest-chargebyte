@@ -12,6 +12,7 @@
 #include <thread>
 #include <sigslot/signal.hpp>
 #include <gpiod.hpp>
+#include "CbActuator.hpp"
 
 using namespace std::chrono_literals;
 
@@ -20,12 +21,12 @@ class CbTarragonRelay {
 public:
     /// @brief Constructor
     /// @param relay_name Name of the relay and its feedback sense as labeled on hardware.
-    /// @param actuator_gpio_line_name The name of the GPIO line which switches the relay on/off.
+    /// @param actuator_ref The actuator reference to control the relais coil.
     /// @param feedback_gpio_line_name The name of the GPIO line to which the feedback (aka sense) circuit is
     /// connected to.
     /// @param feedback_gpio_debounce_us The debounce period which should be configured for the feedback GPIO (in [us]).
     /// Pass a value of zero to skip any configuration.
-    CbTarragonRelay(const std::string& relay_name, const std::string& actuator_gpio_line_name,
+    CbTarragonRelay(const std::string& relay_name, const CbActuatorReference actuator_ref,
                     const std::string& feedback_gpio_line_name, const unsigned int feedback_gpio_debounce_us);
 
     /// @brief Destructor.
@@ -77,14 +78,14 @@ private:
     /// @brief Name of the relay and its feedback as labeled on hardware.
     std::string relay_name;
 
+    /// @brief The reference to the used actuator.
+    CbActuatorReference actuator_ref;
+
     /// @brief Name of the GPIO line to use for feedback/sense detection.
     std::string feedback_gpio_line_name;
 
     /// @brief The debounce period which should be configured for the feedback GPIO (in [us]).
     const unsigned int feedback_gpio_debounce_us;
-
-    /// @brief The GPIO handle of the used actuator (RELAY_1_ENABLE or RELAY_2_ENABLE).
-    std::unique_ptr<gpiod::line_request> actuator;
 
     /// @brief The GPIO handle of the used feedback (RELAY_1_SENSE or RELAY_2_SENSE).
     std::unique_ptr<gpiod::line_request> feedback;

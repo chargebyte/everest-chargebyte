@@ -49,45 +49,48 @@ bool CbTarragonContactorControlSerial::is_inconsistent_state(std::ostringstream&
     return false;
 }
 
-bool CbTarragonContactorControlSerial::switch_state(bool on) {
+bool CbTarragonContactorControlSerial::switch_state_on() {
     bool rv_primary, rv_secondary;
 
     // when closing, we have to consider the secondary first
     // Attention: we might see the feedback of the secondary first, when
     // the primary is switched!
-    if (on) {
-        if (this->phase_count == 3) {
-            // don't wait here for the immediate feedback
-            this->switch_contactor(this->secondary, on, false);
-        }
 
-        rv_primary = this->switch_contactor(this->primary, on);
-        if (!rv_primary && this->phase_count == 3) {
-            // switch back the secondary to be safe (but it should not be energized at all)
-            this->switch_contactor(this->secondary, false, false);
-            return false;
-        }
-
-        // now the secondary contactor should have also switched
-        if (this->phase_count == 3) {
-            rv_secondary = this->secondary.wait_for_feedback();
-
-            // switch_contactor would have raised an error in case we had waited
-            // but since we didn't we have to take care here
-            if (!rv_secondary) {
-                this->on_error(this->secondary.get_name(), on, types::cb_board_support::ContactorState::Open);
-
-                // switch back both to be on safe side
-                this->switch_contactor(this->primary, false, false);
-                this->switch_contactor(this->secondary, false, false);
-            }
-        } else {
-            // not switched, so must be neutral for following and-condition in return
-            rv_secondary = true;
-        }
-
-        return rv_primary and rv_secondary;
+    if (this->phase_count == 3) {
+        // don't wait here for the immediate feedback
+        this->switch_contactor(this->secondary, true, false);
     }
+
+    rv_primary = this->switch_contactor(this->primary, true);
+    if (!rv_primary && this->phase_count == 3) {
+        // switch back the secondary to be safe (but it should not be energized at all)
+        this->switch_contactor(this->secondary, false, false);
+        return false;
+    }
+
+    // now the secondary contactor should have also switched
+    if (this->phase_count == 3) {
+        rv_secondary = this->secondary.wait_for_feedback();
+
+        // switch_contactor would have raised an error in case we had waited
+        // but since we didn't we have to take care here
+        if (!rv_secondary) {
+            this->on_error(this->secondary.get_name(), true, types::cb_board_support::ContactorState::Open);
+
+            // switch back both to be on safe side
+            this->switch_contactor(this->primary, false, false);
+            this->switch_contactor(this->secondary, false, false);
+        }
+    } else {
+        // not switched, so must be neutral for following and-condition in return
+        rv_secondary = true;
+    }
+
+    return rv_primary and rv_secondary;
+}
+
+bool CbTarragonContactorControlSerial::switch_state_off() {
+    bool rv_primary, rv_secondary;
 
     // when opening, we can always switch both contactors in the correct sequence;
     // here too, we might see the feedback of the secondary already when switching
@@ -100,14 +103,21 @@ bool CbTarragonContactorControlSerial::switch_state(bool on) {
     // tell the secondary about a possible switch - this can only happen in 3ph mode
     // otherwise the secondary would/should be open already
     if (this->phase_count == 3)
-        this->secondary.set_expected_feedback_change(on);
+        this->secondary.set_expected_feedback_change(false);
 
     // Warning: Do not combine both calls via 'and' otherwise the compiler could
     // short-circuit the expression!
-    rv_primary = this->switch_contactor(this->primary, on);
-    rv_secondary = this->switch_contactor(this->secondary, on);
+    rv_primary = this->switch_contactor(this->primary, false);
+    rv_secondary = this->switch_contactor(this->secondary, false);
 
     return rv_primary and rv_secondary;
+}
+
+bool CbTarragonContactorControlSerial::switch_state(bool on) {
+    if (on)
+        return this->switch_state_on();
+    else
+        return this->switch_state_off();
 }
 
 bool CbTarragonContactorControlSerial::get_state() const {
