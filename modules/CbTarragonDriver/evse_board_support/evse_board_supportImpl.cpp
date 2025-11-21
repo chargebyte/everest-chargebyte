@@ -242,6 +242,14 @@ void evse_board_supportImpl::handle_pwm_F() {
     this->pwm_controller.set_duty_cycle(0.0);
 }
 
+void evse_board_supportImpl::handle_cp_state_E() {
+	// pause CP observation to avoid race condition between this thread and the CP observation thread
+    std::scoped_lock lock(this->cp_observation_lock);
+
+    EVLOG_info << "Generating CP state E";
+    this->pwm_controller.disable();
+}
+
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
     // this method is called very often, even the contactor state is already matching the desired one
     // so let's use this as helper to control the log noise a little bit and whether we actually

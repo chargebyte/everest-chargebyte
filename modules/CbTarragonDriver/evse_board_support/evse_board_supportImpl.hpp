@@ -53,6 +53,7 @@ protected:
     virtual void handle_pwm_on(double& value) override;
     virtual void handle_pwm_off() override;
     virtual void handle_pwm_F() override;
+    virtual void handle_cp_state_E() override;
     virtual void handle_allow_power_on(types::evse_board_support::PowerOnOff& value) override;
     virtual void handle_ac_switch_three_phases_while_charging(bool& value) override;
     virtual void handle_evse_replug(int& value) override;
