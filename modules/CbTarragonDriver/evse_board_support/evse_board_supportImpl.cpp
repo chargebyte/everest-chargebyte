@@ -65,6 +65,8 @@ void evse_board_supportImpl::init() {
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
+    this->hw_capabilities.supports_cp_state_E = true;
+
     // Control Pilot state observation
     this->cp_controller =
         CbTarragonCP(this->mod->config.cp_pos_peak_adc_device, this->mod->config.cp_pos_peak_adc_channel,
