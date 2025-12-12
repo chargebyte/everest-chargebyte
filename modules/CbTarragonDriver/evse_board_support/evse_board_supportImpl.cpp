@@ -84,6 +84,11 @@ void evse_board_supportImpl::init() {
     // Proximity Pilot state observation
     this->pp_controller = CbTarragonPP(this->mod->config.pp_adc_device, this->mod->config.pp_adc_channel);
 
+    // start PP observation worker thread if not fixed cable
+    if (this->hw_capabilities.connector_type == types::evse_board_support::Connector_type::IEC62196Type2Socket) {
+        this->pp_observation_thread = std::thread(&evse_board_supportImpl::pp_observation_worker, this);
+    }
+
     // connect contactor controller signals
     this->mod->contactor_controller->on_error.connect(
         [&](const std::string& source, bool desired_state, types::cb_board_support::ContactorState actual_state) {
@@ -298,56 +303,11 @@ void evse_board_supportImpl::handle_evse_replug(int& value) {
     (void)value;
 }
 
-types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
-    // acquire lock to guard against possible background changes done by the observation thread
-    std::lock_guard<std::mutex> lock(this->pp_observation_lock);
-    types::board_support_common::Ampacity old_ampacity = this->pp_ampacity.ampacity;
-
-    // pre-init to None
-    this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
-
-    // start PP observation worker thread if not yet done
-    // we stop and wait at the lock by us
-    if (!this->pp_observation_thread.joinable())
-        this->pp_observation_thread = std::thread(&evse_board_supportImpl::pp_observation_worker, this);
-
-    try {
-        // read current ampacity from hardware
-        int voltage = 0;
-        this->pp_ampacity.ampacity = this->pp_controller.get_ampacity(voltage);
-
-        if (old_ampacity != this->pp_ampacity.ampacity) {
-            EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity << " (U_PP: " << voltage << " mV)";
-        }
-
-        if (this->pp_fault_reported)
-            this->clear_error("evse_board_support/MREC23ProximityFault");
-
-        // reset possible set flag since we successfully read a valid value
-        this->pp_fault_reported = false;
-    } catch (std::underflow_error& e) {
-        EVLOG_error << e.what();
-
-        // publish a ProximityFault
-        Everest::error::Error error_object = this->error_factory->create_error(
-            "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
-        this->raise_error(error_object);
-
-        // remember that we just reported the fault
-        this->pp_fault_reported = true;
-    }
-
-    return this->pp_ampacity;
-}
-
 void evse_board_supportImpl::pp_observation_worker(void) {
 
     EVLOG_info << "Proximity Pilot Observation Thread started";
 
     while (!this->termination_requested) {
-        // acquire lock, wait for it eventually
-        this->pp_observation_lock.lock();
-
         try {
             // saved previous value
             types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
@@ -365,25 +325,24 @@ void evse_board_supportImpl::pp_observation_worker(void) {
                                << " (U_PP: " << voltage << " mV)";
                 }
 
-                // publish new value, upper layer should decide how to handle the change
+                // we received a valid measurement update, so clear any possible error raised before
+                if (this->pp_fault_reported.exchange(false)) {
+                    this->clear_error("evse_board_support/MREC23ProximityFault");
+                }
+
+                // publish new value
                 this->publish_ac_pp_ampacity(this->pp_ampacity);
 
+                // publish a ProximityFault when this we detected a plug removal during charging
                 if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None &&
                     (this->cp_current_state == types::cb_board_support::CPState::C ||
                      this->cp_current_state == types::cb_board_support::CPState::D)) {
-                    // publish a ProximityFault
                     if (!this->pp_fault_reported.exchange(true)) {
                         Everest::error::Error error_object = this->error_factory->create_error(
-                            "evse_board_support/MREC23ProximityFault", "", "Plug removed from socket during charge",
-                            Everest::error::Severity::High);
+                            "evse_board_support/MREC23ProximityFault", "PlugRemoval",
+                            "Plug removed from socket during charge", Everest::error::Severity::High);
                         this->raise_error(error_object);
                     }
-                }
-
-                // clear a ProximityFault error on PP state change to a valid value but only if it exists
-                if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None &&
-                    this->pp_fault_reported.exchange(false)) {
-                    this->clear_error("evse_board_support/MREC23ProximityFault");
                 }
             }
         } catch (std::underflow_error& e) {
@@ -391,13 +350,12 @@ void evse_board_supportImpl::pp_observation_worker(void) {
                 EVLOG_error << e.what();
 
                 // publish a ProximityFault
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
+                Everest::error::Error error_object =
+                    this->error_factory->create_error("evse_board_support/MREC23ProximityFault", "MeasurementError",
+                                                      e.what(), Everest::error::Severity::High);
                 this->raise_error(error_object);
             }
         }
-
-        this->pp_observation_lock.unlock();
 
         // break before sleeping in case of already requested termination
         if (this->termination_requested)
