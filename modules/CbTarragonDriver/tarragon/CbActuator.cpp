@@ -10,19 +10,10 @@
 
 CbActuator::CbActuator(const std::string& name, const std::vector<std::string>& gpio_line_names) :
     values(gpio_line_names.size(), gpiod::line::value::INACTIVE) {
-    std::string consumer = name;
-
-    // check if the actuator name contains the character '/' and find its position. This is done because the
-    // kernel throws a warning when a GPIO consumer has '/' in its name.
-    size_t pos = consumer.find('/');
-
-    // if '/' is found, replace it with '-'
-    if (pos != std::string::npos)
-        consumer.replace(pos, 1, "-");
 
     // instantiate and configure the actuator gpio
     this->line_req =
-        std::make_unique<gpiod::line_request>(get_gpiolines_by_name(gpio_line_names, consumer,
+        std::make_unique<gpiod::line_request>(get_gpiolines_by_name(gpio_line_names, name,
                                                                     gpiod::line_settings()
                                                                         .set_direction(gpiod::line::direction::OUTPUT)
                                                                         .set_output_value(gpiod::line::value::INACTIVE)

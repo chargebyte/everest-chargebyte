@@ -8,6 +8,15 @@
 
 gpiod::line_request get_gpioline_by_name(const std::string& name, const std::string& consumer,
                                          const gpiod::line_settings& settings) {
+    std::string filtered_consumer = consumer;
+
+    // check if the actuator name contains the character '/' and find its position. This is done because the
+    // kernel throws a warning when a GPIO consumer has '/' in its name.
+    size_t pos = filtered_consumer.find('/');
+
+    // if '/' is found, replace it with '-'
+    if (pos != std::string::npos)
+        filtered_consumer.replace(pos, 1, "-");
 
     for (const auto& entry : std::filesystem::directory_iterator("/dev/")) {
         if (gpiod::is_gpiochip_device(entry.path())) {
@@ -18,7 +27,7 @@ gpiod::line_request get_gpioline_by_name(const std::string& name, const std::str
                 // clang-format off
                 return chip
                     .prepare_request()
-                    .set_consumer(consumer)
+                    .set_consumer(filtered_consumer)
                     .add_line_settings(offset, settings)
                     .do_request();
                 // clang-format on
@@ -43,6 +52,15 @@ static std::string join_into_string_with_quotes(const std::vector<std::string>& 
 
 gpiod::line_request get_gpiolines_by_name(const std::vector<std::string>& names, const std::string& consumer,
                                           const gpiod::line_settings& settings) {
+    std::string filtered_consumer = consumer;
+
+    // check if the actuator name contains the character '/' and find its position. This is done because the
+    // kernel throws a warning when a GPIO consumer has '/' in its name.
+    size_t pos = filtered_consumer.find('/');
+
+    // if '/' is found, replace it with '-'
+    if (pos != std::string::npos)
+        filtered_consumer.replace(pos, 1, "-");
 
     for (const auto& entry : std::filesystem::directory_iterator("/dev/")) {
         if (gpiod::is_gpiochip_device(entry.path())) {
@@ -62,7 +80,7 @@ gpiod::line_request get_gpiolines_by_name(const std::vector<std::string>& names,
                 // clang-format off
                 return chip
                     .prepare_request()
-                    .set_consumer(consumer)
+                    .set_consumer(filtered_consumer)
                     .add_line_settings(offsets, settings)
                     .do_request();
                 // clang-format on
