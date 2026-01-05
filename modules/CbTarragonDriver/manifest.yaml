@@ -52,10 +52,17 @@ config:
       switching is used:
       - 'none': no phase-count switching setup
       - 'serial': the secondary contactor is wired in series to the primary contactor
+      - 'simultaneous': the secondary contactor is wired in parallel to the primary contactor
       - 'mutual': the secondary contactor is wired in parallel to the primary contactor
       In 'serial' setups, the secondary contactor is closed before the primary
       contactor, and the primary contactor is opened before the secondary one.
       This ensures that the desired phases are offered to the vehicle at the same time.
+      In 'simultaneous' setups, both the primary and the secondary contactors are closed
+      and opened at the same time when all three phases are switched. In this setup, the
+      primary contactor switches neutral and one phase, the secondary contactor switches
+      the two remaining phases.
+      Please note, that this setup is only permitted when a mechanical all-pole disconnect
+      is guaranteed for emergency cases (e.g., RCD type B or EV).
       In 'mutual' setups, the primary contactor switches all available phases while the
       secondary contactor only switches a single phase. Both contactors are wired
       parallel, so that only exactly one contactor must be switched on at the same time.
@@ -64,6 +71,7 @@ config:
     enum:
       - none
       - serial
+      - simultaneous
       - mutual
     default: none
   relay_1_name:
