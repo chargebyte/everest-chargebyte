@@ -3,11 +3,11 @@
 #pragma once
 #include <atomic>
 #include <condition_variable>
-#include <queue>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <cstddef>
 #include <net/if.h>
 #include <sigslot/signal.hpp>
 #include <generated/types/board_support_common.hpp>
@@ -17,26 +17,24 @@
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <sys/socket.h>
-#include <net/if.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <cstring>
 #include <linux/can/bcm.h>
-// #include "../CbCpxDriver.hpp"
 
 using namespace std::chrono_literals;
 
-/* maximum supported contactors */
-#define CB_PROTO_MAX_CONTACTORS 2
+// maximum supported contactors
+inline constexpr std::size_t CB_PROTO_MAX_CONTACTORS = 2;
 
-/* maximum supported estops */
-#define CB_PROTO_MAX_ESTOPS 3
+// maximum supported estops
+inline constexpr std::size_t CB_PROTO_MAX_ESTOPS = 3;
 
-/* maximum count of PT1000 channels */
-#define CB_PROTO_MAX_PT1000S 4
+// maximum count of PT1000 channels
+inline constexpr std::size_t CB_PROTO_MAX_PT1000S = 4;
 
 // scale of measured temperatures
-#define CB_PROTO_TEMP_SCALE 0.1
+inline constexpr double CB_PROTO_TEMP_SCALE = 0.1;
 
 typedef struct {
     struct can_charge_state1_t charge_state;
@@ -90,10 +88,6 @@ public:
     /// @return A cable current rating using `types::board_support_common::Ampacity`
     types::board_support_common::Ampacity get_ampacity();
 
-
-    /// @brief Initialize Charge Control message in CAN BCM.
-    void charge_control_init();
-
     /// @brief Update Charge Control message in CAN BCM.
     void charge_control_update();
 
@@ -108,9 +102,6 @@ public:
     /// @param on Desired contactor state.
     /// @return 0 if CPX switched to desired state, 1 or 2 depending on which contactor did not switch
     int switch_state(bool on);
-
-    /// @brief Get current CP state.
-    uint8_t get_cp_state();
 
     /// @brief Function to call all Charge State getter-functions
     /// @param data Received CAN data
@@ -183,16 +174,15 @@ public:
     /// @return The temperature in °C
     float get_temperature(unsigned int channel);
 
-    // /// @brief Signal used to share temperatures of PT1000 sensors.
-    // sigslot::signal<const std::vector<types::temperature::Temperature>&> temperature;
-
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};
 
-    /// @brief
+    /// @brief Retrieve the diode fault flag reported by the charge state frame.
+    /// @return Non-zero if a diode fault was detected.
     uint8_t get_cs_diode_fault();
 
-    /// @brief
+    /// @brief Retrieve the CP short circuit flag reported by the charge state frame.
+    /// @return Non-zero if a short circuit was detected.
     uint8_t get_cs_short_circuit();
 
     /// @brief Signal used to inform about CPX timeout.
@@ -242,8 +232,38 @@ private:
     /// @brief Thread for notifications upon changes
     std::thread notify_thread;
 
-    // /// @brief Thread for publishing PT1000 information
-    // std::thread publish_thread;
+    /// @brief Thread used to check duty cycle acceptance
+    std::thread duty_cycle_check_thread;
+
+    /// @brief Helper function to check duty cycle acceptance
+    void launch_duty_cycle_check(unsigned int expected_duty_cycle);
+
+    /// @brief Condition variable to activate duty cycle check action
+    std::condition_variable duty_cycle_check_cv;
+
+    /// @brief Mutex to protect duty cycle check action
+    std::mutex duty_cycle_check_mutex;
+
+    /// @brief Flag to abort duty cycle check thread
+    std::atomic_bool duty_cycle_check_termination_requested {false};
+
+    /// @brief Thread used to monitor CPX timeout
+    std::thread timeout_watchdog_thread;
+
+    /// @brief Helper function to handle CPX timeout
+    void handle_timeout_watchdog(int flag);
+
+    /// @brief Condition variable to activate timeout watchdog action
+    std::condition_variable timeout_watchdog_cv;
+
+    /// @brief Mutex to protect timeout watchdog action
+    std::mutex timeout_watchdog_mutex;
+
+    /// @brief Allowed timeout in seconds until CPX is considered lost
+    const int cpx_timeout_seconds {15};
+
+    /// @brief Flag to abort timeout watchdog thread
+    std::atomic_bool timeout_watchdog_termination_requested {false};
 
     /// @brief Register BCM rx messages
     void can_bcm_rx_init();
@@ -256,9 +276,6 @@ private:
 
     /// @brief Notify thread worker
     void notify_worker();
-
-    // /// @brief Notify thread worker
-    // void publish_worker();
 
     /// @brief struct holding all available messages
     com_data_t com_data{};
@@ -291,13 +308,13 @@ private:
     struct {
         struct bcm_msg_head msg_head;
         struct can_frame frame;
-    } cs_msg;
+    } cs_msg{};
 
     /// @brief Save last new received PT1000 State message
     struct {
         struct bcm_msg_head msg_head;
         struct can_frame frame;
-    } pt_msg;
+    } pt_msg{};
 
     /// @brief Condition variable used to wait for Charge State message
     std::condition_variable rx_cs_cv;
@@ -320,51 +337,50 @@ private:
     /// @brief Remember if Charge State updates were received.
     std::atomic_bool cs_updated {false};
 
-    // /// @brief Helper to track the current MCU reset state
-    // ///        Background: using the GPIO line itself is heavy load due to call into kernel etc.
-    // ///                    and it is available only after the GPIO was requested. But we launch
-    // ///                    some threads before.
-    // bool is_mcu_reset_active {true};
-
-    // /// @brief Helper to toggle the reset pin
-    // void set_mcu_reset(bool active);
-
-    /// @brief
+    /// @brief Return the duty cycle reported by the latest charge state frame (unit: 0.1 %).
     uint16_t get_cs_current_duty_cycle();
 
-    /// @brief
+    /// @brief Return whether PWM output is currently enabled according to the charge state frame.
     uint8_t get_cs_pwm_active();
 
-    /// @brief
+    /// @brief Return the current CP state encoded in the charge state frame.
     uint8_t get_cs_current_cp_state();
 
-    /// @brief
+    /// @brief Return the current PP state encoded in the charge state frame.
     uint8_t get_cs_current_pp_state();
 
-    /// @brief
+    /// @brief Fetch the contactor feedback state from the charge state frame.
+    /// @param contactor Contactor index starting at 1.
     uint8_t get_cs_contactor_state(int contactor);
 
-    /// @brief
+    /// @brief Fetch the requested contactor state from the charge control frame.
+    /// @param contactor Contactor index starting at 1.
     uint8_t get_cc_contactor_state(int contactor);
 
-    /// @brief
+    /// @brief Check whether the charge state frame reports a contactor error.
+    /// @param contactor Contactor index (1/2) or 0 for aggregated state.
     bool is_cs_contactor_error(int contactor);
 
-    /// @brief
+    /// @brief Return the HV-ready flag contained in the charge state frame.
     uint8_t get_cs_hv_ready();
 
-    /// @brief
+    /// @brief Check whether an ESTOP input triggered a charging abort.
+    /// @param estop ESTOP index (1–3) or 0 to query all inputs.
     bool is_cs_estop_charging_abort(int estop);
 
-    /// @brief
+    /// @brief Report whether the given PT1000 channel is active according to the PT1000 state frame.
+    /// @param channel Sensor index starting at 1.
     bool get_pt1000_is_active(int channel);
 
     /// @brief Internal helper to determine the current contactor state.
     bool get_contactor_state_no_lock();
 
-    /// @brief Internal helper to determine CAN-ID in accordance with CPX-ID.
-    canid_t get_can_id(int cpx_id, u_int message_id);
+    /// @brief Compose a 29-bit CAN identifier from the configured CPX-ID and a message ID.
+    /// @param cpx_id Logical CPX identifier (0 keeps the raw message ID).
+    /// @param msg_id Base message identifier to embed in the lower bits.
+    canid_t get_can_id(int cpx_id, int msg_id);
 
+    /// @brief Enables verbose CAN-ID logging while requesting firmware information.
     bool print_can_id_info {false};
 
     /// @brief Remember if CPX CAN-message timed out
@@ -375,4 +391,29 @@ private:
 
     /// @brief Remember if CPX was ever connected after EVerest start up
     std::atomic<bool> has_cpx_connected_once {false};
+
+    /// @brief Remember if Charge Control was initialized
+    std::atomic<bool> charge_control_initialized {false};
+
+    /// @brief Flags to signal notify thread about changes
+    struct NotifyFlags {
+        bool pp_changed {false};
+        bool cp_changed {false};
+        bool cp_error {false};
+        bool contactor_1_error {false};
+        bool contactor_2_error {false};
+        bool contactor_3_error {false};
+        bool estop_1_changed {false};
+        bool estop_2_changed {false};
+        bool estop_3_changed {false};
+    } notify_flags;
+
+    /// @brief Condition variable to activate notify_worker action
+    std::condition_variable notify_worker_cv;
+
+    /// @brief Helper function to check if any notify_worker flag is set
+    bool is_any_notify_flag_set();
+
+    /// @brief Helper to check for contactor errors
+    bool is_contactor_error(int contactor);
 };

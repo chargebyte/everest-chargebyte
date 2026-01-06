@@ -7,11 +7,10 @@
 #include <cstring>
 #include <iostream>
 #include <iomanip>
-#include <queue>
+#include <array>
 #include <stdexcept>
 #include <string>
 #include <sstream>
-#include <limits>
 #include <system_error>
 #include <thread>
 #include <linux/can.h>
@@ -77,9 +76,7 @@ CbCpx::CbCpx(const module::Conf& config) : config(config) {
     struct can_filter filters[2];
     filters[0].can_id   = get_can_id(this->config.id, CAN_FIRMWARE_VERSION_FRAME_ID);
     filters[0].can_mask = CAN_EFF_FLAG | CAN_EFF_MASK;
-    // filters[0].can_mask = CAN_EFF_MASK;
     filters[1].can_id   = get_can_id(this->config.id, CAN_GIT_HASH_FRAME_ID);
-    // filters[1].can_mask = CAN_EFF_MASK;
     filters[1].can_mask = CAN_EFF_FLAG | CAN_EFF_MASK;
 
     if (setsockopt(this->can_raw_fd, SOL_CAN_RAW, CAN_RAW_FILTER, &filters, sizeof(filters)) < 0) {
@@ -104,10 +101,46 @@ CbCpx::CbCpx(const module::Conf& config) : config(config) {
 }
 
 CbCpx::~CbCpx() {
+    this->terminate();
+}
+
+void CbCpx::init(bool is_pluggable) {
+    // remember this setting
+    this->is_pluggable = is_pluggable;
+}
+
+void CbCpx::terminate() {
     this->evse_enabled = false;
     this->tx_cc_enabled = false;
     this->rx_bcm_enabled = false;
     this->rx_raw_enabled = false;
+
+    this->termination_requested = true;
+    this->notify_worker_cv.notify_all();
+
+    this->duty_cycle_check_termination_requested = true;
+    this->duty_cycle_check_cv.notify_all();
+    
+    this->timeout_watchdog_termination_requested = true;
+    this->timeout_watchdog_cv.notify_all();
+
+    // close CAN BCM RX socket
+    if (this->can_bcm_rx_fd >= 0) {
+        close(this->can_bcm_rx_fd);
+        this->can_bcm_rx_fd = -1;
+    }
+
+    // close CAN BCM TX socket
+    if (this->can_bcm_tx_fd >= 0) {
+        close(this->can_bcm_tx_fd);
+        this->can_bcm_tx_fd = -1;
+    }
+
+    // close CAN RAW socket
+    if (this->can_raw_fd >= 0) {
+        close(this->can_raw_fd);
+        this->can_raw_fd = -1;
+    }
 
     if (this->notify_thread.joinable()) {
         this->notify_thread.join();
@@ -120,15 +153,14 @@ CbCpx::~CbCpx() {
     if (this->can_raw_rx_thread.joinable()) {
         this->can_raw_rx_thread.join();
     }
-}
 
-void CbCpx::init(bool is_pluggable) {
-    // remember this setting
-    this->is_pluggable = is_pluggable;
-}
+    if (this->duty_cycle_check_thread.joinable()) {
+        this->duty_cycle_check_thread.join();
+    }
 
-void CbCpx::terminate() {
-    this->termination_requested = true;
+    if (this->timeout_watchdog_thread.joinable()) {
+        this->timeout_watchdog_thread.join();
+    }
 }
 
 void CbCpx::get_firmware_and_git_hash() {
@@ -218,13 +250,6 @@ void CbCpx::get_firmware_and_git_hash() {
 }
 
 void CbCpx::enable() {
-    // // we can directly return it was already enabled
-    // if (this->evse_enabled.exchange(true))
-    //     return;
-
-    // // release reset to start safety controller
-    // this->set_mcu_reset(false);
-
     // start sending of periodic Charge Control frames
     this->tx_cc_enabled = true;
 
@@ -233,15 +258,9 @@ void CbCpx::enable() {
 
     // start reacting on received CAN RAW messages
     this->rx_raw_enabled = true;
-
-    // initialize charge control message
-    this->charge_control_init();
-
-    // request firmware version and git hash
-    get_firmware_and_git_hash();
 }
 
-canid_t CbCpx::get_can_id(int cpx_id, unsigned int message_id) {
+canid_t CbCpx::get_can_id(int cpx_id, int message_id) {
     canid_t base_id;
 
     if (cpx_id <= 0) {
@@ -257,44 +276,6 @@ canid_t CbCpx::get_can_id(int cpx_id, unsigned int message_id) {
 
     // Extended-Frame-Flag setzen
     return base_id | CAN_EFF_FLAG;
-}
-
-void CbCpx::charge_control_init() {    
-    if (this->tx_cc_enabled) {
-        size_t size = sizeof(bcm_msg_head) + sizeof(can_frame);
-        bcm_msg_head* msg = (bcm_msg_head*) malloc(size);
-        struct can_frame * const frame = msg->frames;
-        uint8_t payload[8];
-
-        msg->opcode  = TX_SETUP;
-        msg->can_id = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
-        // msg->can_id  = CAN_CHARGE_CONTROL1_FRAME_ID;
-        msg->flags   = SETTIMER | STARTTIMER;
-        msg->nframes = 1;
-        msg->count   = 0;
-
-        msg->ival1.tv_sec = 0;
-        msg->ival1.tv_usec = 0;
-
-        msg->ival2.tv_sec = 0;
-        msg->ival2.tv_usec = 100000;
-
-        std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
-
-        can_charge_control1_pack(payload, &com_data.charge_control, CAN_CHARGE_CONTROL1_LENGTH);
-        
-        frame->can_id = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
-        frame->can_dlc = CAN_CHARGE_CONTROL1_LENGTH;
-        memcpy(frame->data, payload, CAN_CHARGE_CONTROL1_LENGTH);
-
-        cc_lock.unlock();
-
-        if (write(this->can_bcm_tx_fd, msg, size) < 0) {
-            throw std::system_error(errno, std::generic_category(), "Charge Control init failed!");
-        }
-    } else {
-        throw std::system_error(errno, std::generic_category(), "Enable sending of Charge Control before initialization!");
-    }
 }
 
 void CbCpx::can_bcm_rx_init() {
@@ -352,13 +333,16 @@ void CbCpx::charge_control_update() {
     if (this->tx_cc_enabled) {
         uint8_t payload[8];
 
-        memset(&msg_delete, 0, sizeof(msg_delete));
-        msg_delete.msg_head.opcode  = TX_DELETE;
-        msg_delete.msg_head.can_id  = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
-        msg_delete.msg_head.nframes = 0;
+        // only delete previous message if it was initialized before
+        if (this->charge_control_initialized) {
+            memset(&msg_delete, 0, sizeof(msg_delete));
+            msg_delete.msg_head.opcode  = TX_DELETE;
+            msg_delete.msg_head.can_id  = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
+            msg_delete.msg_head.nframes = 0;
 
-        if (write(this->can_bcm_tx_fd, &msg_delete, sizeof(msg_delete)) < 0) {
-            throw std::system_error(errno, std::generic_category(), "Charge Control delete failed!");
+            if (write(this->can_bcm_tx_fd, &msg_delete, sizeof(msg_delete)) < 0) {
+                throw std::system_error(errno, std::generic_category(), "Charge Control delete failed!");
+            }
         }
 
         msg_setup.msg_head.opcode  = TX_SETUP;
@@ -386,6 +370,8 @@ void CbCpx::charge_control_update() {
             throw std::system_error(errno, std::generic_category(), "Charge Control init failed!");
         }
 
+        this->charge_control_initialized = true;
+
     } else {
         throw std::system_error(errno, std::generic_category(), "Enable sending of Charge Control before updating it!");
     }
@@ -400,19 +386,11 @@ void CbCpx::set_duty_cycle(unsigned int duty_cycle) {
     cc_lock.unlock();
 
     this->charge_control_update();
-
-    // we should see the changes take effect after 1s (FIXME)
-    std::this_thread::sleep_for(std::chrono::seconds(2));
     
     // only check if CPX is not timed out
     // warning about CPX timeout is provided on noticing it
-    if (!this->bcm_rx_timeout) {
-        if (get_cs_current_duty_cycle() != duty_cycle) {
-            std::ostringstream oss;
-            oss << std::fixed << std::setprecision(1) << (duty_cycle / 10.0);
-            EVLOG_error << "Safety Controller did not accept the new duty cycle of " << oss.str() << "%";
-            // throw std::runtime_error("Safety Controller did not accept the new duty cycle of " + oss.str() + "%");
-        }
+    if (!this->bcm_rx_timeout && this->has_cpx_connected_once) {
+        this->launch_duty_cycle_check(duty_cycle);
     }
 }
 
@@ -505,7 +483,7 @@ types::board_support_common::Ampacity CbCpx::pp_state_to_ampacity(uint8_t pp_sta
 
     default:
         EVLOG_error << "The measured voltage for the Proximity Pilot could not be mapped.";
-        // throw std::runtime_error("The measured voltage for the Proximity Pilot could not be mapped.");
+        return types::board_support_common::Ampacity::None;
     }
 }
 
@@ -557,7 +535,7 @@ uint8_t CbCpx::get_cs_contactor_state(int contactor) {
 }
 
 uint8_t CbCpx::get_cc_contactor_state(int contactor) {
-    std::unique_lock<std::mutex> cc_lock(this->cs_mutex);
+    std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
     if (contactor == 1) {
         return com_data.charge_control.cc_contactor1_state;
     } else if (contactor == 2) {
@@ -637,13 +615,13 @@ bool CbCpx::is_temperature_valid(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
 
     if (channel == 1) {
-        return !(com_data.pt1000_state.pt1_selftest_failed & com_data.pt1000_state.pt1_charging_stopped);
+        return !(com_data.pt1000_state.pt1_selftest_failed && com_data.pt1000_state.pt1_charging_stopped);
     } else if (channel == 2) {
-        return !(com_data.pt1000_state.pt2_selftest_failed & com_data.pt1000_state.pt2_charging_stopped);
+        return !(com_data.pt1000_state.pt2_selftest_failed && com_data.pt1000_state.pt2_charging_stopped);
     } else if (channel == 3) {
-        return !(com_data.pt1000_state.pt3_selftest_failed & com_data.pt1000_state.pt3_charging_stopped);
+        return !(com_data.pt1000_state.pt3_selftest_failed && com_data.pt1000_state.pt3_charging_stopped);
     } else if (channel == 4) {
-        return !(com_data.pt1000_state.pt4_selftest_failed & com_data.pt1000_state.pt4_charging_stopped);
+        return !(com_data.pt1000_state.pt4_selftest_failed && com_data.pt1000_state.pt4_charging_stopped);
     } else {
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
@@ -753,36 +731,136 @@ void CbCpx::read_git_hash(uint8_t* data) {
     can_git_hash_unpack(&com_data.git_hash, data, CAN_GIT_HASH_LENGTH);
 }
 
+bool CbCpx::is_any_notify_flag_set() {
+    return notify_flags.pp_changed ||
+           notify_flags.cp_changed ||
+           notify_flags.cp_error ||
+           notify_flags.contactor_1_error ||
+           notify_flags.contactor_2_error ||
+           notify_flags.estop_1_changed ||
+           notify_flags.estop_2_changed ||
+           notify_flags.estop_3_changed;
+}
+
+bool CbCpx::is_contactor_error(int contactor) {
+    if (((get_cs_contactor_state(contactor) == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE) or
+        (get_cs_contactor_state(contactor) == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE)) and
+        is_cs_contactor_error(contactor)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void CbCpx::launch_duty_cycle_check(unsigned int expected_duty_cycle) {
+    // stop previous thread if running
+    if (this->duty_cycle_check_thread.joinable()) {
+        this->duty_cycle_check_termination_requested = true;
+        this->duty_cycle_check_cv.notify_all();
+        this->duty_cycle_check_thread.join();
+    }
+
+    this->duty_cycle_check_termination_requested = false;
+
+    this->duty_cycle_check_thread = std::thread([this, expected_duty_cycle]() {
+        std::unique_lock<std::mutex> lock(this->duty_cycle_check_mutex);
+        while(!this->duty_cycle_check_termination_requested) {
+            bool notified = this->duty_cycle_check_cv.wait_for(
+                lock, std::chrono::seconds(1),
+                [this]{ return this->duty_cycle_check_termination_requested.load(); }
+            );
+
+            if (this->duty_cycle_check_termination_requested || notified)
+                break;
+
+            double duty_cycle = expected_duty_cycle / 10.0;
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(1) << duty_cycle;
+
+            if (expected_duty_cycle == get_cs_current_duty_cycle()) {
+                EVLOG_debug << "[suppressed] Safety Controller did accept the new duty cycle of " << oss.str() << "%";
+            } else {
+                EVLOG_warning << "Safety Controller did not accept the new duty cycle of " << oss.str() << "%";
+            }
+
+            break;
+        }
+    });
+}
+
+void CbCpx::handle_timeout_watchdog(int flag) {
+    // disable thread in case CPX reports back
+    if (flag == 0) {
+        this->timeout_watchdog_termination_requested = true;
+        this->timeout_watchdog_cv.notify_all();
+        if (this->timeout_watchdog_thread.joinable()) {
+            this->timeout_watchdog_thread.join();
+        }
+        this->timeout_watchdog_termination_requested = false;
+        this->bcm_rx_timeout = false;
+        EVLOG_info << "Receiving on BCM socket after timeout - CPX-ID: " << std::to_string(this->config.id);
+        this->on_cpx_timeout(false);
+        return;
+    }
+
+    if (this->timeout_watchdog_thread.joinable()) {
+        timeout_watchdog_termination_requested = true;
+        timeout_watchdog_cv.notify_all();
+        this->timeout_watchdog_thread.join();
+    }
+
+    this->timeout_watchdog_termination_requested = false;
+
+    this->timeout_watchdog_thread = std::thread([this] {
+        std::unique_lock<std::mutex> lock(this->timeout_watchdog_mutex);
+        while (!this->timeout_watchdog_termination_requested) {
+            bool notified = this->timeout_watchdog_cv.wait_for(
+                lock, std::chrono::seconds(this->cpx_timeout_seconds),
+                [this]{ return this->timeout_watchdog_termination_requested.load(); });
+
+            if (this->timeout_watchdog_termination_requested || notified)
+                break;
+
+            if (this->bcm_rx_timeout) {
+                EVLOG_warning << "Failed to receive on BCM socket - CPX-ID: " << std::to_string(this->config.id);
+                this->on_cpx_timeout(true);
+                break;
+            }
+        }
+    });
+}
+
 void CbCpx::notify_worker() {
     uint8_t previous_cp_state = CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_INVALID_CHOICE + 1;
     uint8_t previous_pp_state = CAN_CHARGE_STATE1_CS_CURRENT_PP_STATE_ERROR_CHOICE + 1;
-    
-    unsigned int previous_cp_errors = 0;
-    bool previous_contactor_error[CB_PROTO_MAX_CONTACTORS] = {false};
-    bool previous_estop_tripped[CB_PROTO_MAX_ESTOPS] = {};
 
     uint8_t current_cp_state;
     uint8_t current_pp_state;
 
-    unsigned int current_cp_errors;
-    bool current_contactor_error[CB_PROTO_MAX_CONTACTORS];
-    bool current_estop_tripped[CB_PROTO_MAX_ESTOPS];
-    unsigned int i;
-
     while (!this->termination_requested) {
-        // wait for 10 milliseconds to keep CPU load low
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        
-        // wait for changes
-        std::unique_lock<std::mutex> lock(this->notify_mutex);
-
         if (this->termination_requested)
             break;
 
-        // check for PP changes
-        current_pp_state = get_cs_current_pp_state();
+        // react to changes relevant for notification
+        std::unique_lock<std::mutex> lock(this->notify_mutex);
 
-        if (current_pp_state != previous_pp_state) {
+        notify_worker_cv.wait(lock, [&]{ 
+            return termination_requested || is_any_notify_flag_set();
+        });
+
+        bool pp_changed = std::exchange(notify_flags.pp_changed, false);
+        bool cp_changed = std::exchange(notify_flags.cp_changed, false);
+        bool estop_1_changed = std::exchange(notify_flags.estop_1_changed, false);
+        bool estop_2_changed = std::exchange(notify_flags.estop_2_changed, false);
+        bool estop_3_changed = std::exchange(notify_flags.estop_3_changed, false);
+        bool cp_error = std::exchange(notify_flags.cp_error, false);
+        bool contactor_1_error = std::exchange(notify_flags.contactor_1_error, false);
+        bool contactor_2_error = std::exchange(notify_flags.contactor_2_error, false);
+        lock.unlock();
+
+        // check for PP changes
+        if (pp_changed) {
+            current_pp_state = get_cs_current_pp_state();
             if (previous_pp_state != (CAN_CHARGE_STATE1_CS_CURRENT_PP_STATE_ERROR_CHOICE + 1)) {
                 if (this->is_pluggable) {
                     EVLOG_debug << "on_pp_change(" << pp_state_to_ampacity(current_pp_state) << ")";
@@ -798,9 +876,8 @@ void CbCpx::notify_worker() {
         }
 
         // check for CP changes
-        current_cp_state = get_cs_current_cp_state();
-
-        if (current_cp_state != previous_cp_state) {
+        if (cp_changed) {
+            current_cp_state = get_cs_current_cp_state();
             if (previous_cp_state != CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_UNKNOWN_CHOICE) {
                 EVLOG_debug << "on_cp_change(" << static_cast<types::cb_board_support::CPState>(current_cp_state) << ")";
                 this->on_cp_change(current_cp_state);
@@ -810,44 +887,39 @@ void CbCpx::notify_worker() {
             previous_cp_state = current_cp_state;
         }
 
+        // check for ESTOPs
+        if (estop_1_changed) {
+            this->on_estop(1, is_cs_estop_charging_abort(1));
+        }
+
+        if (estop_2_changed) {
+            this->on_estop(2, is_cs_estop_charging_abort(2));
+        }
+
+        if (estop_3_changed) {
+            this->on_estop(3, is_cs_estop_charging_abort(3));
+        }
+
+        // check for contactor errors
+        if (contactor_1_error) {
+            std::string name = "Contactor 1";
+            this->on_contactor_error(name, get_cc_contactor_state(1),
+                                     get_cs_contactor_state(1)
+                                         ? types::cb_board_support::ContactorState::Closed
+                                         : types::cb_board_support::ContactorState::Open);
+        }
+
+        if (contactor_2_error) {
+            std::string name = "Contactor 2";
+            this->on_contactor_error(name, get_cc_contactor_state(2),
+                                     get_cs_contactor_state(2)
+                                         ? types::cb_board_support::ContactorState::Closed
+                                         : types::cb_board_support::ContactorState::Open);
+        }
+
         // check for CP related errors
-        // cast CP errors to unsigned int to handle both of them together
-        current_cp_errors = (static_cast<unsigned int>(get_cs_diode_fault()) << 1) | static_cast<unsigned int>(get_cs_short_circuit());
-
-        if (current_cp_errors != previous_cp_errors) {
+        if (cp_error) {
             this->on_cp_error();
-            previous_cp_errors = current_cp_errors;
-        }
-
-        // forward contactor errors
-        for (i = 1; i <= CB_PROTO_MAX_CONTACTORS; ++i) {
-            std::string name = "Contactor " + std::to_string(i);
-
-            if (((get_cs_contactor_state(i) == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE) or
-                (get_cs_contactor_state(i) == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE)) and
-                is_cs_contactor_error(i)) {
-                current_contactor_error[i] = true;
-            } else {
-                current_contactor_error[i] = false;
-            }
-
-            if (current_contactor_error[i] != previous_contactor_error[i]) {
-                this->on_contactor_error(name, get_cc_contactor_state(i),
-                                         get_cs_contactor_state(i)
-                                             ? types::cb_board_support::ContactorState::Closed
-                                             : types::cb_board_support::ContactorState::Open);
-                previous_contactor_error[i] = current_contactor_error[i];
-            }
-        }
-
-        // check for ESTOP errors
-        for (i = 1; i <= CB_PROTO_MAX_ESTOPS; ++i) {
-            current_estop_tripped[i] = is_cs_estop_charging_abort(i);
-
-            if (current_estop_tripped[i] != previous_estop_tripped[i]) {
-                this->on_estop(i, current_estop_tripped[i]);
-                previous_estop_tripped[i] = current_estop_tripped[i];
-            }
         }
     }
 
@@ -860,47 +932,52 @@ void CbCpx::can_bcm_rx_worker() {
         struct can_frame frame;
     } msg;
 
+    unsigned int i;
+
+    // Snapshot of CAN-derived states used to decide which notify flags must fire.
+    struct NotifyState {
+        uint8_t pp_state {0};
+        uint8_t cp_state {0};
+        bool estop[CB_PROTO_MAX_ESTOPS] {false, false, false};
+        unsigned int cp_errors {0};
+        bool contactor_errors[CB_PROTO_MAX_CONTACTORS] {false, false};  
+    };
+
+    // Capture the current notification state so we can compare before/after decoding a frame.
+    auto capture_notify_state = [this]() {
+        NotifyState state;
+        state.pp_state = get_cs_current_pp_state();
+        state.cp_state = get_cs_current_cp_state();
+        for (unsigned int i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
+            state.estop[i] = is_cs_estop_charging_abort(i + 1);
+        }
+        state.cp_errors = (static_cast<unsigned int>(get_cs_diode_fault()) << 1) | static_cast<unsigned int>(get_cs_short_circuit());
+        for (unsigned int i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+            state.contactor_errors[i] = is_contactor_error(i + 1);
+        }
+        return state;
+    };
+
     EVLOG_info << "CAN BCM Rx Thread started";
 
     while (!this->termination_requested) {
-        // wait for 10 milliseconds to keep CPU load low
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
         if (rx_bcm_enabled) {
             ssize_t rv = read(this->can_bcm_rx_fd, &msg, sizeof(msg));
 
             if (rv < 0) {
                 EVLOG_warning << "Couldn't read event from BCM";
-                // throw std::system_error(errno, std::generic_category(), "Couldn't read event from BCM");
             }
             if (rv == 0)
                 continue; // this should usually not happen
             // we should receive either a header plus frame, or only the header in case of RX_TIMEOUT
             if (rv < static_cast<ssize_t>(sizeof(bcm_msg_head) + msg.msg_head.nframes * sizeof(can_frame))) {
                 EVLOG_warning << "Short CAN BCM read";
-                // throw std::system_error(EBADMSG, std::generic_category(), "Short CAN BCM read");
             }
 
             // check for timeout or received data
             if (msg.msg_head.opcode == RX_TIMEOUT) {
-                if (this->bcm_rx_timeout == true) {
-                    // open new thread to count 30 s down
-                    // this is only possible if CPX can buffer last state
-                    // if CPX reports back with some init safety state after
-                    // timeout we can directly report timeout signal without
-                    // 30 seconds wait
-                    std::thread timer_thread([&]() {
-                        std::this_thread::sleep_for(std::chrono::seconds(30));
-                        // if CPX is back within 30 s delete thread and continue
-                        // if CPX does not come back report cpx_timeout
-                        if (this->bcm_rx_timeout == true) {
-                            EVLOG_warning << "Failed to receive on BCM socket - CPX-ID: " << std::to_string(this->config.id);
-                            this->on_cpx_timeout(true);
-                        }
-                    });
-                    timer_thread.detach();
-                }
                 this->bcm_rx_timeout = true;
+                this->handle_timeout_watchdog(1);
 
             } else if (msg.msg_head.opcode == RX_CHANGED) {
                 // compare current and received data by CAN-ID
@@ -909,8 +986,39 @@ void CbCpx::can_bcm_rx_worker() {
                     cs_msg.msg_head = msg.msg_head;
                     cs_msg.frame = msg.frame;
 
-                    // make new received data available
+                    // remember current notify state
+                    const auto previous_notify_state = capture_notify_state();
+
                     this->read_charge_state(msg.frame.data);
+
+                    // remember new notify state
+                    const auto new_notify_state = capture_notify_state();
+
+                    bool notify_required = false;
+
+                    auto mark_change = [&](bool changed, bool& flag) {
+                        if (changed) {
+                            flag = true;
+                            notify_required = true;
+                        }
+                    };
+
+                    {
+                        std::lock_guard<std::mutex> lock(this->notify_mutex);
+
+                        mark_change(previous_notify_state.pp_state != new_notify_state.pp_state, notify_flags.pp_changed);
+                        mark_change(previous_notify_state.cp_state != new_notify_state.cp_state, notify_flags.cp_changed);
+                        mark_change(previous_notify_state.cp_errors != new_notify_state.cp_errors, notify_flags.cp_error);
+                        mark_change(previous_notify_state.contactor_errors[0] != new_notify_state.contactor_errors[0], notify_flags.contactor_1_error);
+                        mark_change(previous_notify_state.contactor_errors[1] != new_notify_state.contactor_errors[1], notify_flags.contactor_2_error);
+                        mark_change(previous_notify_state.estop[0] != new_notify_state.estop[0], notify_flags.estop_1_changed);
+                        mark_change(previous_notify_state.estop[1] != new_notify_state.estop[1], notify_flags.estop_2_changed);
+                        mark_change(previous_notify_state.estop[2] != new_notify_state.estop[2], notify_flags.estop_3_changed);
+                    }
+
+                    if (notify_required) {
+                        notify_worker_cv.notify_one();
+                    }
 
                 } else if ((msg.msg_head.can_id == this->pt_msg.msg_head.can_id) && (memcmp(msg.frame.data, this->pt_msg.frame.data, 8) != 0)) {
                     // remember new frame as current
@@ -926,7 +1034,6 @@ void CbCpx::can_bcm_rx_worker() {
                     EVLOG_info << "[Charge State] CAN ID: 0x" << std::hex << this->cs_msg.msg_head.can_id;
                     EVLOG_info << "[PT1000 State] CAN ID: 0x" << std::hex << this->pt_msg.msg_head.can_id;
                     EVLOG_warning << "CAN BCM RX: Unknown CAN-ID received";
-                    // throw std::system_error(EBADMSG, std::generic_category(), "CAN BCM RX: Unknown CAN-ID received");
                 }
 
                 if ((msg.msg_head.can_id == this->cs_msg.msg_head.can_id) or (msg.msg_head.can_id == this->pt_msg.msg_head.can_id)) {
@@ -936,22 +1043,22 @@ void CbCpx::can_bcm_rx_worker() {
                         get_firmware_and_git_hash();
 
                         // check if CPX accepted duty cycle
-                        // wait in seperate thread
-                        // we should see the changes take effect after 1s (FIXME)
-                        std::thread wait_thread([&]() {
-                            std::this_thread::sleep_for(std::chrono::seconds(2));
-                            double duty_cycle = com_data.charge_control.cc_target_duty_cycle / 10.0;
-                            std::ostringstream oss;
-                            oss << std::fixed << std::setprecision(1) << duty_cycle;
+                        this->launch_duty_cycle_check(com_data.charge_control.cc_target_duty_cycle);
+                        // // wait in seperate thread
+                        // // we should see the changes take effect after 1s (FIXME)
+                        // std::thread wait_thread([&]() {
+                        //     std::this_thread::sleep_for(std::chrono::seconds(1));
+                        //     double duty_cycle = com_data.charge_control.cc_target_duty_cycle / 10.0;
+                        //     std::ostringstream oss;
+                        //     oss << std::fixed << std::setprecision(1) << duty_cycle;
 
-                            if (com_data.charge_control.cc_target_duty_cycle == get_cs_current_duty_cycle()) {
-                                EVLOG_info << "Safety Controller did accept the new duty cycle of " << oss.str() << "%";
-                            } else {
-                                EVLOG_warning << "Safety Controller did not accept the new duty cycle of " << oss.str() << "%";
-                                // throw std::runtime_error("Safety Controller did not accept the new duty cycle of " + oss.str() + "%");
-                            }
-                        });
-                        wait_thread.detach();
+                        //     if (com_data.charge_control.cc_target_duty_cycle == get_cs_current_duty_cycle()) {
+                        //         EVLOG_info << "Safety Controller did accept the new duty cycle of " << oss.str() << "%";
+                        //     } else {
+                        //         EVLOG_warning << "Safety Controller did not accept the new duty cycle of " << oss.str() << "%";
+                        //     }
+                        // });
+                        // wait_thread.detach();
 
                         this->has_cpx_connected_once = true;
                     }
@@ -959,18 +1066,11 @@ void CbCpx::can_bcm_rx_worker() {
                     // if expected CAN-ID was received and timeout active
                     // reset timeout flag and report back
                     if (this->bcm_rx_timeout == true) {
-                        // request firmware version and git hash
-                        get_firmware_and_git_hash();
-                        
-                        this->bcm_rx_timeout = false;
-                        EVLOG_info << "Receiving on BCM socket after timeout - CPX-ID: " << std::to_string(this->config.id);
-                        this->on_cpx_timeout(false);
+                        this->handle_timeout_watchdog(0);
                     }
                 }
             } else {
                 EVLOG_warning << "Unexpected BCM opcode received: " << std::to_string(msg.msg_head.opcode);
-                // throw std::system_error(EINVAL, std::generic_category(),
-                //                         "Unexpected BCM opcode received: " + std::to_string(msg.msg_head.opcode));
             }
         }
     }
@@ -983,10 +1083,7 @@ void CbCpx::can_raw_rx_worker() {
 
     EVLOG_info << "CAN RAW Rx Thread started";
 
-    while (!this->termination_requested) {
-        // wait for 10 milliseconds to keep CPU load low
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        
+    while (!this->termination_requested) {        
         if (rx_raw_enabled) {
             int rv;
 
