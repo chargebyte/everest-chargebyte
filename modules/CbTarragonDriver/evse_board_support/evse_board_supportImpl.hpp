@@ -56,7 +56,6 @@ protected:
     virtual void handle_allow_power_on(types::evse_board_support::PowerOnOff& value) override;
     virtual void handle_ac_switch_three_phases_while_charging(bool& value) override;
     virtual void handle_evse_replug(int& value) override;
-    virtual types::board_support_common::ProximityPilot handle_ac_read_pp_ampacity() override;
     virtual void handle_ac_set_overcurrent_limit_A(double& value) override;
 
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
@@ -118,13 +117,10 @@ private:
     CbTarragonPP pp_controller;
 
     /// @brief Last published/detected ampacity
-    types::board_support_common::ProximityPilot pp_ampacity;
+    types::board_support_common::ProximityPilot pp_ampacity {types::board_support_common::Ampacity::None};
 
     /// @brief Flag to remember whether we already published a proximity error
     std::atomic_bool pp_fault_reported {false};
-
-    /// @brief Mutex to enable/disable PP observation thread
-    std::mutex pp_observation_lock;
 
     /// @brief PP observation thread handle
     std::thread pp_observation_thread;

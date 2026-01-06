@@ -4,6 +4,7 @@
 #include <chrono>
 #include <iomanip>
 #include <stdexcept>
+#include <fmt/core.h>
 #include <ra-utils/cb_protocol.h>
 // B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
 #undef B0
@@ -171,25 +172,21 @@ void evse_board_supportImpl::init() {
                                                 unsigned int reason, const std::string& reason_str,
                                                 unsigned int additional_data1, unsigned int additional_data2) {
         if (is_active) {
-            std::ostringstream errmsg;
-            errmsg << std::showbase << std::setw(4) << std::setfill('0') << std::hex;
-            errmsg << reason_str << " (" << reason << "), " << additional_data1 << ", " << additional_data2;
+            std::string errmsg =
+                fmt::format("{} ({:#06x}), {:#06x}, {:#06x}", reason_str, reason, additional_data1, additional_data2);
 
-            EVLOG_warning << "Safety Controller reported error: " << module_str << "(" << std::showbase << std::setw(4)
-                          << std::setfill('0') << std::hex << module << "), " << errmsg.str();
+            EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                                         errmsg);
 
-            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg.str(),
+            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg,
                                                        Everest::error::Severity::High);
 
             this->raise_error(e);
 
         } else {
-            std::ostringstream errmsg;
-            errmsg << reason_str << " (" << std::showbase << std::setw(4) << std::setfill('0') << std::hex << reason
-                   << ")";
+            std::string errmsg = fmt::format("{} ({:#06x})", reason_str, reason);
 
-            EVLOG_info << "Safety Controller cleared error: " << module_str << "(" << std::showbase << std::setw(4)
-                       << std::setfill('0') << std::hex << module << "), " << errmsg.str();
+            EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module, errmsg);
 
             this->clear_error("evse_board_support/VendorWarning", module_str);
         }
@@ -270,12 +267,6 @@ void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& 
 void evse_board_supportImpl::handle_evse_replug(int& value) {
     // your code for cmd evse_replug goes here
     (void)value;
-}
-
-types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
-    EVLOG_error << "handle_ac_read_pp_ampacity() was called, this is probably a configuration error.";
-
-    return {.ampacity = types::board_support_common::Ampacity::None};
 }
 
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {

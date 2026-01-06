@@ -4,6 +4,8 @@
 #include <chrono>
 #include <iomanip>
 #include <stdexcept>
+#include <fmt/core.h>
+#include <fmt/ostream.h>
 #include <generated/types/cb_board_support.hpp>
 #include <CPUtils.hpp>
 #include "evse_board_supportImpl.hpp"
@@ -31,6 +33,8 @@ types::board_support_common::BspEvent cpstate_to_bspevent(const types::cb_board_
     }
 }
 
+template <> struct fmt::formatter<types::evse_board_support::Reason> : fmt::ostream_formatter {};
+
 namespace module {
 namespace evse_board_support {
 
@@ -56,51 +60,44 @@ void evse_board_supportImpl::init() {
 
     // register our callback handlers
 
-    this->mod->controller.on_pp_change.connect([&](const enum pp_state& new_pp_state) {
-        std::scoped_lock lock(this->pp_mutex);
+    this->mod->controller.on_pp_change.connect([&](const types::board_support_common::Ampacity& new_ampacity) {
+        if (new_ampacity == types::board_support_common::Ampacity::None) {
+            EVLOG_info << "PP noticed plug removal from socket";
+        } else {
+            EVLOG_info << "PP ampacity change from " << this->pp_ampacity.ampacity << " to " << new_ampacity;
+        }
 
-        try {
-            // saved previous value
-            types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
+        this->pp_ampacity.ampacity = new_ampacity;
 
-            this->pp_ampacity.ampacity = this->mod->controller.pp_state_to_ampacity(new_pp_state);
+        // we received a valid measurement update, so clear any possible error raised before
+        if (this->pp_fault_reported.exchange(false)) {
+            this->clear_error("evse_board_support/MREC23ProximityFault");
+        }
 
-            if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None) {
-                EVLOG_info << "PP noticed plug removal from socket";
-            } else {
-                EVLOG_info << "PP ampacity change from " << prev_value << " to " << this->pp_ampacity.ampacity;
-            }
+        // publish new value
+        this->publish_ac_pp_ampacity(this->pp_ampacity);
 
-            // publish new value, upper layer should decide how to handle the change
-            this->publish_ac_pp_ampacity(this->pp_ampacity);
-
-            if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None &&
-                (this->cp_current_state == types::cb_board_support::CPState::C ||
-                 this->cp_current_state == types::cb_board_support::CPState::D)) {
-                // publish a ProximityFault
+        // publish a ProximityFault when this we detected a plug removal during charging
+        if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None &&
+            (this->cp_current_state == types::cb_board_support::CPState::C ||
+             this->cp_current_state == types::cb_board_support::CPState::D)) {
+            if (!this->pp_fault_reported.exchange(true)) {
                 Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/MREC23ProximityFault", "", "Plug removed from socket during charge",
+                    "evse_board_support/MREC23ProximityFault", "PlugRemoval", "Plug removed from socket during charge",
                     Everest::error::Severity::High);
                 this->raise_error(error_object);
-                this->pp_fault_reported = true;
             }
+        }
+    });
 
-            if (this->pp_ampacity.ampacity != types::board_support_common::Ampacity::None && this->pp_fault_reported) {
-                // clear a ProximityFault error on PP state change to a valid value but only if it exists
-                this->clear_error("evse_board_support/MREC23ProximityFault");
-                this->pp_fault_reported = false;
-            }
-        } catch (std::runtime_error& e) {
-            if (!this->pp_fault_reported) {
-                EVLOG_error << e.what();
+    this->mod->controller.on_pp_error.connect([&](const std::string& err_msg) {
+        // publish a ProximityFault
+        if (!this->pp_fault_reported.exchange(true)) {
+            EVLOG_error << err_msg;
 
-                // publish a ProximityFault
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
-                this->raise_error(error_object);
-
-                this->pp_fault_reported = true;
-            }
+            Everest::error::Error error_object = this->error_factory->create_error(
+                "evse_board_support/MREC23ProximityFault", "MeasurementError", err_msg, Everest::error::Severity::High);
+            this->raise_error(error_object);
         }
     });
 
@@ -144,6 +141,11 @@ void evse_board_supportImpl::init() {
             // should never happen, when all invalid states are handled correctly
             EVLOG_warning << e.what();
         }
+
+        // clear a possible ProximityFault error on transition to state A
+        if (current_cp_state == types::cb_board_support::CPState::A && this->pp_fault_reported.exchange(false)) {
+            this->clear_error("evse_board_support/MREC23ProximityFault");
+        }
     });
 
     this->mod->controller.on_cp_error.connect([&]() {
@@ -163,6 +165,11 @@ void evse_board_supportImpl::init() {
 
     this->mod->controller.on_contactor_change.connect(
         [&](const std::string& source, types::cb_board_support::ContactorState actual_state) {
+            if (actual_state == types::cb_board_support::ContactorState::Unknown) {
+                EVLOG_debug << source << " state change detected: now " << actual_state;
+                return;
+            }
+
             // ignore the source for now, just log it
             EVLOG_info << source << " state change detected: now " << actual_state;
 
@@ -274,25 +281,21 @@ void evse_board_supportImpl::init() {
                                                 unsigned int reason, const std::string& reason_str,
                                                 unsigned int additional_data1, unsigned int additional_data2) {
         if (is_active) {
-            std::ostringstream errmsg;
-            errmsg << std::showbase << std::setw(4) << std::setfill('0') << std::hex;
-            errmsg << reason_str << " (" << reason << "), " << additional_data1 << ", " << additional_data2;
+            std::string errmsg =
+                fmt::format("{} ({:#06x}), {:#06x}, {:#06x}", reason_str, reason, additional_data1, additional_data2);
 
-            EVLOG_warning << "Safety Controller reported error: " << module_str << "(" << std::showbase << std::setw(4)
-                          << std::setfill('0') << std::hex << module << "), " << errmsg.str();
+            EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                                         errmsg);
 
-            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg.str(),
+            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg,
                                                        Everest::error::Severity::High);
 
             this->raise_error(e);
 
         } else {
-            std::ostringstream errmsg;
-            errmsg << reason_str << " (" << std::showbase << std::setw(4) << std::setfill('0') << std::hex << reason
-                   << ")";
+            std::string errmsg = fmt::format("{} ({:#06x})", reason_str, reason);
 
-            EVLOG_info << "Safety Controller cleared error: " << module_str << "(" << std::showbase << std::setw(4)
-                       << std::setfill('0') << std::hex << module << "), " << errmsg.str();
+            EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module, errmsg);
 
             this->clear_error("evse_board_support/VendorWarning", module_str);
         }
@@ -398,7 +401,8 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
         return;
     }
 
-    EVLOG_info << "handle_allow_power_on: request to " << (value.allow_power_on ? "CLOSE" : "OPEN") << " the contactor";
+    EVLOG_info << fmt::format("handle_allow_power_on: request to {} the contactor ({})",
+                              value.allow_power_on ? "CLOSE" : "OPEN", value.reason);
 
     if (!state_change) {
         EVLOG_debug << "Current (unchanged) state: "
@@ -419,41 +423,6 @@ void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& 
 void evse_board_supportImpl::handle_evse_replug(int& value) {
     // your code for cmd evse_replug goes here
     (void)value;
-}
-
-types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
-    std::scoped_lock lock(this->pp_mutex);
-
-    // save old value and pre-init to None
-    types::board_support_common::Ampacity old_ampacity = this->pp_ampacity.ampacity;
-    this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
-
-    try {
-        // this could raise a std::runtime_error
-        this->pp_ampacity.ampacity = this->mod->controller.get_ampacity();
-
-        if (old_ampacity != this->pp_ampacity.ampacity) {
-            EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity;
-        }
-
-        if (this->pp_fault_reported)
-            this->clear_error("evse_board_support/MREC23ProximityFault");
-
-        // reset possible set flag since we successfully read a valid value
-        this->pp_fault_reported = false;
-    } catch (std::runtime_error& e) {
-        EVLOG_error << e.what();
-
-        // publish a ProximityFault
-        Everest::error::Error error_object = this->error_factory->create_error(
-            "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
-        this->raise_error(error_object);
-
-        // remember that we just reported the fault
-        this->pp_fault_reported = true;
-    }
-
-    return this->pp_ampacity;
 }
 
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {

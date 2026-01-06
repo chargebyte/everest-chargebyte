@@ -456,7 +456,8 @@ void CbParsley::init(const std::string& reset_gpio_line_name, bool reset_active_
 
     this->fw_info = std::string(this->ctx.fw_version_str) + " (g" + this->ctx.git_hash_str + ", " +
                     cb_proto_fw_platform_type_to_str(cb_proto_fw_get_platform_type(&this->ctx)) + ", " +
-                    cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) + ")";
+                    cb_proto_fw_application_type_to_str(cb_proto_fw_get_application_type(&this->ctx)) +
+                    ", Parameter Version: " + std::to_string(cb_proto_fw_get_param_version(&this->ctx)) + ")";
 }
 
 void CbParsley::enable() {
@@ -592,6 +593,7 @@ bool CbParsley::is_unexpected_rx_com(enum cb_uart_com com) {
     case COM_PT1000_STATE:
     case COM_FW_VERSION:
     case COM_GIT_HASH:
+    case COM_ERROR_MESSAGE:
         return false;
     default:
         return true;
@@ -638,10 +640,7 @@ bool CbParsley::is_emergency() {
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE_2);
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
-    return (cb_proto_get_id_state(&this->ctx) == CS2_ID_STATE_INVALID) or
-           (cb_proto_get_ce_state(&this->ctx) == CS2_CE_STATE_INVALID) or
-           (cb_proto_get_estop_reason(&this->ctx) != CS2_ESTOP_REASON_NO_STOP) or
-           (cb_proto_get_safe_state_active(&this->ctx) != CS_SAFESTATE_ACTIVE_NORMAL);
+    return cb_proto_get_safe_state_active(&this->ctx) == CS_SAFESTATE_ACTIVE_SAFESTATE;
 }
 
 unsigned int CbParsley::get_temperature_channels() const {

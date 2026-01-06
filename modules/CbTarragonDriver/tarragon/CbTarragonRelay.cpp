@@ -16,32 +16,18 @@
 
 using namespace std::chrono_literals;
 
-CbTarragonRelay::CbTarragonRelay(const std::string& relay_name, const std::string& actuator_gpio_line_name,
+CbTarragonRelay::CbTarragonRelay(const std::string& relay_name, const CbActuatorReference actuator_ref,
                                  const std::string& feedback_gpio_line_name,
                                  const unsigned int feedback_gpio_debounce_us) :
     relay_name(relay_name),
+    actuator_ref(actuator_ref),
     feedback_gpio_line_name(feedback_gpio_line_name),
     feedback_gpio_debounce_us(feedback_gpio_debounce_us) {
-    // check if the relay name contains the character '/' and find its position. This is done because the
-    // kernel throws a warning when a GPIO consumer has '/' in its name.
-    size_t pos = this->relay_name.find('/');
-
-    // if '/' is found, replace it with '-'
-    if (pos != std::string::npos)
-        this->relay_name.replace(pos, 1, "-");
 
     // during startup, we don't know when the relay was closed the last time;
     // in a worst-case scenario, we have a endless loop due to crash, so we
     // ensure here that the switching delay is respected
     this->last_closed_ts = std::chrono::steady_clock::now();
-
-    // instantiate and configure the actuator gpio
-    this->actuator = std::make_unique<gpiod::line_request>(
-        get_gpioline_by_name(actuator_gpio_line_name, "CbTarragonRelay (" + this->relay_name + ", actuator)",
-                             gpiod::line_settings()
-                                 .set_direction(gpiod::line::direction::OUTPUT)
-                                 .set_output_value(gpiod::line::value::INACTIVE)
-                                 .set_active_low(false)));
 }
 
 CbTarragonRelay::~CbTarragonRelay() {
@@ -50,6 +36,10 @@ CbTarragonRelay::~CbTarragonRelay() {
 
     // safety: explicitly open the relay, but don't wait for any feedback
     this->set_actuator_state(false, false);
+
+    // join the thread before its destruction
+    if (this->feedback_monitor.joinable())
+        this->feedback_monitor.join();
 }
 
 void CbTarragonRelay::start(bool use_feedback, bool active_low) {
@@ -164,8 +154,7 @@ bool CbTarragonRelay::set_actuator_state(bool on, bool wait_for_feedback) {
     this->set_expected_edge(on);
 
     // actually toggle the relay
-    this->actuator->set_value(this->actuator->offsets()[0],
-                              on ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
+    this->actuator_ref.first->set_value(on, this->actuator_ref.second);
 
     // remember the timestamp when we switched on
     if (on)
@@ -194,7 +183,7 @@ void CbTarragonRelay::set_expected_edge(bool on) {
 }
 
 bool CbTarragonRelay::get_actuator_state() const {
-    return this->actuator->get_value(this->actuator->offsets()[0]) == gpiod::line::value::ACTIVE;
+    return this->actuator_ref.first->get_value(this->actuator_ref.second);
 }
 
 bool CbTarragonRelay::get_feedback_state() const {
