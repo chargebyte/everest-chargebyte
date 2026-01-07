@@ -40,6 +40,8 @@ target_link_libraries(cpx
     PRIVATE
         Pal::Sigslot
         nlohmann_json::nlohmann_json
+        everest::log
+        everest::sqlite
         Boost::log
         Boost::log_setup
         Boost::system

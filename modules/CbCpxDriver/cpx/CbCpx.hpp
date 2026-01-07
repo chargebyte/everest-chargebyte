@@ -2,6 +2,7 @@
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <atomic>
+#include <array>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -304,17 +305,33 @@ private:
     /// @brief Prevents parallel access to BCM socket
     std::mutex  bcm_mutex;
 
-    /// @brief Save last new received Charge State message
-    struct {
-        struct bcm_msg_head msg_head;
-        struct can_frame frame;
-    } cs_msg{};
+    /// @brief Size of CAN-msg
+    static constexpr std::size_t can_msg_size =
+        sizeof(bcm_msg_head) + sizeof(can_frame);
 
-    /// @brief Save last new received PT1000 State message
-    struct {
-        struct bcm_msg_head msg_head;
-        struct can_frame frame;
-    } pt_msg{};
+    /// @brief Save last new received Charge State data
+    std::array<std::uint8_t, CAN_MAX_DLEN> charge_state_data{};
+
+    /// @brief Save last new received Charge State data
+    std::array<std::uint8_t, CAN_MAX_DLEN> pt1000_state_data{};
+
+    /// @brief Save Charge State msg ID
+    canid_t charge_state_id;
+
+    /// @brief Save Charge State msg ID
+    canid_t pt1000_state_id;
+
+    // /// @brief Save last new received Charge State message
+    // struct {
+    //     struct bcm_msg_head msg_head;
+    //     struct can_frame frame;
+    // } cs_msg{};
+
+    // /// @brief Save last new received PT1000 State message
+    // struct {
+    //     struct bcm_msg_head msg_head;
+    //     struct can_frame frame;
+    // } pt_msg{};
 
     /// @brief Condition variable used to wait for Charge State message
     std::condition_variable rx_cs_cv;
