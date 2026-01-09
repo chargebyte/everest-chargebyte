@@ -227,7 +227,6 @@ void CbCpx::get_firmware_and_git_hash() {
         // (current_git_hash_info.hash_signal == com_data.git_hash.hash_signal)
     ) {
         EVLOG_error << "Could not determine CPX firmware information.";
-        // throw std::runtime_error("Could not determine CPX firmware information.");
     }
 
     this->fw_info = std::string(std::to_string(can_firmware_version_major_version_decode(com_data.firmware_version.major_version))) +
@@ -326,45 +325,6 @@ void CbCpx::can_bcm_rx_init() {
     if (write(this->can_bcm_rx_fd, buf.data(), buf.size()) < 0) {
         throw std::system_error(errno, std::generic_category(), "PT1000 State RX setup failed!");
     }
-    
-    // struct {
-    //     struct bcm_msg_head msg_head;
-    //     struct can_frame frame;
-    // } rx_setup;
-
-    // rx_setup.msg_head.opcode  = RX_SETUP;
-    // rx_setup.msg_head.can_id  = get_can_id(this->config.id, CAN_CHARGE_STATE1_FRAME_ID);
-    // rx_setup.msg_head.flags   = RX_FILTER_ID | SETTIMER;
-    // rx_setup.msg_head.nframes = 1;
-    
-    // rx_setup.msg_head.ival1.tv_sec = 0;
-    // rx_setup.msg_head.ival1.tv_usec = 120000;
-    // rx_setup.msg_head.ival2.tv_sec = 0;
-    // rx_setup.msg_head.ival2.tv_usec = 120000;
-
-    // rx_setup.frame.can_id = rx_setup.msg_head.can_id;
-    // rx_setup.frame.can_dlc = CAN_CHARGE_STATE1_LENGTH;
-    // memset(rx_setup.frame.data, 0x00, CAN_CHARGE_STATE1_LENGTH);
-    
-    // // init Charge State data
-    // memset(cs_msg.frame.data, 0x00, CAN_CHARGE_STATE1_LENGTH);
-    // cs_msg.msg_head.can_id = get_can_id(this->config.id, CAN_CHARGE_STATE1_FRAME_ID);
-
-    // if (write(this->can_bcm_rx_fd, &rx_setup, sizeof(rx_setup)) < 0) {
-    //     throw std::system_error(errno, std::generic_category(), "Charge State RX setup failed!");
-    // }
-
-    // rx_setup.msg_head.can_id  = get_can_id(this->config.id, CAN_PT1000_STATE_FRAME_ID);
-    // rx_setup.frame.can_dlc = CAN_PT1000_STATE_LENGTH;
-    // memset(rx_setup.frame.data, 0x00, CAN_PT1000_STATE_LENGTH);
-    
-    // // init PT1000 State data
-    // memset(pt_msg.frame.data, 0x00, CAN_PT1000_STATE_LENGTH);
-    // pt_msg.msg_head.can_id = get_can_id(this->config.id, CAN_PT1000_STATE_FRAME_ID);
-
-    // if (write(this->can_bcm_rx_fd, &rx_setup, sizeof(rx_setup)) < 0) {
-    //     throw std::system_error(errno, std::generic_category(), "PT1000 State RX setup failed!");
-    // }
 }
 
 void CbCpx::charge_control_update() {
@@ -429,62 +389,6 @@ void CbCpx::charge_control_update() {
     } else {
         throw std::system_error(errno, std::generic_category(), "Enable sending of Charge Control before updating it!");
     }
-    
-    // struct {
-    //     struct bcm_msg_head msg_head;
-    //     struct can_frame frame;
-    // } msg_delete;
-
-    // struct {
-    //     struct bcm_msg_head msg_head;
-    //     struct can_frame frame;
-    // } msg_setup;
-    
-    // if (this->tx_cc_enabled) {
-    //     uint8_t payload[8];
-
-    //     // only delete previous message if it was initialized before
-    //     if (this->charge_control_initialized) {
-    //         memset(&msg_delete, 0, sizeof(msg_delete));
-    //         msg_delete.msg_head.opcode  = TX_DELETE;
-    //         msg_delete.msg_head.can_id  = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
-    //         msg_delete.msg_head.nframes = 0;
-
-    //         if (write(this->can_bcm_tx_fd, &msg_delete, sizeof(msg_delete)) < 0) {
-    //             throw std::system_error(errno, std::generic_category(), "Charge Control delete failed!");
-    //         }
-    //     }
-
-    //     msg_setup.msg_head.opcode  = TX_SETUP;
-    //     msg_setup.msg_head.can_id  = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
-    //     msg_setup.msg_head.flags   = SETTIMER | STARTTIMER;
-    //     msg_setup.msg_head.nframes = 1;
-    //     msg_setup.msg_head.count   = 0;
-
-    //     msg_setup.msg_head.ival1.tv_sec = 0;
-    //     msg_setup.msg_head.ival1.tv_usec = 0;
-    //     msg_setup.msg_head.ival2.tv_sec = 0;
-    //     msg_setup.msg_head.ival2.tv_usec = 100000;
-
-    //     std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
-
-    //     can_charge_control1_pack(payload, &com_data.charge_control, CAN_CHARGE_CONTROL1_LENGTH);
-        
-    //     msg_setup.frame.can_id = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
-    //     msg_setup.frame.len = CAN_CHARGE_CONTROL1_LENGTH;
-    //     memcpy(msg_setup.frame.data, payload, CAN_CHARGE_CONTROL1_LENGTH);
-
-    //     cc_lock.unlock();
-        
-    //     if (write(this->can_bcm_tx_fd, &msg_setup, sizeof(msg_setup)) < 0) {
-    //         throw std::system_error(errno, std::generic_category(), "Charge Control init failed!");
-    //     }
-
-    //     this->charge_control_initialized = true;
-
-    // } else {
-    //     throw std::system_error(errno, std::generic_category(), "Enable sending of Charge Control before updating it!");
-    // }
 }
 
 void CbCpx::set_duty_cycle(unsigned int duty_cycle) {
@@ -598,7 +502,6 @@ types::board_support_common::Ampacity CbCpx::pp_state_to_ampacity(uint8_t pp_sta
 }
 
 types::board_support_common::Ampacity CbCpx::get_ampacity() {
-    std::scoped_lock cs_lock(this->cs_mutex);
     EVLOG_info << "pp_state - " << this->pp_state_to_ampacity(get_cs_current_pp_state());
     return this->pp_state_to_ampacity(get_cs_current_pp_state());
 }
@@ -1041,11 +944,6 @@ void CbCpx::can_bcm_rx_worker() {
     std::array<std::byte, can_msg_size> buf{};
     auto* hdr = reinterpret_cast<bcm_msg_head*>(buf.data());
     auto* frame = reinterpret_cast<can_frame*>(buf.data() + sizeof(bcm_msg_head));
-    
-    // struct {
-    //     struct bcm_msg_head msg_head;
-    //     struct can_frame frame;
-    // } msg;
 
     unsigned int i;
 
@@ -1096,7 +994,7 @@ void CbCpx::can_bcm_rx_worker() {
 
             } else if (hdr->opcode == RX_CHANGED) {
                 // compare current and received data by CAN-ID
-                if ((hdr->can_id == this->charge_state_id) && (memcmp(frame->data, this->charge_state_data.data(), 8) != 0)) {                    
+                if ((hdr->can_id == this->charge_state_id) && (memcmp(frame->data, this->charge_state_data.data(), 8) != 0)) {
                     // remember new Charge State data as current
                     std::memcpy(charge_state_data.data(), frame->data, CAN_MAX_DLEN);
 
@@ -1157,21 +1055,6 @@ void CbCpx::can_bcm_rx_worker() {
 
                         // check if CPX accepted duty cycle
                         this->launch_duty_cycle_check(com_data.charge_control.cc_target_duty_cycle);
-                        // // wait in seperate thread
-                        // // we should see the changes take effect after 1s (FIXME)
-                        // std::thread wait_thread([&]() {
-                        //     std::this_thread::sleep_for(std::chrono::seconds(1));
-                        //     double duty_cycle = com_data.charge_control.cc_target_duty_cycle / 10.0;
-                        //     std::ostringstream oss;
-                        //     oss << std::fixed << std::setprecision(1) << duty_cycle;
-
-                        //     if (com_data.charge_control.cc_target_duty_cycle == get_cs_current_duty_cycle()) {
-                        //         EVLOG_info << "Safety Controller did accept the new duty cycle of " << oss.str() << "%";
-                        //     } else {
-                        //         EVLOG_warning << "Safety Controller did not accept the new duty cycle of " << oss.str() << "%";
-                        //     }
-                        // });
-                        // wait_thread.detach();
 
                         this->has_cpx_connected_once = true;
                     }
