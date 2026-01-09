@@ -342,41 +342,6 @@ void evse_board_supportImpl::handle_evse_replug(int& value) {
     (void)value;
 }
 
-// types::board_support_common::ProximityPilot evse_board_supportImpl::handle_ac_read_pp_ampacity() {
-//     std::scoped_lock lock(this->pp_mutex);
-
-//     // save old value and pre-init to None
-//     types::board_support_common::Ampacity old_ampacity = this->pp_ampacity.ampacity;
-//     this->pp_ampacity.ampacity = types::board_support_common::Ampacity::None;
-
-//     try {
-//         // this could raise a std::runtime_error
-//         this->pp_ampacity.ampacity = this->mod->controller->get_ampacity();
-
-//         if (old_ampacity != this->pp_ampacity.ampacity) {
-//             EVLOG_info << "Read PP ampacity value: " << this->pp_ampacity.ampacity;
-//         }
-
-//         if (this->pp_fault_reported)
-//             this->clear_error("evse_board_support/MREC23ProximityFault");
-
-//         // reset possible set flag since we successfully read a valid value
-//         this->pp_fault_reported = false;
-//     } catch (std::runtime_error& e) {
-//         EVLOG_error << e.what();
-
-//         // publish a ProximityFault
-//         Everest::error::Error error_object = this->error_factory->create_error(
-//             "evse_board_support/MREC23ProximityFault", "", e.what(), Everest::error::Severity::High);
-//         this->raise_error(error_object);
-
-//         // remember that we just reported the fault
-//         this->pp_fault_reported = true;
-//     }
-
-//     return this->pp_ampacity;
-// }
-
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
     // your code for cmd ac_set_overcurrent_limit_A goes here
     (void)value;

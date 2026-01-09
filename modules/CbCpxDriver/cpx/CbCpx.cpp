@@ -73,6 +73,7 @@ CbCpx::CbCpx(const module::Conf& config) : config(config) {
     }
 
     // set CAN filters for RAW socket
+    // TODO: CAN-RAW
     struct can_filter filters[2];
     filters[0].can_id   = get_can_id(this->config.id, CAN_FIRMWARE_VERSION_FRAME_ID);
     filters[0].can_mask = CAN_EFF_FLAG | CAN_EFF_MASK;
@@ -170,7 +171,8 @@ void CbCpx::get_firmware_and_git_hash() {
 
     struct can_firmware_version_t current_firmware_version_info = com_data.firmware_version;
     struct can_git_hash_t current_git_hash_info = com_data.git_hash;
-        
+
+    // TODO: CAN-RAW
     struct can_frame frame;
     memset(&frame, 0, sizeof(frame));
     uint8_t payload[8];
@@ -279,7 +281,7 @@ canid_t CbCpx::get_can_id(int cpx_id, int message_id) {
 
 void CbCpx::can_bcm_rx_init() {
     // create msg-buffer
-    std::array<std::byte, can_msg_size> buf{};
+    alignas(std::max(alignof(bcm_msg_head), alignof(can_frame))) std::array<std::byte, can_msg_size> buf{};
     auto* hdr = reinterpret_cast<bcm_msg_head*>(buf.data());
     auto* frame = reinterpret_cast<can_frame*>(buf.data() + sizeof(bcm_msg_head));
 
@@ -329,12 +331,11 @@ void CbCpx::can_bcm_rx_init() {
 
 void CbCpx::charge_control_update() {
     // create buffer for delete msg
-    std::array<std::byte, can_msg_size> buf_delete{};
+    alignas(std::max(alignof(bcm_msg_head), alignof(can_frame))) std::array<std::byte, can_msg_size> buf_delete{};
     auto* hdr_delete = reinterpret_cast<bcm_msg_head*>(buf_delete.data());
-    auto* frame_delete = reinterpret_cast<can_frame*>(buf_delete.data() + sizeof(bcm_msg_head));
 
     // create buffer for setup msg
-    std::array<std::byte, can_msg_size> buf_setup{};
+    alignas(std::max(alignof(bcm_msg_head), alignof(can_frame))) std::array<std::byte, can_msg_size> buf_setup{};
     auto* hdr_setup = reinterpret_cast<bcm_msg_head*>(buf_setup.data());
     auto* frame_setup = reinterpret_cast<can_frame*>(buf_setup.data() + sizeof(bcm_msg_head));
 
@@ -941,11 +942,9 @@ void CbCpx::notify_worker() {
 
 void CbCpx::can_bcm_rx_worker() {
     // create buffer to handle CAN-RX-msg
-    std::array<std::byte, can_msg_size> buf{};
+    alignas(std::max(alignof(bcm_msg_head), alignof(can_frame))) std::array<std::byte, can_msg_size> buf{};
     auto* hdr = reinterpret_cast<bcm_msg_head*>(buf.data());
     auto* frame = reinterpret_cast<can_frame*>(buf.data() + sizeof(bcm_msg_head));
-
-    unsigned int i;
 
     // Snapshot of CAN-derived states used to decide which notify flags must fire.
     struct NotifyState {
@@ -1075,6 +1074,7 @@ void CbCpx::can_bcm_rx_worker() {
 }
 
 void CbCpx::can_raw_rx_worker() {
+    // TODO: CAN-RAW
     struct can_frame frame;
 
     EVLOG_info << "CAN RAW Rx Thread started";

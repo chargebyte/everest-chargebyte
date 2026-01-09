@@ -170,7 +170,7 @@ active_modules:
     module: CbCpxDriver
     config_module:
       can_interface: vcan0
-      connector_type: IEC62196Type2Cable
+      connector_type: IEC62196Type2Socket
       rcm_enable: false
       id: 1
 'x-module-layout':
