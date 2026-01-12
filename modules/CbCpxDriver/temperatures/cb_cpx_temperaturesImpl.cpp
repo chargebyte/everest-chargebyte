@@ -46,8 +46,8 @@ void cb_cpx_temperaturesImpl::ready() {
                 if (!this->mod->controller->is_temperature_enabled(i))
                     continue;
 
-                if (i < ident_config.size()) {
-                    t.identification = ident_config[i].get();
+                if ((i - 1) < ident_config.size()) {
+                    t.identification = ident_config[i - 1].get();
                 } else {
                     t.identification = "Channel " + std::to_string(i);
                 }
