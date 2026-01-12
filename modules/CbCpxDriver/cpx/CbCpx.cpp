@@ -73,7 +73,6 @@ CbCpx::CbCpx(const module::Conf& config) : config(config) {
     }
 
     // set CAN filters for RAW socket
-    // TODO: CAN-RAW
     struct can_filter filters[2];
     filters[0].can_id   = get_can_id(this->config.id, CAN_FIRMWARE_VERSION_FRAME_ID);
     filters[0].can_mask = CAN_EFF_FLAG | CAN_EFF_MASK;
@@ -172,7 +171,6 @@ void CbCpx::get_firmware_and_git_hash() {
     struct can_firmware_version_t current_firmware_version_info = com_data.firmware_version;
     struct can_git_hash_t current_git_hash_info = com_data.git_hash;
 
-    // TODO: CAN-RAW
     struct can_frame frame;
     memset(&frame, 0, sizeof(frame));
     uint8_t payload[8];
@@ -1074,7 +1072,6 @@ void CbCpx::can_bcm_rx_worker() {
 }
 
 void CbCpx::can_raw_rx_worker() {
-    // TODO: CAN-RAW
     struct can_frame frame;
 
     EVLOG_info << "CAN RAW Rx Thread started";
