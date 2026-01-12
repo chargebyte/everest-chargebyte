@@ -61,10 +61,6 @@ provides:
   temperatures:
     description: Temperature readings as measured by the safety controller
     interface: cb_cpx_temperatures
-  ac_rcd:
-    description: >-
-      Provide support for fault detection of an external AC Residual Current Device
-    interface: ac_rcd
 metadata:
   license: https://spdx.org/licenses/Apache-2.0.html
   authors:

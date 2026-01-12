@@ -13,7 +13,6 @@
 // headers for provided interface implementations
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
 #include <generated/interfaces/cb_cpx_temperatures/Implementation.hpp>
-#include <generated/interfaces/ac_rcd/Implementation.hpp>
 
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
@@ -41,16 +40,14 @@ class CbCpxDriver : public Everest::ModuleBase {
 public:
     CbCpxDriver() = delete;
     CbCpxDriver(const ModuleInfo& info, std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
-                std::unique_ptr<cb_cpx_temperaturesImplBase> p_temperatures, std::unique_ptr<ac_rcdImplBase> p_ac_rcd, Conf& config) :
+                std::unique_ptr<cb_cpx_temperaturesImplBase> p_temperatures, Conf& config) :
         ModuleBase(info),
         p_evse_board_support(std::move(p_evse_board_support)),
         p_temperatures(std::move(p_temperatures)),
-        p_ac_rcd(std::move(p_ac_rcd)),
         config(config) {};
 
     const std::unique_ptr<evse_board_supportImplBase> p_evse_board_support;
     const std::unique_ptr<cb_cpx_temperaturesImplBase> p_temperatures;
-    const std::unique_ptr<ac_rcdImplBase> p_ac_rcd;
     const Conf& config;
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1

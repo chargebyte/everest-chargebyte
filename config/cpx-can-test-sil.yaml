@@ -94,9 +94,6 @@ active_modules:
       slac:
         - implementation_id: evse
           module_id: slac
-      ac_rcd:
-        - implementation_id: ac_rcd
-          module_id: connector_1_powerpath
     module: EvseManager
     telemetry:
       id: 1

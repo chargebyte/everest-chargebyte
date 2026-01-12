@@ -25,7 +25,6 @@ void CbCpxDriver::init() {
     // initialize the interfaces now
     invoke_init(*p_evse_board_support);
     invoke_init(*p_temperatures);
-    invoke_init(*p_ac_rcd);
 
     EVLOG_info << MODULE_DESCRIPTION << " (version: " << MODULE_VERSION << ")";
 }
