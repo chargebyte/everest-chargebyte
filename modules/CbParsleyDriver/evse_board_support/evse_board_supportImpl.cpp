@@ -61,10 +61,10 @@ namespace evse_board_support {
 void evse_board_supportImpl::init() {
     // configure hardware capabilities: we used hard-coded values here since these values
     // are important for AC charging mostly and Charge Control Y is designed for DC only
-    this->hw_capabilities.min_current_A_import = 6;
-    this->hw_capabilities.max_current_A_import = 80;
-    this->hw_capabilities.min_current_A_export = 6;
-    this->hw_capabilities.max_current_A_export = 80;
+    this->hw_capabilities.min_current_A_import = 0;
+    this->hw_capabilities.max_current_A_import = 10000;
+    this->hw_capabilities.min_current_A_export = 0;
+    this->hw_capabilities.max_current_A_export = 10000;
     this->hw_capabilities.max_phase_count_import = 3;
     this->hw_capabilities.min_phase_count_import = 3;
     this->hw_capabilities.max_phase_count_export = 3;
