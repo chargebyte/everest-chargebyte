@@ -412,6 +412,7 @@ evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& 
 
 void evse_board_supportImpl::cp_observation_worker(void) {
     double previous_duty_cycle {100.0};
+    bool previous_pwm_enabled {this->pwm_controller.is_enabled()};
     // both sides of the CP level
     CPUtils::cp_state_signal_side positive_side {types::cb_board_support::CPState::PilotFault,
                                                  types::cb_board_support::CPState::PilotFault,
@@ -425,6 +426,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
     while (!this->termination_requested) {
         bool duty_cycle_changed {false};
         bool cp_state_changed {false};
+        bool pwm_enabled_changed {false};
 
         // acquire measurement lock for this loop round, wait for it eventually
         std::unique_lock<std::mutex> lock(this->cp_observation_lock);
@@ -442,33 +444,42 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         if (this->termination_requested)
             break;
 
-        // do the actual measurement
-        this->cp_controller.get_values(positive_side.voltage, negative_side.voltage);
+        const bool current_pwm_enabled = this->pwm_controller.is_enabled();
+        auto current_duty_cycle = this->pwm_controller.get_duty_cycle();
 
-        // positive signal side: map to CP state and check for changes
-        types::cb_board_support::CPState measured_cp_state;
-        measured_cp_state = CPUtils::voltage_to_state(positive_side.voltage, positive_side.measured_state_t1);
-        cp_state_changed |= CPUtils::check_for_cp_state_changes(positive_side, measured_cp_state);
+        // only trust the peak detection if CP state E (disabled PWM) and state F (0% PWM) are not applied
+        if (current_pwm_enabled && current_duty_cycle != 0.0) {
+            // do the actual measurement
+            this->cp_controller.get_values(positive_side.voltage, negative_side.voltage);
 
-        // negative signal side: map to CP state and check for changes
-        measured_cp_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.measured_state_t1);
-        cp_state_changed |= CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state);
+            // positive signal side: map to CP state and check for changes
+            types::cb_board_support::CPState measured_cp_state;
+            measured_cp_state = CPUtils::voltage_to_state(positive_side.voltage, positive_side.measured_state_t1);
+            cp_state_changed |= CPUtils::check_for_cp_state_changes(positive_side, measured_cp_state);
+
+            // negative signal side: map to CP state and check for changes
+            measured_cp_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.measured_state_t1);
+            cp_state_changed |= CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state);
+        }
 
         // at this point, the current_state member was already updated by the check_for_cp_state_changes methods
 
         // check whether we see a change of the duty cycle
-        duty_cycle_changed = previous_duty_cycle != this->pwm_controller.get_duty_cycle();
-        previous_duty_cycle = this->pwm_controller.get_duty_cycle();
+        duty_cycle_changed = previous_duty_cycle != current_duty_cycle;
+        previous_duty_cycle = current_duty_cycle;
+
+        pwm_enabled_changed = previous_pwm_enabled != current_pwm_enabled;
+        previous_pwm_enabled = current_pwm_enabled;
 
         // If nothing has changed, start a new measurement
-        if (duty_cycle_changed == false && cp_state_changed == false) {
+        if (duty_cycle_changed == false && cp_state_changed == false && pwm_enabled_changed == false) {
             continue;
         }
 
         // Determine current CP state based on positive, negative side and duty cycle
         bool is_cp_error {false};
         types::cb_board_support::CPState current_cp_state =
-            determine_cp_state(positive_side, negative_side, this->pwm_controller.get_duty_cycle(), is_cp_error);
+            determine_cp_state(positive_side, negative_side, current_duty_cycle, is_cp_error);
 
         // Process all EVerest CP errors
         CPUtils::process_everest_errors(*this, this->cp_errors.errors);
