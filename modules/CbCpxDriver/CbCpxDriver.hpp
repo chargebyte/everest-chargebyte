@@ -33,7 +33,7 @@ struct Conf {
     std::string pt1000_3_identification;
     std::string pt1000_4_identification;
     bool rcm_enable;
-    int id;
+    int device_id;
 };
 
 class CbCpxDriver : public Everest::ModuleBase {

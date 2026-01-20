@@ -46,9 +46,14 @@ typedef struct {
     struct can_inquiry_packet_t inquiry_packet;
 } com_data_t;
 
-namespace module {
-    class Conf;
-}
+// namespace module {
+//     class Conf;
+// }
+
+struct Conf {
+    std::string can_interface;
+    int device_id;
+};
 
 ///
 /// A class for abstracting the safety processor UART interface on Charge SOM platform.
@@ -57,7 +62,9 @@ class CbCpx {
 
 public:
     /// @brief Default constructor.
-    CbCpx(const module::Conf& config);
+    /// @param device_id Offset in CAN-ID used to identify hardware plattform
+    /// @param can_interface Name of the CAN-interface used for communication
+    CbCpx(int device_id, std::string can_interface);
 
     /// @brief Destructor.
     ~CbCpx();
@@ -192,7 +199,8 @@ public:
 
 private:
     /// @brief Reference to the CPX-config provided by manifest.yaml
-    const module::Conf& config;
+    // const module::Conf& config;
+    Conf config{"can0", 0};
 
     /// @brief Flag to control sending of Charge Control messages
     std::atomic_bool tx_cc_enabled {false};
