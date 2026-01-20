@@ -21,14 +21,18 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include "CbCpx.hpp"
-#include "../CbCpxDriver.hpp"
+// #include "../CbCpxDriver.hpp"
 #include <everest/logging.hpp>
 #include <generated/types/cb_board_support.hpp>
 #include <generated/interfaces/cb_cpx_temperatures/Implementation.hpp>
 
 using namespace std::chrono_literals;
 
-CbCpx::CbCpx(const module::Conf& config) : config(config) {
+CbCpx::CbCpx(int device_id, std::string can_interface){
+    // init EVerest-config parameters
+    this->config.device_id = device_id;
+    this->config.can_interface = can_interface;
+
     // we have to convert can_interface of type std::string to const char *
     const char* can_interface_cstr = this->config.can_interface.c_str();
     
@@ -74,9 +78,9 @@ CbCpx::CbCpx(const module::Conf& config) : config(config) {
 
     // set CAN filters for RAW socket
     struct can_filter filters[2];
-    filters[0].can_id   = get_can_id(this->config.id, CAN_FIRMWARE_VERSION_FRAME_ID);
+    filters[0].can_id   = get_can_id(this->config.device_id, CAN_FIRMWARE_VERSION_FRAME_ID);
     filters[0].can_mask = CAN_EFF_FLAG | CAN_EFF_MASK;
-    filters[1].can_id   = get_can_id(this->config.id, CAN_GIT_HASH_FRAME_ID);
+    filters[1].can_id   = get_can_id(this->config.device_id, CAN_GIT_HASH_FRAME_ID);
     filters[1].can_mask = CAN_EFF_FLAG | CAN_EFF_MASK;
 
     if (setsockopt(this->can_raw_fd, SOL_CAN_RAW, CAN_RAW_FILTER, &filters, sizeof(filters)) < 0) {
@@ -178,7 +182,7 @@ void CbCpx::get_firmware_and_git_hash() {
     this->print_can_id_info = true;
 
     // frame information valid for firmware version and git hash
-    frame.can_id = get_can_id(this->config.id, CAN_INQUIRY_PACKET_FRAME_ID);
+    frame.can_id = get_can_id(this->config.device_id, CAN_INQUIRY_PACKET_FRAME_ID);
     frame.can_dlc = CAN_INQUIRY_PACKET_LENGTH;
         
     // query firmware version
@@ -293,16 +297,16 @@ void CbCpx::can_bcm_rx_init() {
     hdr->ival2.tv_usec = 120000;
 
     // write CAN-header for Charge State
-    hdr->can_id  = get_can_id(this->config.id, CAN_CHARGE_STATE1_FRAME_ID);
+    hdr->can_id  = get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
 
     // write CAN-frame for Charge State
-    frame->can_id = get_can_id(this->config.id, CAN_CHARGE_STATE1_FRAME_ID);
+    frame->can_id = get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
     frame->can_dlc = CAN_CHARGE_STATE1_LENGTH;
     memset(frame->data, 0x00, CAN_CHARGE_STATE1_LENGTH);
 
     // init Charge State data for further use
     memset(charge_state_data.data(), 0x00, CAN_CHARGE_STATE1_LENGTH);
-    charge_state_id = get_can_id(this->config.id, CAN_CHARGE_STATE1_FRAME_ID);
+    charge_state_id = get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
 
     // init CAN-RX-Filter for Charge State by writing to CAN-Socket
     if (write(this->can_bcm_rx_fd, buf.data(), buf.size()) < 0) {
@@ -310,16 +314,16 @@ void CbCpx::can_bcm_rx_init() {
     }
 
     // write CAN-header for PT1000 State
-    hdr->can_id  = get_can_id(this->config.id, CAN_PT1000_STATE_FRAME_ID);
+    hdr->can_id  = get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
 
     // write CAN-frame for PT1000 State
-    frame->can_id = get_can_id(this->config.id, CAN_PT1000_STATE_FRAME_ID);
+    frame->can_id = get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
     frame->can_dlc = CAN_PT1000_STATE_LENGTH;
     memset(frame->data, 0x00, CAN_PT1000_STATE_LENGTH);
 
     // init PT1000 State data for further use
     memset(pt1000_state_data.data(), 0x00, CAN_PT1000_STATE_LENGTH);
-    pt1000_state_id = get_can_id(this->config.id, CAN_PT1000_STATE_FRAME_ID);
+    pt1000_state_id = get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
 
     // init CAN-RX-Filter for PT1000 State by writing to CAN-Socket
     if (write(this->can_bcm_rx_fd, buf.data(), buf.size()) < 0) {
@@ -343,7 +347,7 @@ void CbCpx::charge_control_update() {
         if (this->charge_control_initialized) {
             memset(buf_delete.data(), 0, buf_delete.size());
             hdr_delete->opcode  = TX_DELETE;
-            hdr_delete->can_id  = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
+            hdr_delete->can_id  = get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
             hdr_delete->nframes = 0;
 
             // now delete auto sending of Charge Control msg by sending delete msg to socket
@@ -357,7 +361,7 @@ void CbCpx::charge_control_update() {
 
         // write CAN-header to setup new Charge Control msg
         hdr_setup->opcode  = TX_SETUP;
-        hdr_setup->can_id  = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
+        hdr_setup->can_id  = get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
         hdr_setup->flags   = SETTIMER | STARTTIMER;
         hdr_setup->nframes = 1;
         hdr_setup->count   = 0;
@@ -373,7 +377,7 @@ void CbCpx::charge_control_update() {
         can_charge_control1_pack(payload, &com_data.charge_control, CAN_CHARGE_CONTROL1_LENGTH);
         
         // write CAN-frame of new Charge Control msg
-        frame_setup->can_id = get_can_id(this->config.id, CAN_CHARGE_CONTROL1_FRAME_ID);
+        frame_setup->can_id = get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
         frame_setup->len = CAN_CHARGE_CONTROL1_LENGTH;
         memcpy(frame_setup->data, payload, CAN_CHARGE_CONTROL1_LENGTH);
 
@@ -810,7 +814,7 @@ void CbCpx::handle_timeout_watchdog(int flag) {
         }
         this->timeout_watchdog_termination_requested = false;
         this->bcm_rx_timeout = false;
-        EVLOG_info << "Receiving on BCM socket after timeout - CPX-ID: " << std::to_string(this->config.id);
+        EVLOG_info << "Receiving on BCM socket after timeout - CPX-ID: " << std::to_string(this->config.device_id);
         this->on_cpx_timeout(false);
         return;
     }
@@ -834,7 +838,7 @@ void CbCpx::handle_timeout_watchdog(int flag) {
                 break;
 
             if (this->bcm_rx_timeout) {
-                EVLOG_warning << "Failed to receive on BCM socket - CPX-ID: " << std::to_string(this->config.id);
+                EVLOG_warning << "Failed to receive on BCM socket - CPX-ID: " << std::to_string(this->config.device_id);
                 this->on_cpx_timeout(true);
                 break;
             }
@@ -844,7 +848,6 @@ void CbCpx::handle_timeout_watchdog(int flag) {
 
 void CbCpx::notify_worker() {
     uint8_t previous_cp_state = CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_INVALID_CHOICE + 1;
-    uint8_t previous_pp_state = CAN_CHARGE_STATE1_CS_CURRENT_PP_STATE_ERROR_CHOICE + 1;
 
     uint8_t current_cp_state;
     uint8_t current_pp_state;
@@ -873,18 +876,13 @@ void CbCpx::notify_worker() {
         // check for PP changes
         if (pp_changed) {
             current_pp_state = get_cs_current_pp_state();
-            if (previous_pp_state != (CAN_CHARGE_STATE1_CS_CURRENT_PP_STATE_ERROR_CHOICE + 1)) {
-                if (this->is_pluggable) {
-                    EVLOG_debug << "on_pp_change(" << pp_state_to_ampacity(current_pp_state) << ")";
-                    this->on_pp_change(current_pp_state);
-                } else {
-                    EVLOG_debug << "on_pp_change(" << pp_state_to_ampacity(current_pp_state)
-                               << ") [suppressed, fixed cable]";
-                }
+            if (this->is_pluggable) {
+                EVLOG_debug << "on_pp_change(" << pp_state_to_ampacity(current_pp_state) << ")";
+                this->on_pp_change(current_pp_state);
             } else {
-                EVLOG_debug << "on_pp_change(" << pp_state_to_ampacity(current_pp_state) << ") [suppressed]";
+                EVLOG_debug << "on_pp_change(" << pp_state_to_ampacity(current_pp_state)
+                            << ") [suppressed, fixed cable]";
             }
-            previous_pp_state = current_pp_state;
         }
 
         // check for CP changes
@@ -1089,11 +1087,11 @@ void CbCpx::can_raw_rx_worker() {
             if (rv == 0 || rv < (int)sizeof(struct can_frame))
                 continue; // this should usually not happen
 
-            if ((frame.can_id) == get_can_id(this->config.id, CAN_FIRMWARE_VERSION_FRAME_ID)) {
+            if ((frame.can_id) == get_can_id(this->config.device_id, CAN_FIRMWARE_VERSION_FRAME_ID)) {
                 this->read_fw_version(frame.data);
             }
 
-            if ((frame.can_id) == get_can_id(this->config.id, CAN_GIT_HASH_FRAME_ID)) {
+            if ((frame.can_id) == get_can_id(this->config.device_id, CAN_GIT_HASH_FRAME_ID)) {
                 this->read_git_hash(frame.data);
             }
         }
