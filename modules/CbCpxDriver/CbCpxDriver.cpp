@@ -32,11 +32,6 @@ void CbCpxDriver::init() {
 void CbCpxDriver::ready() {
     invoke_ready(*p_evse_board_support);
     invoke_ready(*p_temperatures);
-
-    while (!this->termination_requested) {
-        // wait for 1 second to keep CPU load low
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    };
 }
 
 } // namespace module

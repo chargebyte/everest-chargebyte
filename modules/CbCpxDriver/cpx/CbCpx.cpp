@@ -50,7 +50,7 @@ CbCpx::CbCpx(int device_id, std::string can_interface){
     addr.can_ifindex = ifr.ifr_ifindex;
 
     if (connect(this->can_bcm_rx_fd, (struct sockaddr*)&addr, sizeof(addr)))
-        throw std::system_error(errno, std::generic_category(), "Couldn't connect CAN BCM socket on " + this->config.can_interface);
+        throw std::system_error(errno, std::generic_category(), "Couldn't connect Rx CAN BCM socket on " + this->config.can_interface);
 
     // open a CAN BCM RX socket, bound to the desired interface
     this->can_bcm_tx_fd = socket(PF_CAN, SOCK_DGRAM, CAN_BCM);
@@ -63,7 +63,7 @@ CbCpx::CbCpx(int device_id, std::string can_interface){
                                 "Couldn't determine interface number of " + this->config.can_interface);
 
     if (connect(this->can_bcm_tx_fd, (struct sockaddr*)&addr, sizeof(addr)))
-        throw std::system_error(errno, std::generic_category(), "Couldn't connect CAN BCM socket on " + this->config.can_interface);
+        throw std::system_error(errno, std::generic_category(), "Couldn't connect Tx CAN BCM socket on " + this->config.can_interface);
 
     // open a CAN RAW socket, bound to the desired interface
     this->can_raw_fd = socket(PF_CAN, SOCK_RAW, CAN_RAW);
@@ -198,7 +198,7 @@ void CbCpx::get_firmware_and_git_hash() {
     }
 
     // we should have a response within 1 second
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(1s);
 
     // query git hash
     com_data.inquiry_packet.packet_id = CAN_INQUIRY_PACKET_PACKET_ID_GIT_HASH_CHOICE;
@@ -213,7 +213,7 @@ void CbCpx::get_firmware_and_git_hash() {
     }
 
     // we should have a response within 1 second
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(1s);
 
     this->print_can_id_info = false;
 
@@ -233,14 +233,14 @@ void CbCpx::get_firmware_and_git_hash() {
         EVLOG_error << "Could not determine CPX firmware information.";
     }
 
-    this->fw_info = std::string(std::to_string(can_firmware_version_major_version_decode(com_data.firmware_version.major_version))) +
-                    std::string(std::to_string(can_firmware_version_minor_version_decode(com_data.firmware_version.minor_version))) +
-                    std::string(std::to_string(can_firmware_version_build_version_decode(com_data.firmware_version.build_version))) +
+    this->fw_info = std::to_string(can_firmware_version_major_version_decode(com_data.firmware_version.major_version)) +
+                    std::to_string(can_firmware_version_minor_version_decode(com_data.firmware_version.minor_version)) +
+                    std::to_string(can_firmware_version_build_version_decode(com_data.firmware_version.build_version)) +
                     " (g" +
-                    std::string(std::to_string(can_git_hash_hash_signal_decode(com_data.git_hash.hash_signal))) +
+                    std::to_string(can_git_hash_hash_signal_decode(com_data.git_hash.hash_signal)) +
                     ", " +
-                    std::string(std::to_string(can_firmware_version_platform_type_decode(com_data.firmware_version.platform_type))) +
-                    std::string(std::to_string(can_firmware_version_application_type_decode(com_data.firmware_version.application_type)));
+                    std::to_string(can_firmware_version_platform_type_decode(com_data.firmware_version.platform_type)) +
+                    std::to_string(can_firmware_version_application_type_decode(com_data.firmware_version.application_type));
 
     fv_lock.unlock();
     gh_lock.unlock();
@@ -431,7 +431,7 @@ int CbCpx::switch_state(bool on) {
     }
 
     // we should see the changes take effect after 1s (FIXME)
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(1s);
 
     if (get_cs_contactor_state(1) != on) {
         return 1;
@@ -449,12 +449,14 @@ bool CbCpx::get_contactor_state_no_lock() {
     bool actual_state = false;
 
     for (i = 1; i <= CB_PROTO_MAX_CONTACTORS; ++i) {
-        if (get_cs_contactor_state(i) == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE ||
-            get_cs_contactor_state(i) == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE) {
+        uint8_t cs_contactor_state_i = get_cs_contactor_state(i);
+
+        if (cs_contactor_state_i == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE ||
+            cs_contactor_state_i == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE) {
             at_least_one_is_configured = true;
 
             // don't overwrite, but merge the state
-            actual_state |= bool(get_cs_contactor_state(i));
+            actual_state |= bool(cs_contactor_state_i);
         }
 
         // fallback in the same loop in case no contactor is actually in use
@@ -499,13 +501,12 @@ types::board_support_common::Ampacity CbCpx::pp_state_to_ampacity(uint8_t pp_sta
         return types::board_support_common::Ampacity::A_63_3ph_70_1ph;
 
     default:
-        EVLOG_error << "The measured voltage for the Proximity Pilot could not be mapped.";
+        EVLOG_error << "PP voltage out of range; no ampacity mapping available.";
         return types::board_support_common::Ampacity::None;
     }
 }
 
 types::board_support_common::Ampacity CbCpx::get_ampacity() {
-    EVLOG_info << "pp_state - " << this->pp_state_to_ampacity(get_cs_current_pp_state());
     return this->pp_state_to_ampacity(get_cs_current_pp_state());
 }
 
@@ -759,8 +760,10 @@ bool CbCpx::is_any_notify_flag_set() {
 }
 
 bool CbCpx::is_contactor_error(int contactor) {
-    if (((get_cs_contactor_state(contactor) == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE) or
-        (get_cs_contactor_state(contactor) == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE)) and
+    uint8_t cs_contactor_state = get_cs_contactor_state(contactor);
+
+    if (((cs_contactor_state == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE) or
+        (cs_contactor_state == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE)) and
         is_cs_contactor_error(contactor)) {
         return true;
     } else {
@@ -782,7 +785,7 @@ void CbCpx::launch_duty_cycle_check(unsigned int expected_duty_cycle) {
         std::unique_lock<std::mutex> lock(this->duty_cycle_check_mutex);
         while(!this->duty_cycle_check_termination_requested) {
             bool notified = this->duty_cycle_check_cv.wait_for(
-                lock, std::chrono::seconds(1),
+                lock, 1s,
                 [this]{ return this->duty_cycle_check_termination_requested.load(); }
             );
 
@@ -814,7 +817,7 @@ void CbCpx::handle_timeout_watchdog(int flag) {
         }
         this->timeout_watchdog_termination_requested = false;
         this->bcm_rx_timeout = false;
-        EVLOG_info << "Receiving on BCM socket after timeout - CPX-ID: " << std::to_string(this->config.device_id);
+        EVLOG_info << "Receiving on BCM socket after timeout (CPX-ID: " << std::to_string(this->config.device_id) << ").";
         this->on_cpx_timeout(false);
         return;
     }
@@ -853,9 +856,6 @@ void CbCpx::notify_worker() {
     uint8_t current_pp_state;
 
     while (!this->termination_requested) {
-        if (this->termination_requested)
-            break;
-
         // react to changes relevant for notification
         std::unique_lock<std::mutex> lock(this->notify_mutex);
 
@@ -973,13 +973,13 @@ void CbCpx::can_bcm_rx_worker() {
             ssize_t rv = read(this->can_bcm_rx_fd, buf.data(), buf.size());
 
             if (rv < 0) {
-                EVLOG_warning << "Couldn't read event from BCM";
+                EVLOG_warning << "Read from Rx BCM socket failed.";
             }
             if (rv == 0)
                 continue; // this should usually not happen
             // we should receive either a header plus frame, or only the header in case of RX_TIMEOUT
             if (rv < static_cast<ssize_t>(sizeof(bcm_msg_head) + hdr->nframes * sizeof(can_frame))) {
-                EVLOG_warning << "Short CAN BCM read";
+                EVLOG_warning << "Short CAN message read on Rx BCM socket.";
             }
 
             // check for timeout or received data
@@ -1081,8 +1081,7 @@ void CbCpx::can_raw_rx_worker() {
             // read blocks until new frame is available
             rv = read(this->can_raw_fd, &frame, sizeof(frame));
             if (rv < 0) {
-                EVLOG_warning << "Couldn't read event from RAW";
-                // throw std::system_error(errno, std::generic_category(), "Couldn't read event from RAW");
+                EVLOG_warning << "Read from RAW socket failed.";
             }
             if (rv == 0 || rv < (int)sizeof(struct can_frame))
                 continue; // this should usually not happen

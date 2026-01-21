@@ -56,7 +56,7 @@ void cb_cpx_temperaturesImpl::ready() {
 
                 if (this->mod->controller->is_pt_charging_stopped(i)) {
                     if (!this->charging_abort_cause_reported[i]) {
-                        EVLOG_warning << t.identification.value() << " caused charging abort: " << std::fixed
+                        EVLOG_warning << "Charging aborted due to " << t.identification.value() << " temperature: " << std::fixed
                                       << t.temperature << " °C";
                         this->charging_abort_cause_reported[i] = true;
                     }
