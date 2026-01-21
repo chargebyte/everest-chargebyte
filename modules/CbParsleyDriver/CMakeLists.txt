@@ -48,7 +48,7 @@ target_sources(${MODULE_NAME}
     PRIVATE
         "evse_board_support/evse_board_supportImpl.cpp"
         "temperatures/cb_temperaturesImpl.cpp"
-        "mcs/cb_chargesom_mcsImpl.cpp"
+        "mcs/cb_mcsImpl.cpp"
 )
 
 # ev@c55432ab-152c-45a9-9d2e-7281d50c69c3:v1
