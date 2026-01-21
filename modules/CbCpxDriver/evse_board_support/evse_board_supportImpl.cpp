@@ -53,12 +53,12 @@ void evse_board_supportImpl::init() {
 
     // register our callback handlers
 
-    this->mod->controller->on_pp_change.connect([&](uint8_t new_pp_state) {
+    this->mod->controller->on_pp_change.connect([this](uint8_t new_pp_state) {
         std::scoped_lock lock(this->pp_mutex);
 
         try {
             // saved previous value
-            types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
+            const types::board_support_common::Ampacity prev_value(this->pp_ampacity.ampacity);
 
             this->pp_ampacity.ampacity = this->mod->controller->pp_state_to_ampacity(new_pp_state);
 
@@ -87,7 +87,7 @@ void evse_board_supportImpl::init() {
                 this->clear_error("evse_board_support/MREC23ProximityFault");
                 this->pp_fault_reported = false;
             }
-        } catch (std::runtime_error& e) {
+        } catch (const std::runtime_error& e) {
             if (!this->pp_fault_reported) {
                 EVLOG_error << e.what();
 
@@ -101,7 +101,7 @@ void evse_board_supportImpl::init() {
         }
     });
 
-    this->mod->controller->on_cp_change.connect([&](uint8_t current_cp_state) {
+    this->mod->controller->on_cp_change.connect([this](uint8_t current_cp_state) {
         std::scoped_lock lock(this->cp_mutex);
 
         types::cb_board_support::CPState tmp_current_cp_state = static_cast<types::cb_board_support::CPState>(current_cp_state);
@@ -139,13 +139,13 @@ void evse_board_supportImpl::init() {
         try {
             const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(tmp_current_cp_state);
             this->publish_event(tmp);
-        } catch (std::runtime_error& e) {
+        } catch (const std::runtime_error& e) {
             // should never happen, when all invalid states are handled correctly
             EVLOG_warning << e.what();
         }
     });
 
-    this->mod->controller->on_cp_error.connect([&]() {
+    this->mod->controller->on_cp_error.connect([this]() {
         std::scoped_lock lock(this->cp_mutex);
 
         // we can determine this directly from the currently seen values
@@ -155,25 +155,25 @@ void evse_board_supportImpl::init() {
         CPUtils::process_everest_errors(*this, this->cp_errors.errors);
 
         // we only need to remember the PilotFault here, reset is done in `on_cp_change`
-        if (this->cp_errors.diode_fault.is_active or this->cp_errors.cp_short_fault.is_active) {
+        if (this->cp_errors.diode_fault.is_active || this->cp_errors.cp_short_fault.is_active) {
             this->cp_current_state = types::cb_board_support::CPState::PilotFault;
         }
     });
 
     this->mod->controller->on_contactor_error.connect(
-        [&](const std::string& source, bool desired_state, types::cb_board_support::ContactorState actual_state) {
+        [this](const std::string& source, bool desired_state, types::cb_board_support::ContactorState actual_state) {
             raise_contactor_error(source, desired_state, actual_state);
     });
 
-    this->mod->controller->on_estop.connect([&](const unsigned int& estop, const bool& active) {
+    this->mod->controller->on_estop.connect([this](const unsigned int& estop, const bool& active) {
         if (active)
-            EVLOG_warning << "Emergency Stop " << (estop) << " TRIPPED";
+            EVLOG_warning << "Emergency Stop " << estop << " TRIPPED";
         else
-            EVLOG_info << "Emergency Stop " << (estop) << " released";
+            EVLOG_info << "Emergency Stop " << estop << " released";
     });
 
-    this->mod->controller->on_cpx_timeout.connect([&](bool timeout) {
-        std::string error_type = "evse_board_support/VendorError";
+    this->mod->controller->on_cpx_timeout.connect([this](bool timeout) {
+        const std::string error_type = "evse_board_support/VendorError";
         if (timeout == true) {
             // signal State A so that EvseManager cancels session and starts
             // fresh once CPX is back
@@ -181,7 +181,7 @@ void evse_board_supportImpl::init() {
             try {
                 const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(this->cp_current_state);
                 this->publish_event(tmp);
-            } catch (std::runtime_error& e) {
+            } catch (const std::runtime_error& e) {
                 // should never happen, when all invalid states are handled correctly
                 EVLOG_warning << e.what();
             }
@@ -218,26 +218,26 @@ void evse_board_supportImpl::handle_enable(bool& value) {
             this->mod->controller->enable();
 
         // generate state A or state F
-        unsigned int new_duty_cycle = value ? 1000 : 0;
+        const unsigned int new_duty_cycle = value ? 1000 : 0;
 
         EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(1)
                    << (new_duty_cycle / 10.0) << "%";
         this->mod->controller->set_duty_cycle(new_duty_cycle);
 
         this->is_enabled = value;
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         EVLOG_error << e.what();
     }
 }
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
     try {
-        unsigned int new_duty_cycle = static_cast<unsigned int>(value * 10.0);
+        const unsigned int new_duty_cycle = static_cast<unsigned int>(value * 10.0);
 
         EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(1)
                    << (new_duty_cycle / 10.0) << "%";
         this->mod->controller->set_duty_cycle(new_duty_cycle);
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         EVLOG_error << e.what();
     }
 }
@@ -253,12 +253,12 @@ void evse_board_supportImpl::handle_pwm_off() {
 
     try {
         // generate state A
-        unsigned int new_duty_cycle = 1000;
+        const unsigned int new_duty_cycle = 1000;
 
         EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(1)
                    << (new_duty_cycle / 10.0) << "%";
         this->mod->controller->set_duty_cycle(new_duty_cycle);
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         EVLOG_error << e.what();
     }
 }
@@ -266,12 +266,12 @@ void evse_board_supportImpl::handle_pwm_off() {
 void evse_board_supportImpl::handle_pwm_F() {
     try {
         // generate state F
-        unsigned int new_duty_cycle = 0;
+        const unsigned int new_duty_cycle = 0;
 
         EVLOG_info << "handle_pwm_F: Generating CP state F";
 
         this->mod->controller->set_duty_cycle(new_duty_cycle);
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         EVLOG_error << e.what();
     }
 }
@@ -280,9 +280,9 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
     // this method is called very often, even the contactor state is already matching the desired one
     // so let's use this as helper to control the log noise a little bit and whether we actually
     // need to report a BSP event
-    bool contactor_state = this->mod->controller->get_contactor_state();
+    const bool contactor_state = this->mod->controller->get_contactor_state();
 
-    bool state_change = value.allow_power_on != contactor_state;
+    const bool state_change = value.allow_power_on != contactor_state;
 
     if (value.allow_power_on && this->cp_current_state == types::cb_board_support::CPState::PilotFault) {
         EVLOG_warning << "Power on rejected: pilot fault detected.";
@@ -315,19 +315,19 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
         return;
     }
 
-    int code_switch_state = this->mod->controller->switch_state(value.allow_power_on);
+    const int code_switch_state = this->mod->controller->switch_state(value.allow_power_on);
 
     if (code_switch_state == 0) {
         EVLOG_info << "Current contactor state: " << (contactor_state ? "OPEN" : "CLOSED");
 
         // publish PowerOn or PowerOff event
-        types::board_support_common::Event tmp_event = value.allow_power_on
+        const types::board_support_common::Event tmp_event = value.allow_power_on
                                                            ? types::board_support_common::Event::PowerOn
                                                            : types::board_support_common::Event::PowerOff;
         types::board_support_common::BspEvent tmp {tmp_event};
         this->publish_event(tmp);
     } else {
-        types::cb_board_support::ContactorState actual_state = !(value.allow_power_on)
+        const types::cb_board_support::ContactorState actual_state = !(value.allow_power_on)
                                                                 ? types::cb_board_support::ContactorState::Closed
                                                                 : types::cb_board_support::ContactorState::Open;
         raise_contactor_error("Contactor " + std::to_string(code_switch_state), value.allow_power_on, actual_state);

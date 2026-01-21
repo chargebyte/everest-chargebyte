@@ -18,7 +18,7 @@ void cb_cpx_temperaturesImpl::init() {
 
 void cb_cpx_temperaturesImpl::ready() {
     this->publish_thread = std::thread([&]() {
-        unsigned int supported_channels = this->mod->controller->get_temperature_channels();
+        const unsigned int supported_channels = this->mod->controller->get_temperature_channels();
         const std::vector<std::reference_wrapper<const std::string>> ident_config{
             std::ref(this->mod->config.pt1000_1_identification),
             std::ref(this->mod->config.pt1000_2_identification),
@@ -46,7 +46,7 @@ void cb_cpx_temperaturesImpl::ready() {
                 if (!this->mod->controller->is_temperature_enabled(i))
                     continue;
 
-                if ((i - 1) < ident_config.size()) {
+                if (i - 1 < ident_config.size()) {
                     t.identification = ident_config[i - 1].get();
                 } else {
                     t.identification = "Channel " + std::to_string(i);

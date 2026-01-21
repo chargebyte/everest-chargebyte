@@ -41,15 +41,15 @@ CbCpx::CbCpx(int device_id, std::string can_interface){
     if (this->can_bcm_rx_fd == -1)
         throw std::system_error(errno, std::generic_category(), "socket(PF_CAN, CAN_BCM) failed");
 
-    strncpy(ifr.ifr_name, can_interface_cstr, sizeof(ifr.ifr_name));
-    if (ioctl(this->can_bcm_rx_fd, SIOCGIFINDEX, &ifr))
+    strncpy(this->ifr.ifr_name, can_interface_cstr, sizeof(this->ifr.ifr_name));
+    if (ioctl(this->can_bcm_rx_fd, SIOCGIFINDEX, &this->ifr))
         throw std::system_error(errno, std::generic_category(),
                                 "Couldn't determine interface number of " + this->config.can_interface);
 
-    addr.can_family = AF_CAN;
-    addr.can_ifindex = ifr.ifr_ifindex;
+    this->addr.can_family = AF_CAN;
+    this->addr.can_ifindex = this->ifr.ifr_ifindex;
 
-    if (connect(this->can_bcm_rx_fd, (struct sockaddr*)&addr, sizeof(addr)))
+    if (connect(this->can_bcm_rx_fd, (struct sockaddr*)&this->addr, sizeof(this->addr)))
         throw std::system_error(errno, std::generic_category(), "Couldn't connect Rx CAN BCM socket on " + this->config.can_interface);
 
     // open a CAN BCM RX socket, bound to the desired interface
@@ -57,12 +57,12 @@ CbCpx::CbCpx(int device_id, std::string can_interface){
     if (this->can_bcm_tx_fd == -1)
         throw std::system_error(errno, std::generic_category(), "socket(PF_CAN, CAN_BCM) failed");
 
-    strncpy(ifr.ifr_name, can_interface_cstr, sizeof(ifr.ifr_name));
-    if (ioctl(this->can_bcm_tx_fd, SIOCGIFINDEX, &ifr))
+    strncpy(this->ifr.ifr_name, can_interface_cstr, sizeof(this->ifr.ifr_name));
+    if (ioctl(this->can_bcm_tx_fd, SIOCGIFINDEX, &this->ifr))
         throw std::system_error(errno, std::generic_category(),
                                 "Couldn't determine interface number of " + this->config.can_interface);
 
-    if (connect(this->can_bcm_tx_fd, (struct sockaddr*)&addr, sizeof(addr)))
+    if (connect(this->can_bcm_tx_fd, (struct sockaddr*)&this->addr, sizeof(this->addr)))
         throw std::system_error(errno, std::generic_category(), "Couldn't connect Tx CAN BCM socket on " + this->config.can_interface);
 
     // open a CAN RAW socket, bound to the desired interface
@@ -71,16 +71,16 @@ CbCpx::CbCpx(int device_id, std::string can_interface){
         throw std::system_error(errno, std::generic_category(), "socket(PF_CAN, CAN_RAW) failed");
 
     // set interface name
-    std::strncpy(ifr.ifr_name, can_interface_cstr, IFNAMSIZ - 1);
-    if (ioctl(this->can_raw_fd, SIOCGIFINDEX, &ifr) < 0) {
+    std::strncpy(this->ifr.ifr_name, can_interface_cstr, IFNAMSIZ - 1);
+    if (ioctl(this->can_raw_fd, SIOCGIFINDEX, &this->ifr) < 0) {
         throw std::runtime_error("Failed to get interface index on " + this->config.can_interface);
     }
 
     // set CAN filters for RAW socket
     struct can_filter filters[2];
-    filters[0].can_id   = get_can_id(this->config.device_id, CAN_FIRMWARE_VERSION_FRAME_ID);
+    filters[0].can_id   = this->get_can_id(this->config.device_id, CAN_FIRMWARE_VERSION_FRAME_ID);
     filters[0].can_mask = CAN_EFF_FLAG | CAN_EFF_MASK;
-    filters[1].can_id   = get_can_id(this->config.device_id, CAN_GIT_HASH_FRAME_ID);
+    filters[1].can_id   = this->get_can_id(this->config.device_id, CAN_GIT_HASH_FRAME_ID);
     filters[1].can_mask = CAN_EFF_FLAG | CAN_EFF_MASK;
 
     if (setsockopt(this->can_raw_fd, SOL_CAN_RAW, CAN_RAW_FILTER, &filters, sizeof(filters)) < 0) {
@@ -88,7 +88,7 @@ CbCpx::CbCpx(int device_id, std::string can_interface){
     }
 
     // bind socket
-    if (bind(this->can_raw_fd, (struct sockaddr*)&addr, sizeof(addr)))
+    if (bind(this->can_raw_fd, (struct sockaddr*)&this->addr, sizeof(this->addr)))
         throw std::system_error(errno, std::generic_category(), "Couldn't bind CAN RAW socket!");
 
     // setup BCM rx messages
@@ -172,8 +172,8 @@ void CbCpx::get_firmware_and_git_hash() {
     std::unique_lock<std::mutex> fv_lock(this->fv_mutex);
     std::unique_lock<std::mutex> gh_lock(this->gh_mutex);
 
-    struct can_firmware_version_t current_firmware_version_info = com_data.firmware_version;
-    struct can_git_hash_t current_git_hash_info = com_data.git_hash;
+    const struct can_firmware_version_t current_firmware_version_info = this->com_data.firmware_version;
+    const struct can_git_hash_t current_git_hash_info = this->com_data.git_hash;
 
     struct can_frame frame;
     memset(&frame, 0, sizeof(frame));
@@ -182,18 +182,18 @@ void CbCpx::get_firmware_and_git_hash() {
     this->print_can_id_info = true;
 
     // frame information valid for firmware version and git hash
-    frame.can_id = get_can_id(this->config.device_id, CAN_INQUIRY_PACKET_FRAME_ID);
-    frame.can_dlc = CAN_INQUIRY_PACKET_LENGTH;
+    frame.can_id = this->get_can_id(this->config.device_id, CAN_INQUIRY_PACKET_FRAME_ID);
+    frame.can_dlc = static_cast<unsigned char>(CAN_INQUIRY_PACKET_LENGTH);
         
     // query firmware version
-    com_data.inquiry_packet.packet_id = CAN_INQUIRY_PACKET_PACKET_ID_FIRMWARE_VERSION_CHOICE;
-    can_inquiry_packet_pack(payload, &com_data.inquiry_packet, CAN_INQUIRY_PACKET_LENGTH);
+    this->com_data.inquiry_packet.packet_id = CAN_INQUIRY_PACKET_PACKET_ID_FIRMWARE_VERSION_CHOICE;
+    can_inquiry_packet_pack(payload, &this->com_data.inquiry_packet, CAN_INQUIRY_PACKET_LENGTH);
     memcpy(frame.data, payload, CAN_INQUIRY_PACKET_LENGTH);
 
     fv_lock.unlock();
 
-    int bytes_sent = write(can_raw_fd, &frame, sizeof(frame));
-    if (bytes_sent != sizeof(frame)) {
+    int bytes_sent = write(this->can_raw_fd, &frame, static_cast<size_t>(sizeof(frame)));
+    if (bytes_sent != static_cast<int>(sizeof(frame))) {
         throw std::runtime_error("Could not request firmware version!");
     }
 
@@ -201,14 +201,14 @@ void CbCpx::get_firmware_and_git_hash() {
     std::this_thread::sleep_for(1s);
 
     // query git hash
-    com_data.inquiry_packet.packet_id = CAN_INQUIRY_PACKET_PACKET_ID_GIT_HASH_CHOICE;
-    can_inquiry_packet_pack(payload, &com_data.inquiry_packet, CAN_INQUIRY_PACKET_LENGTH);
+    this->com_data.inquiry_packet.packet_id = CAN_INQUIRY_PACKET_PACKET_ID_GIT_HASH_CHOICE;
+    can_inquiry_packet_pack(payload, &this->com_data.inquiry_packet, CAN_INQUIRY_PACKET_LENGTH);
     memcpy(frame.data, payload, CAN_INQUIRY_PACKET_LENGTH);
 
     gh_lock.unlock();
 
-    bytes_sent = write(can_raw_fd, &frame, sizeof(frame));
-    if (bytes_sent != sizeof(frame)) {
+    bytes_sent = write(this->can_raw_fd, &frame, static_cast<size_t>(sizeof(frame)));
+    if (bytes_sent != static_cast<int>(sizeof(frame))) {
         throw std::runtime_error("Could not request git hash!");
     }
 
@@ -222,25 +222,25 @@ void CbCpx::get_firmware_and_git_hash() {
     gh_lock.lock();
 
     // check if firmware info was really received on RAW thread
-    if ((current_firmware_version_info.major_version == com_data.firmware_version.major_version) && 
-        (current_firmware_version_info.minor_version == com_data.firmware_version.minor_version) &&
-        (current_firmware_version_info.build_version == com_data.firmware_version.build_version) &&
-        (current_firmware_version_info.platform_type == com_data.firmware_version.platform_type) &&
-        (current_firmware_version_info.application_type == com_data.firmware_version.application_type)
+    if (current_firmware_version_info.major_version == this->com_data.firmware_version.major_version && 
+        current_firmware_version_info.minor_version == this->com_data.firmware_version.minor_version &&
+        current_firmware_version_info.build_version == this->com_data.firmware_version.build_version &&
+        current_firmware_version_info.platform_type == this->com_data.firmware_version.platform_type &&
+        current_firmware_version_info.application_type == this->com_data.firmware_version.application_type
         // ignore Git Hash for now because CPX is not sending it in current firmware implementation
         // (current_git_hash_info.hash_signal == com_data.git_hash.hash_signal)
     ) {
         EVLOG_error << "Could not determine CPX firmware information.";
     }
 
-    this->fw_info = std::to_string(can_firmware_version_major_version_decode(com_data.firmware_version.major_version)) +
-                    std::to_string(can_firmware_version_minor_version_decode(com_data.firmware_version.minor_version)) +
-                    std::to_string(can_firmware_version_build_version_decode(com_data.firmware_version.build_version)) +
+    this->fw_info = std::to_string(can_firmware_version_major_version_decode(this->com_data.firmware_version.major_version)) +
+                    std::to_string(can_firmware_version_minor_version_decode(this->com_data.firmware_version.minor_version)) +
+                    std::to_string(can_firmware_version_build_version_decode(this->com_data.firmware_version.build_version)) +
                     " (g" +
-                    std::to_string(can_git_hash_hash_signal_decode(com_data.git_hash.hash_signal)) +
+                    std::to_string(can_git_hash_hash_signal_decode(this->com_data.git_hash.hash_signal)) +
                     ", " +
-                    std::to_string(can_firmware_version_platform_type_decode(com_data.firmware_version.platform_type)) +
-                    std::to_string(can_firmware_version_application_type_decode(com_data.firmware_version.application_type));
+                    std::to_string(can_firmware_version_platform_type_decode(this->com_data.firmware_version.platform_type)) +
+                    std::to_string(can_firmware_version_application_type_decode(this->com_data.firmware_version.application_type));
 
     fv_lock.unlock();
     gh_lock.unlock();
@@ -267,17 +267,17 @@ canid_t CbCpx::get_can_id(int cpx_id, int message_id) {
     canid_t base_id;
 
     if (cpx_id <= 0) {
-        base_id = message_id;
+        base_id = static_cast<canid_t>(message_id);
     } else {
-        // Beispiel: cpx_id im oberen Bereich, message_id in den unteren Bits
-        base_id = ((static_cast<canid_t>(cpx_id) & 0x1FFFFF) << 8) |  // obere Bits
-                  (static_cast<canid_t>(message_id) & 0xFF);          // untere Bits
+        // move cpx_id into upper part and message_id into lower part
+        base_id = ((static_cast<canid_t>(cpx_id) & 0x1FFFFF) << 8) |  // upper bits
+                  (static_cast<canid_t>(message_id) & 0xFF);          // lower bits
     }
 
-    // Sicherstellen, dass wir in den 29-Bit-Bereich passen
+    // make sure CAN-ID fits into reserved 29 bits
     base_id &= CAN_EFF_MASK;
 
-    // Extended-Frame-Flag setzen
+    // set extended-frame-flag
     return base_id | CAN_EFF_FLAG;
 }
 
@@ -297,16 +297,16 @@ void CbCpx::can_bcm_rx_init() {
     hdr->ival2.tv_usec = 120000;
 
     // write CAN-header for Charge State
-    hdr->can_id  = get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
+    hdr->can_id  = this->get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
 
     // write CAN-frame for Charge State
-    frame->can_id = get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
-    frame->can_dlc = CAN_CHARGE_STATE1_LENGTH;
+    frame->can_id = this->get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
+    frame->can_dlc = static_cast<unsigned char>(CAN_CHARGE_STATE1_LENGTH);
     memset(frame->data, 0x00, CAN_CHARGE_STATE1_LENGTH);
 
     // init Charge State data for further use
-    memset(charge_state_data.data(), 0x00, CAN_CHARGE_STATE1_LENGTH);
-    charge_state_id = get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
+    memset(this->charge_state_data.data(), 0x00, CAN_CHARGE_STATE1_LENGTH);
+    this->charge_state_id = this->get_can_id(this->config.device_id, CAN_CHARGE_STATE1_FRAME_ID);
 
     // init CAN-RX-Filter for Charge State by writing to CAN-Socket
     if (write(this->can_bcm_rx_fd, buf.data(), buf.size()) < 0) {
@@ -314,16 +314,16 @@ void CbCpx::can_bcm_rx_init() {
     }
 
     // write CAN-header for PT1000 State
-    hdr->can_id  = get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
+    hdr->can_id  = this->get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
 
     // write CAN-frame for PT1000 State
-    frame->can_id = get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
-    frame->can_dlc = CAN_PT1000_STATE_LENGTH;
+    frame->can_id = this->get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
+    frame->can_dlc = static_cast<unsigned char>(CAN_PT1000_STATE_LENGTH);
     memset(frame->data, 0x00, CAN_PT1000_STATE_LENGTH);
 
     // init PT1000 State data for further use
-    memset(pt1000_state_data.data(), 0x00, CAN_PT1000_STATE_LENGTH);
-    pt1000_state_id = get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
+    memset(this->pt1000_state_data.data(), 0x00, CAN_PT1000_STATE_LENGTH);
+    this->pt1000_state_id = get_can_id(this->config.device_id, CAN_PT1000_STATE_FRAME_ID);
 
     // init CAN-RX-Filter for PT1000 State by writing to CAN-Socket
     if (write(this->can_bcm_rx_fd, buf.data(), buf.size()) < 0) {
@@ -347,7 +347,7 @@ void CbCpx::charge_control_update() {
         if (this->charge_control_initialized) {
             memset(buf_delete.data(), 0, buf_delete.size());
             hdr_delete->opcode  = TX_DELETE;
-            hdr_delete->can_id  = get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
+            hdr_delete->can_id  = this->get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
             hdr_delete->nframes = 0;
 
             // now delete auto sending of Charge Control msg by sending delete msg to socket
@@ -361,7 +361,7 @@ void CbCpx::charge_control_update() {
 
         // write CAN-header to setup new Charge Control msg
         hdr_setup->opcode  = TX_SETUP;
-        hdr_setup->can_id  = get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
+        hdr_setup->can_id  = this->get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
         hdr_setup->flags   = SETTIMER | STARTTIMER;
         hdr_setup->nframes = 1;
         hdr_setup->count   = 0;
@@ -374,11 +374,11 @@ void CbCpx::charge_control_update() {
         std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
 
         // pack Charge Control payload
-        can_charge_control1_pack(payload, &com_data.charge_control, CAN_CHARGE_CONTROL1_LENGTH);
+        can_charge_control1_pack(payload, &this->com_data.charge_control, CAN_CHARGE_CONTROL1_LENGTH);
         
         // write CAN-frame of new Charge Control msg
-        frame_setup->can_id = get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
-        frame_setup->len = CAN_CHARGE_CONTROL1_LENGTH;
+        frame_setup->can_id = this->get_can_id(this->config.device_id, CAN_CHARGE_CONTROL1_FRAME_ID);
+        frame_setup->len = static_cast<unsigned char>(CAN_CHARGE_CONTROL1_LENGTH);
         memcpy(frame_setup->data, payload, CAN_CHARGE_CONTROL1_LENGTH);
 
         cc_lock.unlock();
@@ -397,8 +397,8 @@ void CbCpx::charge_control_update() {
 void CbCpx::set_duty_cycle(unsigned int duty_cycle) {
     std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
 
-    com_data.charge_control.cc_target_duty_cycle = duty_cycle;
-    com_data.charge_control.cc_pwm_active = 1;
+    this->com_data.charge_control.cc_target_duty_cycle = duty_cycle;
+    this->com_data.charge_control.cc_pwm_active = 1;
 
     cc_lock.unlock();
 
@@ -412,14 +412,14 @@ void CbCpx::set_duty_cycle(unsigned int duty_cycle) {
 }
 
 unsigned int CbCpx::get_duty_cycle() {
-    return get_cs_current_duty_cycle();
+    return this->get_cs_current_duty_cycle();
 }
 
 int CbCpx::switch_state(bool on) {
     std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
 
-    com_data.charge_control.cc_contactor1_state = on;
-    com_data.charge_control.cc_contactor2_state = on;
+    this->com_data.charge_control.cc_contactor1_state = on;
+    this->com_data.charge_control.cc_contactor2_state = on;
 
     cc_lock.unlock();
 
@@ -433,9 +433,9 @@ int CbCpx::switch_state(bool on) {
     // we should see the changes take effect after 1s (FIXME)
     std::this_thread::sleep_for(1s);
 
-    if (get_cs_contactor_state(1) != on) {
+    if (this->get_cs_contactor_state(1) != on) {
         return 1;
-    } else if ((get_cs_contactor_state(2) != on)) {
+    } else if (this->get_cs_contactor_state(2) != on) {
         return 2;
     }
 
@@ -449,7 +449,7 @@ bool CbCpx::get_contactor_state_no_lock() {
     bool actual_state = false;
 
     for (i = 1; i <= CB_PROTO_MAX_CONTACTORS; ++i) {
-        uint8_t cs_contactor_state_i = get_cs_contactor_state(i);
+        uint8_t cs_contactor_state_i = this->get_cs_contactor_state(i);
 
         if (cs_contactor_state_i == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE ||
             cs_contactor_state_i == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE) {
@@ -461,7 +461,7 @@ bool CbCpx::get_contactor_state_no_lock() {
 
         // fallback in the same loop in case no contactor is actually in use
         // don't overwrite, but merge the state
-        target_state |= bool(get_cc_contactor_state(i));
+        target_state |= bool(this->get_cc_contactor_state(i));
     }
 
     if (at_least_one_is_configured)
@@ -479,7 +479,7 @@ unsigned int CbCpx::get_temperature_channels() const {
 }
 
 bool CbCpx::is_temperature_enabled(unsigned int channel) {
-    return get_pt1000_is_active(channel);
+    return this->get_pt1000_is_active(channel);
 }
 
 types::board_support_common::Ampacity CbCpx::pp_state_to_ampacity(uint8_t pp_state) {
@@ -507,45 +507,45 @@ types::board_support_common::Ampacity CbCpx::pp_state_to_ampacity(uint8_t pp_sta
 }
 
 types::board_support_common::Ampacity CbCpx::get_ampacity() {
-    return this->pp_state_to_ampacity(get_cs_current_pp_state());
+    return this->pp_state_to_ampacity(this->get_cs_current_pp_state());
 }
 
 uint16_t CbCpx::get_cs_current_duty_cycle() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    return com_data.charge_state.cs_current_duty_cycle;
+    return this->com_data.charge_state.cs_current_duty_cycle;
 }
 
 uint8_t CbCpx::get_cs_pwm_active() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    return com_data.charge_state.cs_pwm_active;
+    return this->com_data.charge_state.cs_pwm_active;
 }
 
 uint8_t CbCpx::get_cs_current_cp_state() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    return com_data.charge_state.cs_current_cp_state;
+    return this->com_data.charge_state.cs_current_cp_state;
 }
 
 uint8_t CbCpx::get_cs_short_circuit() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    return com_data.charge_state.cs_cp_short_circuit;
+    return this->com_data.charge_state.cs_cp_short_circuit;
 }
 
 uint8_t CbCpx::get_cs_diode_fault() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    return com_data.charge_state.cs_diode_fault;
+    return this->com_data.charge_state.cs_diode_fault;
 }
 
 uint8_t CbCpx::get_cs_current_pp_state() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    return com_data.charge_state.cs_current_pp_state;
+    return this->com_data.charge_state.cs_current_pp_state;
 }
 
 uint8_t CbCpx::get_cs_contactor_state(int contactor) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     if (contactor == 1) {
-        return com_data.charge_state.cs_contactor1_state;
+        return this->com_data.charge_state.cs_contactor1_state;
     } else if (contactor == 2) {
-        return com_data.charge_state.cs_contactor2_state;
+        return this->com_data.charge_state.cs_contactor2_state;
     } else {
         throw std::system_error(errno, std::generic_category(), "Selected contactor out of range!");
     }
@@ -554,22 +554,22 @@ uint8_t CbCpx::get_cs_contactor_state(int contactor) {
 uint8_t CbCpx::get_cc_contactor_state(int contactor) {
     std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
     if (contactor == 1) {
-        return com_data.charge_control.cc_contactor1_state;
+        return this->com_data.charge_control.cc_contactor1_state;
     } else if (contactor == 2) {
-        return com_data.charge_control.cc_contactor2_state;
+        return this->com_data.charge_control.cc_contactor2_state;
     } else {
         throw std::system_error(errno, std::generic_category(), "Selected contactor out of range!");
     }
 }
 
-bool CbCpx::is_cs_contactor_error(int contactor = 0) {
+bool CbCpx::is_cs_contactor_error(int contactor) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     if (contactor == 1) {
-        return com_data.charge_state.cs_contactor1_error;
+        return this->com_data.charge_state.cs_contactor1_error;
     } else if (contactor == 2) {
-        return com_data.charge_state.cs_contactor2_error;
+        return this->com_data.charge_state.cs_contactor2_error;
     } else if (contactor == 0) {
-        return (com_data.charge_state.cs_contactor1_error || com_data.charge_state.cs_contactor2_error);
+        return this->com_data.charge_state.cs_contactor1_error || this->com_data.charge_state.cs_contactor2_error;
     } else {
         throw std::system_error(errno, std::generic_category(), "Selected contactor out of range!");
     }
@@ -577,33 +577,33 @@ bool CbCpx::is_cs_contactor_error(int contactor = 0) {
 
 uint8_t CbCpx::get_cs_hv_ready() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    return com_data.charge_state.cs_hv_ready;
+    return this->com_data.charge_state.cs_hv_ready;
 }
 
-bool CbCpx::is_cs_estop_charging_abort(int estop = 0) {
+bool CbCpx::is_cs_estop_charging_abort(int estop) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     if (estop == 1) {
-        if (com_data.charge_state.cs_estop1_charging_abort == 1) {
+        if (this->com_data.charge_state.cs_estop1_charging_abort == 1) {
             return true;
         } else {
             return false;
         }
     } else if (estop == 2) {
-        if (com_data.charge_state.cs_estop2_charging_abort == 1) {
+        if (this->com_data.charge_state.cs_estop2_charging_abort == 1) {
             return true;
         } else {
             return false;
         }
     } else if (estop == 3) {
-        if (com_data.charge_state.cs_estop3_charging_abort == 1) {
+        if (this->com_data.charge_state.cs_estop3_charging_abort == 1) {
             return true;
         } else {
             return false;
         }
     } else if (estop == 0) {
-        if ((com_data.charge_state.cs_estop1_charging_abort == 1) or
-            (com_data.charge_state.cs_estop2_charging_abort == 1) or
-            (com_data.charge_state.cs_estop3_charging_abort == 1)) {
+        if (this->com_data.charge_state.cs_estop1_charging_abort == 1 ||
+            this->com_data.charge_state.cs_estop2_charging_abort == 1 ||
+            this->com_data.charge_state.cs_estop3_charging_abort == 1) {
                 return true;
         } else {
             return false;
@@ -616,13 +616,13 @@ bool CbCpx::is_cs_estop_charging_abort(int estop = 0) {
 bool CbCpx::get_pt1000_is_active(int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
     if (channel == 1) {
-        return com_data.pt1000_state.pt1_temperature != CAN_PT1000_STATE_PT1_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
+        return this->com_data.pt1000_state.pt1_temperature != CAN_PT1000_STATE_PT1_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
     } else if (channel == 2) {
-        return com_data.pt1000_state.pt2_temperature != CAN_PT1000_STATE_PT2_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
+        return this->com_data.pt1000_state.pt2_temperature != CAN_PT1000_STATE_PT2_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
     } else if (channel == 3) {
-        return com_data.pt1000_state.pt3_temperature != CAN_PT1000_STATE_PT3_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
+        return this->com_data.pt1000_state.pt3_temperature != CAN_PT1000_STATE_PT3_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
     } else if (channel == 4) {
-        return com_data.pt1000_state.pt4_temperature != CAN_PT1000_STATE_PT4_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
+        return this->com_data.pt1000_state.pt4_temperature != CAN_PT1000_STATE_PT4_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
     } else {
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
@@ -632,55 +632,55 @@ bool CbCpx::is_temperature_valid(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
 
     if (channel == 1) {
-        return !(com_data.pt1000_state.pt1_selftest_failed && com_data.pt1000_state.pt1_charging_stopped);
+        return !(this->com_data.pt1000_state.pt1_selftest_failed && this->com_data.pt1000_state.pt1_charging_stopped);
     } else if (channel == 2) {
-        return !(com_data.pt1000_state.pt2_selftest_failed && com_data.pt1000_state.pt2_charging_stopped);
+        return !(this->com_data.pt1000_state.pt2_selftest_failed && this->com_data.pt1000_state.pt2_charging_stopped);
     } else if (channel == 3) {
-        return !(com_data.pt1000_state.pt3_selftest_failed && com_data.pt1000_state.pt3_charging_stopped);
+        return !(this->com_data.pt1000_state.pt3_selftest_failed && this->com_data.pt1000_state.pt3_charging_stopped);
     } else if (channel == 4) {
-        return !(com_data.pt1000_state.pt4_selftest_failed && com_data.pt1000_state.pt4_charging_stopped);
+        return !(this->com_data.pt1000_state.pt4_selftest_failed && this->com_data.pt1000_state.pt4_charging_stopped);
     } else {
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
 }
 
-bool CbCpx::is_pt_selftest_failed(unsigned int channel = 0) {
+bool CbCpx::is_pt_selftest_failed(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
 
     if (channel == 1) {
-        return com_data.pt1000_state.pt1_selftest_failed;
+        return this->com_data.pt1000_state.pt1_selftest_failed;
     } else if (channel == 2) {
-        return com_data.pt1000_state.pt2_selftest_failed;
+        return this->com_data.pt1000_state.pt2_selftest_failed;
     } else if (channel == 3) {
-        return com_data.pt1000_state.pt3_selftest_failed;
+        return this->com_data.pt1000_state.pt3_selftest_failed;
     } else if (channel == 4) {
-        return com_data.pt1000_state.pt4_selftest_failed;
+        return this->com_data.pt1000_state.pt4_selftest_failed;
     } else if (channel == 0) {
-        return (com_data.pt1000_state.pt1_selftest_failed ||
-                com_data.pt1000_state.pt2_selftest_failed ||
-                com_data.pt1000_state.pt3_selftest_failed ||
-                com_data.pt1000_state.pt4_selftest_failed);
+        return (this->com_data.pt1000_state.pt1_selftest_failed ||
+                this->com_data.pt1000_state.pt2_selftest_failed ||
+                this->com_data.pt1000_state.pt3_selftest_failed ||
+                this->com_data.pt1000_state.pt4_selftest_failed);
     } else {
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
 }
 
-bool CbCpx::is_pt_charging_stopped(unsigned int channel = 0) {
+bool CbCpx::is_pt_charging_stopped(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
 
     if (channel == 1) {
-        return com_data.pt1000_state.pt1_charging_stopped;
+        return this->com_data.pt1000_state.pt1_charging_stopped;
     } else if (channel == 2) {
-        return com_data.pt1000_state.pt2_charging_stopped;
+        return this->com_data.pt1000_state.pt2_charging_stopped;
     } else if (channel == 3) {
-        return com_data.pt1000_state.pt3_charging_stopped;
+        return this->com_data.pt1000_state.pt3_charging_stopped;
     } else if (channel == 4) {
-        return com_data.pt1000_state.pt4_charging_stopped;
+        return this->com_data.pt1000_state.pt4_charging_stopped;
     } else if (channel == 0) {
-        return (com_data.pt1000_state.pt1_charging_stopped ||
-                com_data.pt1000_state.pt2_charging_stopped ||
-                com_data.pt1000_state.pt3_charging_stopped ||
-                com_data.pt1000_state.pt4_charging_stopped);
+        return (this->com_data.pt1000_state.pt1_charging_stopped ||
+                this->com_data.pt1000_state.pt2_charging_stopped ||
+                this->com_data.pt1000_state.pt3_charging_stopped ||
+                this->com_data.pt1000_state.pt4_charging_stopped);
     }
     else {
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
@@ -691,13 +691,13 @@ float CbCpx::get_temperature(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
 
     if (channel == 1) {
-        return com_data.pt1000_state.pt1_temperature;
+        return this->com_data.pt1000_state.pt1_temperature;
     } else if (channel == 2) {
-        return com_data.pt1000_state.pt2_temperature;
+        return this->com_data.pt1000_state.pt2_temperature;
     } else if (channel == 3) {
-        return com_data.pt1000_state.pt3_temperature;
+        return this->com_data.pt1000_state.pt3_temperature;
     } else if (channel == 4) {
-        return com_data.pt1000_state.pt4_temperature;
+        return this->com_data.pt1000_state.pt4_temperature;
     } else {
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
@@ -708,18 +708,18 @@ bool CbCpx::is_emergency() {
 
     if (this->is_pluggable) {
         // any state above this is considered an error for now
-        pp_error = get_cs_current_pp_state() > CAN_CHARGE_STATE1_CS_CURRENT_PP_STATE_63_70_A_CHOICE;
+        pp_error = this->get_cs_current_pp_state() > CAN_CHARGE_STATE1_CS_CURRENT_PP_STATE_63_70_A_CHOICE;
     }
 
-    return pp_error or (get_cs_current_cp_state() == CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_INVALID_CHOICE) or
-           (get_cs_short_circuit() != 0) or (get_cs_diode_fault() != 0) or is_cs_contactor_error() or
-           is_cs_estop_charging_abort() or is_pt_selftest_failed() or is_pt_charging_stopped();
+    return pp_error || (this->get_cs_current_cp_state() == CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_INVALID_CHOICE) ||
+           (this->get_cs_short_circuit() != 0) || (this->get_cs_diode_fault() != 0) || this->is_cs_contactor_error() ||
+           this->is_cs_estop_charging_abort() || this->is_pt_selftest_failed() || this->is_pt_charging_stopped();
 }
 
 void CbCpx::read_charge_state(uint8_t* data) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
 
-    can_charge_state1_unpack(&com_data.charge_state, data, CAN_CHARGE_STATE1_LENGTH);
+    can_charge_state1_unpack(&this->com_data.charge_state, data, CAN_CHARGE_STATE1_LENGTH);
 
     cs_lock.unlock();
 }
@@ -727,25 +727,25 @@ void CbCpx::read_charge_state(uint8_t* data) {
 void CbCpx::read_pt1000_state(uint8_t* data) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
 
-    can_pt1000_state_unpack(&com_data.pt1000_state, data, CAN_PT1000_STATE_LENGTH);
+    can_pt1000_state_unpack(&this->com_data.pt1000_state, data, CAN_PT1000_STATE_LENGTH);
 
     // multiply temperatures with correct scale
-    com_data.pt1000_state.pt1_temperature *=  CB_PROTO_TEMP_SCALE;
-    com_data.pt1000_state.pt2_temperature *=  CB_PROTO_TEMP_SCALE;
-    com_data.pt1000_state.pt3_temperature *=  CB_PROTO_TEMP_SCALE;
-    com_data.pt1000_state.pt4_temperature *=  CB_PROTO_TEMP_SCALE;
+    this->com_data.pt1000_state.pt1_temperature *=  static_cast<double>(CB_PROTO_TEMP_SCALE);
+    this->com_data.pt1000_state.pt2_temperature *=  static_cast<double>(CB_PROTO_TEMP_SCALE);
+    this->com_data.pt1000_state.pt3_temperature *=  static_cast<double>(CB_PROTO_TEMP_SCALE);
+    this->com_data.pt1000_state.pt4_temperature *=  static_cast<double>(CB_PROTO_TEMP_SCALE);
 
     pt_lock.unlock();
 }
 
 void CbCpx::read_fw_version(uint8_t* data) {
     std::unique_lock<std::mutex> fv_lock(this->fv_mutex);
-    can_firmware_version_unpack(&com_data.firmware_version, data, CAN_FIRMWARE_VERSION_LENGTH);
+    can_firmware_version_unpack(&this->com_data.firmware_version, data, CAN_FIRMWARE_VERSION_LENGTH);
 }
 
 void CbCpx::read_git_hash(uint8_t* data) {
     std::unique_lock<std::mutex> gh_lock(this->gh_mutex);
-    can_git_hash_unpack(&com_data.git_hash, data, CAN_GIT_HASH_LENGTH);
+    can_git_hash_unpack(&this->com_data.git_hash, data, CAN_GIT_HASH_LENGTH);
 }
 
 bool CbCpx::is_any_notify_flag_set() {
@@ -760,15 +760,11 @@ bool CbCpx::is_any_notify_flag_set() {
 }
 
 bool CbCpx::is_contactor_error(int contactor) {
-    uint8_t cs_contactor_state = get_cs_contactor_state(contactor);
+    uint8_t cs_contactor_state = this->get_cs_contactor_state(contactor);
 
-    if (((cs_contactor_state == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE) or
-        (cs_contactor_state == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE)) and
-        is_cs_contactor_error(contactor)) {
-        return true;
-    } else {
-        return false;
-    }
+    return (cs_contactor_state == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE ||
+            cs_contactor_state == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_CLOSE_CHOICE) &&
+            this->is_cs_contactor_error(contactor);
 }
 
 void CbCpx::launch_duty_cycle_check(unsigned int expected_duty_cycle) {
@@ -784,7 +780,7 @@ void CbCpx::launch_duty_cycle_check(unsigned int expected_duty_cycle) {
     this->duty_cycle_check_thread = std::thread([this, expected_duty_cycle]() {
         std::unique_lock<std::mutex> lock(this->duty_cycle_check_mutex);
         while(!this->duty_cycle_check_termination_requested) {
-            bool notified = this->duty_cycle_check_cv.wait_for(
+            const bool notified = this->duty_cycle_check_cv.wait_for(
                 lock, 1s,
                 [this]{ return this->duty_cycle_check_termination_requested.load(); }
             );
@@ -792,11 +788,11 @@ void CbCpx::launch_duty_cycle_check(unsigned int expected_duty_cycle) {
             if (this->duty_cycle_check_termination_requested || notified)
                 break;
 
-            double duty_cycle = expected_duty_cycle / 10.0;
+            const double duty_cycle = expected_duty_cycle / 10.0;
             std::ostringstream oss;
             oss << std::fixed << std::setprecision(1) << duty_cycle;
 
-            if (expected_duty_cycle == get_cs_current_duty_cycle()) {
+            if (expected_duty_cycle == this->get_cs_current_duty_cycle()) {
                 EVLOG_debug << "[suppressed] Safety Controller did accept the new duty cycle of " << oss.str() << "%";
             } else {
                 EVLOG_warning << "Safety Controller did not accept the new duty cycle of " << oss.str() << "%";
@@ -823,8 +819,8 @@ void CbCpx::handle_timeout_watchdog(int flag) {
     }
 
     if (this->timeout_watchdog_thread.joinable()) {
-        timeout_watchdog_termination_requested = true;
-        timeout_watchdog_cv.notify_all();
+        this->timeout_watchdog_termination_requested = true;
+        this->timeout_watchdog_cv.notify_all();
         this->timeout_watchdog_thread.join();
     }
 
@@ -850,7 +846,7 @@ void CbCpx::handle_timeout_watchdog(int flag) {
 }
 
 void CbCpx::notify_worker() {
-    uint8_t previous_cp_state = CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_INVALID_CHOICE + 1;
+    uint8_t previous_cp_state = static_cast<uint8_t>(CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_INVALID_CHOICE + 1);
 
     uint8_t current_cp_state;
     uint8_t current_pp_state;
@@ -859,35 +855,35 @@ void CbCpx::notify_worker() {
         // react to changes relevant for notification
         std::unique_lock<std::mutex> lock(this->notify_mutex);
 
-        notify_worker_cv.wait(lock, [&]{ 
-            return termination_requested || is_any_notify_flag_set();
+        this->notify_worker_cv.wait(lock, [&]{ 
+            return this->termination_requested || this->is_any_notify_flag_set();
         });
 
-        bool pp_changed = std::exchange(notify_flags.pp_changed, false);
-        bool cp_changed = std::exchange(notify_flags.cp_changed, false);
-        bool estop_1_changed = std::exchange(notify_flags.estop_1_changed, false);
-        bool estop_2_changed = std::exchange(notify_flags.estop_2_changed, false);
-        bool estop_3_changed = std::exchange(notify_flags.estop_3_changed, false);
-        bool cp_error = std::exchange(notify_flags.cp_error, false);
-        bool contactor_1_error = std::exchange(notify_flags.contactor_1_error, false);
-        bool contactor_2_error = std::exchange(notify_flags.contactor_2_error, false);
+        const bool pp_changed = std::exchange(notify_flags.pp_changed, false);
+        const bool cp_changed = std::exchange(notify_flags.cp_changed, false);
+        const bool estop_1_changed = std::exchange(notify_flags.estop_1_changed, false);
+        const bool estop_2_changed = std::exchange(notify_flags.estop_2_changed, false);
+        const bool estop_3_changed = std::exchange(notify_flags.estop_3_changed, false);
+        const bool cp_error = std::exchange(notify_flags.cp_error, false);
+        const bool contactor_1_error = std::exchange(notify_flags.contactor_1_error, false);
+        const bool contactor_2_error = std::exchange(notify_flags.contactor_2_error, false);
         lock.unlock();
 
         // check for PP changes
         if (pp_changed) {
-            current_pp_state = get_cs_current_pp_state();
+            current_pp_state = this->get_cs_current_pp_state();
             if (this->is_pluggable) {
-                EVLOG_debug << "on_pp_change(" << pp_state_to_ampacity(current_pp_state) << ")";
+                EVLOG_debug << "on_pp_change(" << this->pp_state_to_ampacity(current_pp_state) << ")";
                 this->on_pp_change(current_pp_state);
             } else {
-                EVLOG_debug << "on_pp_change(" << pp_state_to_ampacity(current_pp_state)
+                EVLOG_debug << "on_pp_change(" << this->pp_state_to_ampacity(current_pp_state)
                             << ") [suppressed, fixed cable]";
             }
         }
 
         // check for CP changes
         if (cp_changed) {
-            current_cp_state = get_cs_current_cp_state();
+            current_cp_state = this->get_cs_current_cp_state();
             if (previous_cp_state != CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_UNKNOWN_CHOICE) {
                 EVLOG_debug << "on_cp_change(" << static_cast<types::cb_board_support::CPState>(current_cp_state) << ")";
                 this->on_cp_change(current_cp_state);
@@ -899,30 +895,30 @@ void CbCpx::notify_worker() {
 
         // check for ESTOPs
         if (estop_1_changed) {
-            this->on_estop(1, is_cs_estop_charging_abort(1));
+            this->on_estop(1, this->is_cs_estop_charging_abort(1));
         }
 
         if (estop_2_changed) {
-            this->on_estop(2, is_cs_estop_charging_abort(2));
+            this->on_estop(2, this->is_cs_estop_charging_abort(2));
         }
 
         if (estop_3_changed) {
-            this->on_estop(3, is_cs_estop_charging_abort(3));
+            this->on_estop(3, this->is_cs_estop_charging_abort(3));
         }
 
         // check for contactor errors
         if (contactor_1_error) {
-            std::string name = "Contactor 1";
-            this->on_contactor_error(name, get_cc_contactor_state(1),
-                                     get_cs_contactor_state(1)
+            const std::string name = "Contactor 1";
+            this->on_contactor_error(name, this->get_cc_contactor_state(1),
+                                     this->get_cs_contactor_state(1)
                                          ? types::cb_board_support::ContactorState::Closed
                                          : types::cb_board_support::ContactorState::Open);
         }
 
         if (contactor_2_error) {
-            std::string name = "Contactor 2";
-            this->on_contactor_error(name, get_cc_contactor_state(2),
-                                     get_cs_contactor_state(2)
+            const std::string name = "Contactor 2";
+            this->on_contactor_error(name, this->get_cc_contactor_state(2),
+                                     this->get_cs_contactor_state(2)
                                          ? types::cb_board_support::ContactorState::Closed
                                          : types::cb_board_support::ContactorState::Open);
         }
@@ -954,14 +950,14 @@ void CbCpx::can_bcm_rx_worker() {
     // Capture the current notification state so we can compare before/after decoding a frame.
     auto capture_notify_state = [this]() {
         NotifyState state;
-        state.pp_state = get_cs_current_pp_state();
-        state.cp_state = get_cs_current_cp_state();
+        state.pp_state = this->get_cs_current_pp_state();
+        state.cp_state = this->get_cs_current_cp_state();
         for (unsigned int i = 0; i < CB_PROTO_MAX_ESTOPS; ++i) {
-            state.estop[i] = is_cs_estop_charging_abort(i + 1);
+            state.estop[i] = this->is_cs_estop_charging_abort(i + 1);
         }
-        state.cp_errors = (static_cast<unsigned int>(get_cs_diode_fault()) << 1) | static_cast<unsigned int>(get_cs_short_circuit());
+        state.cp_errors = (static_cast<unsigned int>(this->get_cs_diode_fault()) << 1) | static_cast<unsigned int>(this->get_cs_short_circuit());
         for (unsigned int i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
-            state.contactor_errors[i] = is_contactor_error(i + 1);
+            state.contactor_errors[i] = this->is_contactor_error(i + 1);
         }
         return state;
     };
@@ -969,8 +965,8 @@ void CbCpx::can_bcm_rx_worker() {
     EVLOG_info << "CAN BCM Rx Thread started";
 
     while (!this->termination_requested) {
-        if (rx_bcm_enabled) {
-            ssize_t rv = read(this->can_bcm_rx_fd, buf.data(), buf.size());
+        if (this->rx_bcm_enabled) {
+            const ssize_t rv = read(this->can_bcm_rx_fd, buf.data(), buf.size());
 
             if (rv < 0) {
                 EVLOG_warning << "Read from Rx BCM socket failed.";
@@ -989,9 +985,9 @@ void CbCpx::can_bcm_rx_worker() {
 
             } else if (hdr->opcode == RX_CHANGED) {
                 // compare current and received data by CAN-ID
-                if ((hdr->can_id == this->charge_state_id) && (memcmp(frame->data, this->charge_state_data.data(), 8) != 0)) {
+                if (hdr->can_id == this->charge_state_id && memcmp(frame->data, this->charge_state_data.data(), 8) != 0) {
                     // remember new Charge State data as current
-                    std::memcpy(charge_state_data.data(), frame->data, CAN_MAX_DLEN);
+                    std::memcpy(this->charge_state_data.data(), frame->data, CAN_MAX_DLEN);
 
                     // remember current notify state
                     const auto previous_notify_state = capture_notify_state();
@@ -1024,32 +1020,32 @@ void CbCpx::can_bcm_rx_worker() {
                     }
 
                     if (notify_required) {
-                        notify_worker_cv.notify_one();
+                        this->notify_worker_cv.notify_one();
                     }
 
-                } else if ((hdr->can_id == this->pt1000_state_id) && (memcmp(frame->data, this->pt1000_state_data.data(), 8) != 0)) {
+                } else if (hdr->can_id == this->pt1000_state_id && memcmp(frame->data, this->pt1000_state_data.data(), 8) != 0) {
                     // remember new frame as current
-                    memcpy(pt1000_state_data.data(), frame->data, CAN_MAX_DLEN);
+                    memcpy(this->pt1000_state_data.data(), frame->data, CAN_MAX_DLEN);
 
                     // make new received data available
                     this->read_pt1000_state(frame->data);
                     this->temperature_data_is_valid = true;
 
-                } else if ((hdr->can_id != this->charge_state_id) && (hdr->can_id != this->pt1000_state_id)) {
+                } else if (hdr->can_id != this->charge_state_id && hdr->can_id != this->pt1000_state_id) {
                     EVLOG_info << "[RECV] CAN ID: 0x" << std::hex << hdr->can_id;
                     EVLOG_info << "[Charge State] CAN ID: 0x" << std::hex << this->charge_state_id;
                     EVLOG_info << "[PT1000 State] CAN ID: 0x" << std::hex << this->pt1000_state_id;
                     EVLOG_warning << "CAN BCM RX: Unknown CAN-ID received";
                 }
 
-                if ((hdr->can_id == this->charge_state_id) or (hdr->can_id == this->pt1000_state_id)) {
+                if (hdr->can_id == this->charge_state_id || hdr->can_id == this->pt1000_state_id) {
                     // do stuff in case CPX was not yet connected
                     if (!this->has_cpx_connected_once) {
                         // request firmware version and git hash on first connection
-                        get_firmware_and_git_hash();
+                        this->get_firmware_and_git_hash();
 
                         // check if CPX accepted duty cycle
-                        this->launch_duty_cycle_check(com_data.charge_control.cc_target_duty_cycle);
+                        this->launch_duty_cycle_check(this->com_data.charge_control.cc_target_duty_cycle);
 
                         this->has_cpx_connected_once = true;
                     }
@@ -1075,22 +1071,20 @@ void CbCpx::can_raw_rx_worker() {
     EVLOG_info << "CAN RAW Rx Thread started";
 
     while (!this->termination_requested) {        
-        if (rx_raw_enabled) {
-            int rv;
-
+        if (this->rx_raw_enabled) {
             // read blocks until new frame is available
-            rv = read(this->can_raw_fd, &frame, sizeof(frame));
+            const ssize_t rv = read(this->can_raw_fd, &frame, sizeof(frame));
             if (rv < 0) {
                 EVLOG_warning << "Read from RAW socket failed.";
             }
-            if (rv == 0 || rv < (int)sizeof(struct can_frame))
+            if (rv == 0 || rv < static_cast<ssize_t>(sizeof(struct can_frame)))
                 continue; // this should usually not happen
 
-            if ((frame.can_id) == get_can_id(this->config.device_id, CAN_FIRMWARE_VERSION_FRAME_ID)) {
+            if (frame.can_id == this->get_can_id(this->config.device_id, CAN_FIRMWARE_VERSION_FRAME_ID)) {
                 this->read_fw_version(frame.data);
             }
 
-            if ((frame.can_id) == get_can_id(this->config.device_id, CAN_GIT_HASH_FRAME_ID)) {
+            if (frame.can_id == this->get_can_id(this->config.device_id, CAN_GIT_HASH_FRAME_ID)) {
                 this->read_git_hash(frame.data);
             }
         }
