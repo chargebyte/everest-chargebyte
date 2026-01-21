@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
 
-#include "cb_chargesom_mcsImpl.hpp"
+#include "cb_mcsImpl.hpp"
 
 namespace module {
 namespace mcs {
 
-void cb_chargesom_mcsImpl::init() {
+void cb_mcsImpl::init() {
     // register our callback handlers
     this->mod->controller.on_id_change.connect([&](const types::cb_board_support::IDState& id_state) {
         EVLOG_info << "ID change detected: " << this->last_id_state << " → " << id_state;
@@ -20,10 +20,10 @@ void cb_chargesom_mcsImpl::init() {
     });
 }
 
-void cb_chargesom_mcsImpl::ready() {
+void cb_mcsImpl::ready() {
 }
 
-bool cb_chargesom_mcsImpl::handle_mcs_hlc_enable(bool& value) {
+bool cb_mcsImpl::handle_mcs_hlc_enable(bool& value) {
     try {
         EVLOG_info << "handle_mcs_hlc_enable: " << std::boolalpha << value;
         this->mod->controller.set_ccs_ready(value);

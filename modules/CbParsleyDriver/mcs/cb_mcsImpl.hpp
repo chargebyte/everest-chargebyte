@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
-#ifndef MCS_CB_CHARGESOM_MCS_IMPL_HPP
-#define MCS_CB_CHARGESOM_MCS_IMPL_HPP
+#ifndef MCS_CB_MCS_IMPL_HPP
+#define MCS_CB_MCS_IMPL_HPP
 
 //
 // AUTO GENERATED - MARKED REGIONS WILL BE KEPT
 // template version 3
 //
 
-#include <generated/interfaces/cb_chargesom_mcs/Implementation.hpp>
+#include <generated/interfaces/cb_mcs/Implementation.hpp>
 
 #include "../CbParsleyDriver.hpp"
 
@@ -21,11 +21,11 @@ namespace mcs {
 
 struct Conf {};
 
-class cb_chargesom_mcsImpl : public cb_chargesom_mcsImplBase {
+class cb_mcsImpl : public cb_mcsImplBase {
 public:
-    cb_chargesom_mcsImpl() = delete;
-    cb_chargesom_mcsImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbParsleyDriver>& mod, Conf& config) :
-        cb_chargesom_mcsImplBase(ev, "mcs"), mod(mod), config(config) {};
+    cb_mcsImpl() = delete;
+    cb_mcsImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbParsleyDriver>& mod, Conf& config) :
+        cb_mcsImplBase(ev, "mcs"), mod(mod), config(config) {};
 
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
@@ -59,4 +59,4 @@ private:
 } // namespace mcs
 } // namespace module
 
-#endif // MCS_CB_CHARGESOM_MCS_IMPL_HPP
+#endif // MCS_CB_MCS_IMPL_HPP
