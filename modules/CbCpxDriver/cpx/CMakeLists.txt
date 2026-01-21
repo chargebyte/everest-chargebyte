@@ -1,6 +1,5 @@
 set(CPX_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" PARENT_SCOPE)
 
-# Boost Log + weitere Komponenten finden
 find_package(Boost 1.71 REQUIRED COMPONENTS
     log
     log_setup

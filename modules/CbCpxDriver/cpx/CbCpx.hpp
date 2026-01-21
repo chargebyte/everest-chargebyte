@@ -171,11 +171,11 @@ public:
 
     /// @brief Returns whether the given temperature channel passed the internal selftest.
     /// @return True if the channel return valid measurements, false otherwise.
-    bool is_pt_selftest_failed(unsigned int channel);
+    bool is_pt_selftest_failed(unsigned int channel = 0);
 
     /// @brief Returns whether the given temperature channel passed the internal selftest.
     /// @return True if the channel return valid measurements, false otherwise.
-    bool is_pt_charging_stopped(unsigned int channel);
+    bool is_pt_charging_stopped(unsigned int channel = 0);
 
     /// @brief Retrieves the current temperature measured on a given channel.
     /// @param channel The channel number
@@ -384,14 +384,14 @@ private:
 
     /// @brief Check whether the charge state frame reports a contactor error.
     /// @param contactor Contactor index (1/2) or 0 for aggregated state.
-    bool is_cs_contactor_error(int contactor);
+    bool is_cs_contactor_error(int contactor = 0);
 
     /// @brief Return the HV-ready flag contained in the charge state frame.
     uint8_t get_cs_hv_ready();
 
     /// @brief Check whether an ESTOP input triggered a charging abort.
     /// @param estop ESTOP index (1–3) or 0 to query all inputs.
-    bool is_cs_estop_charging_abort(int estop);
+    bool is_cs_estop_charging_abort(int estop = 0);
 
     /// @brief Report whether the given PT1000 channel is active according to the PT1000 state frame.
     /// @param channel Sensor index starting at 1.
