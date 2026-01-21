@@ -12,7 +12,7 @@
 
 // headers for provided interface implementations
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
-#include <generated/interfaces/cb_chargesom_temperatures/Implementation.hpp>
+#include <generated/interfaces/cb_temperatures/Implementation.hpp>
 #include <generated/interfaces/cb_chargesom_mcs/Implementation.hpp>
 
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
@@ -40,7 +40,7 @@ class CbParsleyDriver : public Everest::ModuleBase {
 public:
     CbParsleyDriver() = delete;
     CbParsleyDriver(const ModuleInfo& info, std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
-                    std::unique_ptr<cb_chargesom_temperaturesImplBase> p_temperatures,
+                    std::unique_ptr<cb_temperaturesImplBase> p_temperatures,
                     std::unique_ptr<cb_chargesom_mcsImplBase> p_mcs, Conf& config) :
         ModuleBase(info),
         p_evse_board_support(std::move(p_evse_board_support)),
@@ -49,7 +49,7 @@ public:
         config(config) {};
 
     const std::unique_ptr<evse_board_supportImplBase> p_evse_board_support;
-    const std::unique_ptr<cb_chargesom_temperaturesImplBase> p_temperatures;
+    const std::unique_ptr<cb_temperaturesImplBase> p_temperatures;
     const std::unique_ptr<cb_chargesom_mcsImplBase> p_mcs;
     const Conf& config;
 

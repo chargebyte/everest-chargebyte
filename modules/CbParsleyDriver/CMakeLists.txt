@@ -47,7 +47,7 @@ target_include_directories(${MODULE_NAME}
 target_sources(${MODULE_NAME}
     PRIVATE
         "evse_board_support/evse_board_supportImpl.cpp"
-        "temperatures/cb_chargesom_temperaturesImpl.cpp"
+        "temperatures/cb_temperaturesImpl.cpp"
         "mcs/cb_chargesom_mcsImpl.cpp"
 )
 

@@ -22,7 +22,6 @@
 #include <generated/types/cb_board_support.hpp>
 #include <CPUtils.hpp>
 #include <CbChargeSOM.hpp>
-
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
