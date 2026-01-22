@@ -137,6 +137,11 @@ void evse_board_supportImpl::ready() {
     // The BSP must publish this variable at least once during start up.
     this->publish_capabilities(this->hw_capabilities);
 
+    // PP may have been published during init(). Repeat here in ready() to
+    // be sure that it is processed. Only relevant if plug is connected
+    // before the stack launches.
+    this->publish_ac_pp_ampacity(this->pp_ampacity);
+
     // let's pre-init the error message: the `is_inconsistent_state` method appends to the stream
     // in case of error, otherwise the stream is left untouched
     errmsg << "Initial contactor feedback check failed for ";
