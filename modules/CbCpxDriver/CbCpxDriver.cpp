@@ -1,11 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
-#include <cerrno>
-#include <chrono>
-#include <cstdarg>
-#include <cstdio>
-#include <system_error>
-#include <thread>
 #include "CbCpxDriver.hpp"
 #include "configuration.h"
 

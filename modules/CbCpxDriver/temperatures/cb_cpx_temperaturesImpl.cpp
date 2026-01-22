@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
 
-#include <chrono>
-#include <functional>
-#include <string>
-#include <thread>
-#include <vector>
 #include "cb_cpx_temperaturesImpl.hpp"
 
 using namespace std::chrono_literals;

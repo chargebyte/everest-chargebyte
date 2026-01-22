@@ -17,7 +17,6 @@
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
 
-#include <atomic>
 #include "cpx/CbCpx.hpp"
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
@@ -56,9 +55,7 @@ public:
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};
 
-    /// @brief Safety controller UART Interface
-    // CbCpx controller;
-    // std::unique_ptr<CbCpx> controller = std::make_unique<CbCpx>(config);
+    /// @brief CPX CAN Interface
     std::unique_ptr<CbCpx> controller;
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 

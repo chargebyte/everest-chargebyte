@@ -8,20 +8,12 @@
 // template version 3
 //
 
-#include <generated/interfaces/evse_board_support/Implementation.hpp>
-
 #include "../CbCpxDriver.hpp"
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
 
-#include <atomic>
-#include <chrono>
-#include <mutex>
-#include <thread>
-#include <generated/types/cb_board_support.hpp>
 #include <CPUtils.hpp>
-#include "../cpx/CbCpx.hpp"
 
 struct cp_state_signal_side {
     /// @brief previous state is what we measured before the last round

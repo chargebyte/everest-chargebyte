@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
 
-#include <chrono>
-#include <iomanip>
-#include <stdexcept>
-#include <generated/types/cb_board_support.hpp>
 #include "evse_board_supportImpl.hpp"
 
 using namespace std::chrono_literals;
@@ -40,8 +36,6 @@ void evse_board_supportImpl::init() {
     this->hw_capabilities.min_current_A_export = this->mod->config.min_current_A;
     this->hw_capabilities.max_current_A_export = this->mod->config.max_current_A;
 
-    // the Charge SOM is currently intended for DC only, there is no support in the
-    // safety controller firmware for AC nor phase count switching yet
     this->hw_capabilities.supports_changing_phases_during_charging = false;
     this->hw_capabilities.max_phase_count_import = 3;
     this->hw_capabilities.min_phase_count_import = 3;

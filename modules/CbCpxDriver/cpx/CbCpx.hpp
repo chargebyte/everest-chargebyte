@@ -1,27 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
-#include <atomic>
-#include <array>
-#include <condition_variable>
-#include <memory>
-#include <mutex>
-#include <string>
-#include <thread>
-#include <cstddef>
 #include <net/if.h>
 #include <sigslot/signal.hpp>
 #include <generated/types/board_support_common.hpp>
 #include <generated/types/cb_board_support.hpp>
 #include "can_interface/can.h"
 #include <generated/interfaces/cb_cpx_temperatures/Implementation.hpp>
-#include <linux/can.h>
 #include <linux/can/raw.h>
-#include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <unistd.h>
-#include <cstring>
 #include <linux/can/bcm.h>
+#include <bitset>
 
 using namespace std::chrono_literals;
 
@@ -46,17 +35,25 @@ typedef struct {
     struct can_inquiry_packet_t inquiry_packet;
 } com_data_t;
 
-// namespace module {
-//     class Conf;
-// }
-
 struct Conf {
     std::string can_interface;
     int device_id;
 };
 
+enum class NotifyFlag : size_t {
+    PpChanged,
+    CpChanged,
+    CpError,
+    Contactor1Error,
+    Contactor2Error,
+    Estop1Changed,
+    Estop2Changed,
+    Estop3Changed,
+    Count
+  };
+
 ///
-/// A class for abstracting the safety processor UART interface on Charge SOM platform.
+/// A class for abstracting the CAN communication with the CPX's safety controller
 ///
 class CbCpx {
 
@@ -329,18 +326,6 @@ private:
     /// @brief Save Charge State msg ID
     canid_t pt1000_state_id;
 
-    // /// @brief Save last new received Charge State message
-    // struct {
-    //     struct bcm_msg_head msg_head;
-    //     struct can_frame frame;
-    // } cs_msg{};
-
-    // /// @brief Save last new received PT1000 State message
-    // struct {
-    //     struct bcm_msg_head msg_head;
-    //     struct can_frame frame;
-    // } pt_msg{};
-
     /// @brief Condition variable used to wait for Charge State message
     std::condition_variable rx_cs_cv;
 
@@ -420,18 +405,21 @@ private:
     /// @brief Remember if Charge Control was initialized
     std::atomic<bool> charge_control_initialized {false};
 
-    /// @brief Flags to signal notify thread about changes
-    struct NotifyFlags {
-        bool pp_changed {false};
-        bool cp_changed {false};
-        bool cp_error {false};
-        bool contactor_1_error {false};
-        bool contactor_2_error {false};
-        bool contactor_3_error {false};
-        bool estop_1_changed {false};
-        bool estop_2_changed {false};
-        bool estop_3_changed {false};
-    } notify_flags;
+    /// @brief bitset to signal notify thread about changes
+    std::bitset<static_cast<size_t>(NotifyFlag::Count)> notify_flags;
+
+    /// @brief Helper to convert notify_flag name to bitposition
+    static constexpr size_t nf(NotifyFlag f) { return static_cast<size_t>(f); }
+
+    /// @brief Helper to set value of notify_flag bit
+    void notify_set (NotifyFlag f, bool value) { notify_flags.set(nf(f), value); }
+
+    /// @brief Helper to get old notify_flag value and set new one
+    bool notify_exchange(NotifyFlag f, bool value) {
+        const bool old = notify_flags.test(nf(f));
+        notify_set(f, value);
+        return old;
+    }
 
     /// @brief Condition variable to activate notify_worker action
     std::condition_variable notify_worker_cv;
