@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
 
-#include "cb_cpx_temperaturesImpl.hpp"
+#include "cb_temperaturesImpl.hpp"
 
 using namespace std::chrono_literals;
 
 namespace module {
 namespace temperatures {
 
-void cb_cpx_temperaturesImpl::init() {
+void cb_temperaturesImpl::init() {
 }
 
-void cb_cpx_temperaturesImpl::ready() {
+void cb_temperaturesImpl::ready() {
     this->publish_thread = std::thread([&]() {
         const unsigned int supported_channels = this->mod->controller->get_temperature_channels();
         const std::vector<std::reference_wrapper<const std::string>> ident_config{

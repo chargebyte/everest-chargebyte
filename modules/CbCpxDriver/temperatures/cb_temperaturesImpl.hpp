@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
-#ifndef TEMPERATURES_CB_CPX_TEMPERATURES_IMPL_HPP
-#define TEMPERATURES_CB_CPX_TEMPERATURES_IMPL_HPP
+#ifndef TEMPERATURES_CB_TEMPERATURES_IMPL_HPP
+#define TEMPERATURES_CB_TEMPERATURES_IMPL_HPP
 
 //
 // AUTO GENERATED - MARKED REGIONS WILL BE KEPT
@@ -19,17 +19,17 @@ namespace temperatures {
 
 struct Conf {};
 
-class cb_cpx_temperaturesImpl : public cb_cpx_temperaturesImplBase {
+class cb_temperaturesImpl : public cb_temperaturesImplBase {
 public:
-    cb_cpx_temperaturesImpl() = delete;
-    cb_cpx_temperaturesImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbCpxDriver>& mod, Conf& config) :
-        cb_cpx_temperaturesImplBase(ev, "temperatures"), mod(mod), config(config) {};
+    cb_temperaturesImpl() = delete;
+    cb_temperaturesImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbCpxDriver>& mod, Conf& config) :
+        cb_temperaturesImplBase(ev, "temperatures"), mod(mod), config(config) {};
 
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
 
     /// @brief Dtor
-    ~cb_cpx_temperaturesImpl() {
+    ~cb_temperaturesImpl() {
         if (this->publish_thread.joinable())
             this->publish_thread.join();
     }
@@ -70,4 +70,4 @@ private:
 } // namespace temperatures
 } // namespace module
 
-#endif // TEMPERATURES_CB_CPX_TEMPERATURES_IMPL_HPP
+#endif // TEMPERATURES_CB_TEMPERATURES_IMPL_HPP
