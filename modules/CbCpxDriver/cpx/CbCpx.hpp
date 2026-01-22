@@ -6,7 +6,7 @@
 #include <generated/types/board_support_common.hpp>
 #include <generated/types/cb_board_support.hpp>
 #include "can_interface/can.h"
-#include <generated/interfaces/cb_cpx_temperatures/Implementation.hpp>
+#include <generated/interfaces/cb_temperatures/Implementation.hpp>
 #include <linux/can/raw.h>
 #include <sys/ioctl.h>
 #include <linux/can/bcm.h>
