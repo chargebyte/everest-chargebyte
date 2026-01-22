@@ -28,6 +28,11 @@ config:
       hardware.
     type: string
     default: can0
+  can_bitrate:
+    description: >-
+      Bitrate of CAN bus used by CPX can controller.
+    type: integer
+    default: 500000
   pt1000_1_identification:
     description: Identification string used when this temperature channel is published
     type: string
