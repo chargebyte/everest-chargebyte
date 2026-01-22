@@ -55,7 +55,7 @@ config:
 provides:
   evse_board_support:
     description: >-
-      Provide the board support driver for the Charge SOM platform, e.g., control pilot
+      Provide the board support driver for the CPX platform, e.g., control pilot
       monitoring and controlling, contactor switching and similar.
     interface: evse_board_support
   temperatures:

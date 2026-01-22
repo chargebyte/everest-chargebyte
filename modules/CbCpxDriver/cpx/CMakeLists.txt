@@ -1,15 +1,5 @@
 set(CPX_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" PARENT_SCOPE)
 
-find_package(Boost 1.71 REQUIRED COMPONENTS
-    log
-    log_setup
-    system
-    thread
-    filesystem
-    date_time
-    regex
-)
-
 add_library(cpx STATIC)
 
 target_sources(cpx
@@ -24,11 +14,7 @@ target_include_directories(cpx
     PRIVATE 
         ${GENERATED_INCLUDE_DIR}
         ${CMAKE_SOURCE_DIR}/../everest-framework/include
-        ${CMAKE_SOURCE_DIR}/../liblog/include
         ${CMAKE_SOURCE_DIR}/build/_deps/nlohmann_json_schema_validator-src/src
-        ${CMAKE_SOURCE_DIR}/build/_deps/date-src/include
-        ${CMAKE_SOURCE_DIR}/build/_deps/libfmt-src/include
-        ${CMAKE_BINARY_DIR}/generated/modules/CbCpxDriver
 )
 
 target_include_directories(cpx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -41,11 +27,4 @@ target_link_libraries(cpx
         nlohmann_json::nlohmann_json
         everest::log
         everest::sqlite
-        Boost::log
-        Boost::log_setup
-        Boost::system
-        Boost::thread
-        Boost::filesystem
-        Boost::date_time
-        Boost::regex
 )

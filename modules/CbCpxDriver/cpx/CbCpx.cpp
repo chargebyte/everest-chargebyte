@@ -1,30 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
-#include <cerrno>
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <cstring>
-#include <iostream>
-#include <iomanip>
-#include <array>
-#include <stdexcept>
-#include <string>
-#include <sstream>
-#include <system_error>
-#include <thread>
-#include <linux/can.h>
-#include <linux/can/bcm.h>
-#include <unistd.h>
-#include <net/if.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
 #include "CbCpx.hpp"
-// #include "../CbCpxDriver.hpp"
-#include <everest/logging.hpp>
-#include <generated/types/cb_board_support.hpp>
-#include <generated/interfaces/cb_cpx_temperatures/Implementation.hpp>
 
 using namespace std::chrono_literals;
 
@@ -173,7 +149,8 @@ void CbCpx::get_firmware_and_git_hash() {
     std::unique_lock<std::mutex> gh_lock(this->gh_mutex);
 
     const struct can_firmware_version_t current_firmware_version_info = this->com_data.firmware_version;
-    const struct can_git_hash_t current_git_hash_info = this->com_data.git_hash;
+    // git hash info is not yet being used
+    // const struct can_git_hash_t current_git_hash_info = this->com_data.git_hash;
 
     struct can_frame frame;
     memset(&frame, 0, sizeof(frame));
@@ -483,7 +460,6 @@ bool CbCpx::is_temperature_enabled(unsigned int channel) {
 }
 
 types::board_support_common::Ampacity CbCpx::pp_state_to_ampacity(uint8_t pp_state) {
-    // we map only the well-known states in this method - for all other a std::runtime_error is raised    
     switch (pp_state) {
     case CAN_CHARGE_STATE1_CS_CURRENT_PP_STATE_NO_CABLE_DETECTED_CHOICE:
         return types::board_support_common::Ampacity::None;
@@ -542,35 +518,45 @@ uint8_t CbCpx::get_cs_current_pp_state() {
 
 uint8_t CbCpx::get_cs_contactor_state(int contactor) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    if (contactor == 1) {
+    switch (contactor){
+    case 1:
         return this->com_data.charge_state.cs_contactor1_state;
-    } else if (contactor == 2) {
+
+    case 2:
         return this->com_data.charge_state.cs_contactor2_state;
-    } else {
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected contactor out of range!");
     }
 }
 
 uint8_t CbCpx::get_cc_contactor_state(int contactor) {
     std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
-    if (contactor == 1) {
+    switch (contactor){
+    case 1:
         return this->com_data.charge_control.cc_contactor1_state;
-    } else if (contactor == 2) {
+
+    case 2:
         return this->com_data.charge_control.cc_contactor2_state;
-    } else {
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected contactor out of range!");
     }
 }
 
 bool CbCpx::is_cs_contactor_error(int contactor) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    if (contactor == 1) {
+    switch (contactor){
+    case 1:
         return this->com_data.charge_state.cs_contactor1_error;
-    } else if (contactor == 2) {
+
+    case 2:
         return this->com_data.charge_state.cs_contactor2_error;
-    } else if (contactor == 0) {
+
+    case 0:
         return this->com_data.charge_state.cs_contactor1_error || this->com_data.charge_state.cs_contactor2_error;
-    } else {
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected contactor out of range!");
     }
 }
@@ -582,123 +568,134 @@ uint8_t CbCpx::get_cs_hv_ready() {
 
 bool CbCpx::is_cs_estop_charging_abort(int estop) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
-    if (estop == 1) {
-        if (this->com_data.charge_state.cs_estop1_charging_abort == 1) {
-            return true;
-        } else {
-            return false;
-        }
-    } else if (estop == 2) {
-        if (this->com_data.charge_state.cs_estop2_charging_abort == 1) {
-            return true;
-        } else {
-            return false;
-        }
-    } else if (estop == 3) {
-        if (this->com_data.charge_state.cs_estop3_charging_abort == 1) {
-            return true;
-        } else {
-            return false;
-        }
-    } else if (estop == 0) {
-        if (this->com_data.charge_state.cs_estop1_charging_abort == 1 ||
-            this->com_data.charge_state.cs_estop2_charging_abort == 1 ||
-            this->com_data.charge_state.cs_estop3_charging_abort == 1) {
-                return true;
-        } else {
-            return false;
-        }
-    } else {
+    switch (estop){
+    case 1:
+        return this->com_data.charge_state.cs_estop1_charging_abort == 1;
+
+    case 2:
+        return this->com_data.charge_state.cs_estop2_charging_abort == 1;
+
+    case 3:
+        return this->com_data.charge_state.cs_estop3_charging_abort == 1;
+
+    case 0:
+        return this->com_data.charge_state.cs_estop1_charging_abort == 1 ||
+               this->com_data.charge_state.cs_estop2_charging_abort == 1 ||
+               this->com_data.charge_state.cs_estop3_charging_abort == 1;
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected estop out of range!");
     }
 }
 
 bool CbCpx::get_pt1000_is_active(int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
-    if (channel == 1) {
+    switch (channel){
+    case 1:
         return this->com_data.pt1000_state.pt1_temperature != CAN_PT1000_STATE_PT1_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
-    } else if (channel == 2) {
+
+    case 2:
         return this->com_data.pt1000_state.pt2_temperature != CAN_PT1000_STATE_PT2_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
-    } else if (channel == 3) {
+
+    case 3:
         return this->com_data.pt1000_state.pt3_temperature != CAN_PT1000_STATE_PT3_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
-    } else if (channel == 4) {
+
+    case 4:
         return this->com_data.pt1000_state.pt4_temperature != CAN_PT1000_STATE_PT4_TEMPERATURE_TEMP_SENSOR_NOT_USED_CHOICE;
-    } else {
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
 }
 
 bool CbCpx::is_temperature_valid(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
-
-    if (channel == 1) {
+    switch (channel){
+    case 1:
         return !(this->com_data.pt1000_state.pt1_selftest_failed && this->com_data.pt1000_state.pt1_charging_stopped);
-    } else if (channel == 2) {
+
+    case 2:
         return !(this->com_data.pt1000_state.pt2_selftest_failed && this->com_data.pt1000_state.pt2_charging_stopped);
-    } else if (channel == 3) {
+
+    case 3:
         return !(this->com_data.pt1000_state.pt3_selftest_failed && this->com_data.pt1000_state.pt3_charging_stopped);
-    } else if (channel == 4) {
+
+    case 4:
         return !(this->com_data.pt1000_state.pt4_selftest_failed && this->com_data.pt1000_state.pt4_charging_stopped);
-    } else {
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
 }
 
 bool CbCpx::is_pt_selftest_failed(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
-
-    if (channel == 1) {
+    switch (channel){
+    case 1:
         return this->com_data.pt1000_state.pt1_selftest_failed;
-    } else if (channel == 2) {
+
+    case 2:
         return this->com_data.pt1000_state.pt2_selftest_failed;
-    } else if (channel == 3) {
+    
+    case 3:
         return this->com_data.pt1000_state.pt3_selftest_failed;
-    } else if (channel == 4) {
+
+    case 4:
         return this->com_data.pt1000_state.pt4_selftest_failed;
-    } else if (channel == 0) {
+
+    case 0:
         return (this->com_data.pt1000_state.pt1_selftest_failed ||
                 this->com_data.pt1000_state.pt2_selftest_failed ||
                 this->com_data.pt1000_state.pt3_selftest_failed ||
                 this->com_data.pt1000_state.pt4_selftest_failed);
-    } else {
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
 }
 
 bool CbCpx::is_pt_charging_stopped(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
-
-    if (channel == 1) {
+    switch (channel){
+    case 1:
         return this->com_data.pt1000_state.pt1_charging_stopped;
-    } else if (channel == 2) {
+
+    case 2:
         return this->com_data.pt1000_state.pt2_charging_stopped;
-    } else if (channel == 3) {
+
+    case 3:
         return this->com_data.pt1000_state.pt3_charging_stopped;
-    } else if (channel == 4) {
+
+    case 4:
         return this->com_data.pt1000_state.pt4_charging_stopped;
-    } else if (channel == 0) {
+
+    case 0:
         return (this->com_data.pt1000_state.pt1_charging_stopped ||
                 this->com_data.pt1000_state.pt2_charging_stopped ||
                 this->com_data.pt1000_state.pt3_charging_stopped ||
                 this->com_data.pt1000_state.pt4_charging_stopped);
-    }
-    else {
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
 }
 
 float CbCpx::get_temperature(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
-
-    if (channel == 1) {
+    switch (channel){
+    case 1:
         return this->com_data.pt1000_state.pt1_temperature;
-    } else if (channel == 2) {
+
+    case 2:
         return this->com_data.pt1000_state.pt2_temperature;
-    } else if (channel == 3) {
+
+    case 3:
         return this->com_data.pt1000_state.pt3_temperature;
-    } else if (channel == 4) {
+
+    case 4:
         return this->com_data.pt1000_state.pt4_temperature;
-    } else {
+    
+    default:
         throw std::system_error(errno, std::generic_category(), "Selected PT1000 channel out of range!");
     }
 }
@@ -749,14 +746,7 @@ void CbCpx::read_git_hash(uint8_t* data) {
 }
 
 bool CbCpx::is_any_notify_flag_set() {
-    return notify_flags.pp_changed ||
-           notify_flags.cp_changed ||
-           notify_flags.cp_error ||
-           notify_flags.contactor_1_error ||
-           notify_flags.contactor_2_error ||
-           notify_flags.estop_1_changed ||
-           notify_flags.estop_2_changed ||
-           notify_flags.estop_3_changed;
+    return notify_flags.any();
 }
 
 bool CbCpx::is_contactor_error(int contactor) {
@@ -859,14 +849,14 @@ void CbCpx::notify_worker() {
             return this->termination_requested || this->is_any_notify_flag_set();
         });
 
-        const bool pp_changed = std::exchange(notify_flags.pp_changed, false);
-        const bool cp_changed = std::exchange(notify_flags.cp_changed, false);
-        const bool estop_1_changed = std::exchange(notify_flags.estop_1_changed, false);
-        const bool estop_2_changed = std::exchange(notify_flags.estop_2_changed, false);
-        const bool estop_3_changed = std::exchange(notify_flags.estop_3_changed, false);
-        const bool cp_error = std::exchange(notify_flags.cp_error, false);
-        const bool contactor_1_error = std::exchange(notify_flags.contactor_1_error, false);
-        const bool contactor_2_error = std::exchange(notify_flags.contactor_2_error, false);
+        const bool pp_changed = notify_exchange(NotifyFlag::PpChanged, false);
+        const bool cp_changed = notify_exchange(NotifyFlag::CpChanged, false);
+        const bool estop_1_changed = notify_exchange(NotifyFlag::Estop1Changed, false);
+        const bool estop_2_changed = notify_exchange(NotifyFlag::Estop2Changed, false);
+        const bool estop_3_changed = notify_exchange(NotifyFlag::Estop3Changed, false);
+        const bool cp_error = notify_exchange(NotifyFlag::CpError, false);
+        const bool contactor_1_error = notify_exchange(NotifyFlag::Contactor1Error, false);
+        const bool contactor_2_error = notify_exchange(NotifyFlag::Contactor2Error, false);
         lock.unlock();
 
         // check for PP changes
@@ -999,9 +989,9 @@ void CbCpx::can_bcm_rx_worker() {
 
                     bool notify_required = false;
 
-                    auto mark_change = [&](bool changed, bool& flag) {
-                        if (changed) {
-                            flag = true;
+                    auto mark_change = [&](bool changed, NotifyFlag flag) {
+                        if(changed) {
+                            this->notify_set(flag, true);
                             notify_required = true;
                         }
                     };
@@ -1009,14 +999,14 @@ void CbCpx::can_bcm_rx_worker() {
                     {
                         std::lock_guard<std::mutex> lock(this->notify_mutex);
 
-                        mark_change(previous_notify_state.pp_state != new_notify_state.pp_state, notify_flags.pp_changed);
-                        mark_change(previous_notify_state.cp_state != new_notify_state.cp_state, notify_flags.cp_changed);
-                        mark_change(previous_notify_state.cp_errors != new_notify_state.cp_errors, notify_flags.cp_error);
-                        mark_change(previous_notify_state.contactor_errors[0] != new_notify_state.contactor_errors[0], notify_flags.contactor_1_error);
-                        mark_change(previous_notify_state.contactor_errors[1] != new_notify_state.contactor_errors[1], notify_flags.contactor_2_error);
-                        mark_change(previous_notify_state.estop[0] != new_notify_state.estop[0], notify_flags.estop_1_changed);
-                        mark_change(previous_notify_state.estop[1] != new_notify_state.estop[1], notify_flags.estop_2_changed);
-                        mark_change(previous_notify_state.estop[2] != new_notify_state.estop[2], notify_flags.estop_3_changed);
+                        mark_change(previous_notify_state.pp_state != new_notify_state.pp_state, NotifyFlag::PpChanged);
+                        mark_change(previous_notify_state.cp_state != new_notify_state.cp_state, NotifyFlag::CpChanged);
+                        mark_change(previous_notify_state.cp_errors != new_notify_state.cp_errors, NotifyFlag::CpError);
+                        mark_change(previous_notify_state.contactor_errors[0] != new_notify_state.contactor_errors[0], NotifyFlag::Contactor1Error);
+                        mark_change(previous_notify_state.contactor_errors[1] != new_notify_state.contactor_errors[1], NotifyFlag::Contactor2Error);
+                        mark_change(previous_notify_state.estop[0] != new_notify_state.estop[0], NotifyFlag::Estop1Changed);
+                        mark_change(previous_notify_state.estop[1] != new_notify_state.estop[1], NotifyFlag::Estop2Changed);
+                        mark_change(previous_notify_state.estop[2] != new_notify_state.estop[2], NotifyFlag::Estop3Changed);
                     }
 
                     if (notify_required) {
