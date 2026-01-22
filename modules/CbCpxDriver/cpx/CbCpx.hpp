@@ -37,6 +37,7 @@ typedef struct {
 
 struct Conf {
     std::string can_interface;
+    int can_bitrate;
     int device_id;
 };
 
@@ -61,7 +62,7 @@ public:
     /// @brief Default constructor.
     /// @param device_id Offset in CAN-ID used to identify hardware plattform
     /// @param can_interface Name of the CAN-interface used for communication
-    CbCpx(int device_id, std::string can_interface);
+    CbCpx(int device_id, std::string can_interface, int can_bitrate);
 
     /// @brief Destructor.
     ~CbCpx();
@@ -197,7 +198,7 @@ public:
 private:
     /// @brief Reference to the CPX-config provided by manifest.yaml
     // const module::Conf& config;
-    Conf config{"can0", 0};
+    Conf config{"can0", 500000, 0};
 
     /// @brief Flag to control sending of Charge Control messages
     std::atomic_bool tx_cc_enabled {false};
@@ -429,4 +430,7 @@ private:
 
     /// @brief Helper to check for contactor errors
     bool is_contactor_error(int contactor);
+
+    /// @brief Set CAN bitrate of the can-controller running the EVerest stack to match the CPX's
+    void ensure_can_bitrate();
 };

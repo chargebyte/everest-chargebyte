@@ -27,6 +27,7 @@ struct Conf {
     double min_current_A;
     double max_current_A;
     std::string can_interface;
+    int can_bitrate;
     std::string pt1000_1_identification;
     std::string pt1000_2_identification;
     std::string pt1000_3_identification;

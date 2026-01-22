@@ -13,7 +13,7 @@ void CbCpxDriver::init() {
     const bool is_pluggable = connector_type == types::evse_board_support::Connector_type::IEC62196Type2Socket;
 
     // instantiate CPX controller
-    this->controller = std::make_unique<CbCpx>(this->config.device_id, this->config.can_interface);
+    this->controller = std::make_unique<CbCpx>(this->config.device_id, this->config.can_interface, this->config.can_bitrate);
     this->controller->init(is_pluggable);
 
     // initialize the interfaces now

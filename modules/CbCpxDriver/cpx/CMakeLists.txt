@@ -2,6 +2,9 @@ set(CPX_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}" PARENT_SCOPE)
 
 add_library(cpx STATIC)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBSOCKETCAN REQUIRED libsocketcan)
+
 target_sources(cpx
     PRIVATE
         "CbCpx.cpp"
@@ -15,6 +18,7 @@ target_include_directories(cpx
         ${GENERATED_INCLUDE_DIR}
         ${CMAKE_SOURCE_DIR}/../everest-framework/include
         ${CMAKE_SOURCE_DIR}/build/_deps/nlohmann_json_schema_validator-src/src
+        ${LIBSOCKETCAN_INCLUDE_DIRS}
 )
 
 target_include_directories(cpx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
@@ -27,4 +31,5 @@ target_link_libraries(cpx
         nlohmann_json::nlohmann_json
         everest::log
         everest::sqlite
+        ${LIBSOCKETCAN_LIBRARIES}
 )

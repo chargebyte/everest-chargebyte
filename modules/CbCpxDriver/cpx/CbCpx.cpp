@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #include "CbCpx.hpp"
+#include <libsocketcan.h>
 
 using namespace std::chrono_literals;
 
-CbCpx::CbCpx(int device_id, std::string can_interface){
+CbCpx::CbCpx(int device_id, std::string can_interface, int can_bitrate) {
     // init EVerest-config parameters
     this->config.device_id = device_id;
     this->config.can_interface = can_interface;
+    this->config.can_bitrate = can_bitrate;
 
     // we have to convert can_interface of type std::string to const char *
     const char* can_interface_cstr = this->config.can_interface.c_str();
@@ -141,6 +143,28 @@ void CbCpx::terminate() {
     if (this->timeout_watchdog_thread.joinable()) {
         this->timeout_watchdog_thread.join();
     }
+}
+
+void CbCpx::ensure_can_bitrate() {
+    struct can_bittiming bt{};
+    if (can_get_bittiming(this->config.can_interface.c_str(), &bt) != 0) {
+        throw std::runtime_error("can_get_bittiming failed: " + std::string(std::strerror(errno)));
+    }
+
+    if (static_cast<int>(bt.bitrate) == this->config.can_bitrate) {
+        return; // already configured
+    }
+
+    if (can_do_stop(this->config.can_interface.c_str()) != 0) {
+        throw std::runtime_error("can_do_stop failed: " + std::string(std::strerror(errno)));
+    }
+    if (can_set_bitrate(this->config.can_interface.c_str(), this->config.can_bitrate) != 0) {
+        throw std::runtime_error("can_set_bitrate failed: " + std::string(std::strerror(errno)));
+    }
+    if (can_do_start(this->config.can_interface.c_str()) != 0) {
+        throw std::runtime_error("can_do_start failed: " + std::string(std::strerror(errno)));
+    }
+
 }
 
 void CbCpx::get_firmware_and_git_hash() {
