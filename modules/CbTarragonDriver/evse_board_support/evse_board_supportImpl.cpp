@@ -231,7 +231,7 @@ void evse_board_supportImpl::handle_pwm_off() {
 
     EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
                << "%";
-    this->pwm_controller.set_duty_cycle(100.0);
+    this->pwm_controller.set_duty_cycle(new_duty_cycle);
 }
 
 void evse_board_supportImpl::handle_pwm_F() {
@@ -388,34 +388,36 @@ void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {
 types::cb_board_support::CPState
 evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& cp_state_positive_side,
                                            const CPUtils::cp_state_signal_side& cp_state_negative_side,
-                                           const double& duty_cycle, bool& is_cp_error) {
-    // In case the PWM is disabled, we cannot trust the peak detectors
-    if (!this->pwm_controller.is_enabled()) {
-        return types::cb_board_support::CPState::E;
+                                           bool& is_cp_error) {
+    // the usual: CP state as measure on the positive side
+    types::cb_board_support::CPState current_cp_state = cp_state_positive_side.detected_state;
+
+    // both sides agree on state E, then it is state E
+    if (cp_state_positive_side.detected_state == types::cb_board_support::CPState::E and
+        cp_state_negative_side.detected_state == types::cb_board_support::CPState::E) {
+        current_cp_state = types::cb_board_support::CPState::E;
     }
 
-    // In case we drive state F (0% PWM), then we cannot trust the peak detectors
-    if (duty_cycle == 0.0) {
-        return types::cb_board_support::CPState::F;
+    // in case of state F, the positive side indicates E (the voltages can physically not be
+    // less than a around zero volt), negative side indicated F
+    if (cp_state_positive_side.detected_state == types::cb_board_support::CPState::E and
+        cp_state_negative_side.detected_state == types::cb_board_support::CPState::F) {
+        current_cp_state = types::cb_board_support::CPState::F;
     }
 
-    // Check for CP errors
-    types::cb_board_support::CPState current_cp_state = cp_state_positive_side.measured_state_t1;
-    if (cp_state_positive_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault ||
-        cp_state_negative_side.measured_state_t1 == types::cb_board_support::CPState::PilotFault) {
+    // check for CP errors
+    if (cp_state_positive_side.detected_state == types::cb_board_support::CPState::PilotFault ||
+        cp_state_negative_side.detected_state == types::cb_board_support::CPState::PilotFault) {
         current_cp_state = types::cb_board_support::CPState::PilotFault;
     }
+
     is_cp_error = CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(),
                                                cp_state_negative_side.voltage, cp_state_positive_side.voltage);
-    if (is_cp_error) {
-        return current_cp_state;
-    }
 
-    return cp_state_positive_side.detected_state;
+    return current_cp_state;
 }
 
 void evse_board_supportImpl::cp_observation_worker(void) {
-    double previous_duty_cycle {100.0};
     // both sides of the CP level
     CPUtils::cp_state_signal_side positive_side {types::cb_board_support::CPState::PilotFault,
                                                  types::cb_board_support::CPState::PilotFault,
@@ -427,7 +429,6 @@ void evse_board_supportImpl::cp_observation_worker(void) {
     EVLOG_info << "Control Pilot Observation Thread started";
 
     while (!this->termination_requested) {
-        bool duty_cycle_changed {false};
         bool cp_state_changed {false};
 
         // acquire measurement lock for this loop round, wait for it eventually
@@ -446,11 +447,6 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         if (this->termination_requested)
             break;
 
-        if (!this->pwm_controller.is_enabled()) {
-            std::this_thread::sleep_for(2ms);
-            continue;
-        }
-
         // do the actual measurement
         this->cp_controller.get_values(positive_side.voltage, negative_side.voltage);
 
@@ -463,21 +459,15 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         measured_cp_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.measured_state_t1);
         cp_state_changed |= CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state);
 
-        // at this point, the current_state member was already updated by the check_for_cp_state_changes methods
-
-        // check whether we see a change of the duty cycle
-        duty_cycle_changed = previous_duty_cycle != this->pwm_controller.get_duty_cycle();
-        previous_duty_cycle = this->pwm_controller.get_duty_cycle();
-
-        // If nothing has changed, start a new measurement
-        if (duty_cycle_changed == false && cp_state_changed == false) {
+        // If nothing has changed (yet [we wait for stable signals]) -> start a new measurement
+        if (not cp_state_changed) {
             continue;
         }
 
         // Determine current CP state based on positive, negative side and duty cycle
         bool is_cp_error {false};
         types::cb_board_support::CPState current_cp_state =
-            determine_cp_state(positive_side, negative_side, this->pwm_controller.get_duty_cycle(), is_cp_error);
+            determine_cp_state(positive_side, negative_side, is_cp_error);
 
         // Process all EVerest CP errors
         CPUtils::process_everest_errors(*this, this->cp_errors.errors);
