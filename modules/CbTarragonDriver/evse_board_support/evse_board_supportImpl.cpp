@@ -321,9 +321,13 @@ void evse_board_supportImpl::pp_observation_worker(void) {
 
             // read new/actual ampacity from hardware
             int voltage = 0;
-            this->pp_ampacity.ampacity = this->pp_controller.get_ampacity(voltage);
+            auto ampacity = this->pp_controller.get_ampacity(voltage);
 
-            if (this->pp_ampacity.ampacity != prev_value) {
+            // check whether the reported value changed, but we are only allowed to publish
+            // when the evse is actually enabled (this also covers that we start this thread
+            // in init() but the EvseManager can process the event first when ready() is reached)
+            if (ampacity != prev_value and this->is_enabled) {
+                this->pp_ampacity.ampacity = ampacity;
 
                 if (this->pp_ampacity.ampacity == types::board_support_common::Ampacity::None) {
                     EVLOG_info << "PP noticed plug removal from socket (U_PP: " << voltage << " mV)";
