@@ -7,7 +7,7 @@ pkg_check_modules(LIBSOCKETCAN REQUIRED libsocketcan)
 
 target_sources(cpx
     PRIVATE
-        "CbCpx.cpp"
+        "CbCPX.cpp"
         "can_interface/can.c"
 )
 
