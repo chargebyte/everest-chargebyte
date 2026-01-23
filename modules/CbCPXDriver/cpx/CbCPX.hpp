@@ -56,16 +56,16 @@ enum class NotifyFlag : size_t {
 ///
 /// A class for abstracting the CAN communication with the CPX's safety controller
 ///
-class CbCpx {
+class CbCPX {
 
 public:
     /// @brief Default constructor.
     /// @param device_id Offset in CAN-ID used to identify hardware plattform
     /// @param can_interface Name of the CAN-interface used for communication
-    CbCpx(int device_id, std::string can_interface, int can_bitrate);
+    CbCPX(int device_id, std::string can_interface, int can_bitrate);
 
     /// @brief Destructor.
-    ~CbCpx();
+    ~CbCPX();
 
     /// @brief Open the given UART and establish initial communication with safety controller.
     /// @param is_pluggable Tells whether the safety processor needs to observe the proximity pilot.

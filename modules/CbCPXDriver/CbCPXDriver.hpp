@@ -17,7 +17,7 @@
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 // insert your custom include headers here
 
-#include "cpx/CbCpx.hpp"
+#include "cpx/CbCPX.hpp"
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -36,10 +36,10 @@ struct Conf {
     int device_id;
 };
 
-class CbCpxDriver : public Everest::ModuleBase {
+class CbCPXDriver : public Everest::ModuleBase {
 public:
-    CbCpxDriver() = delete;
-    CbCpxDriver(const ModuleInfo& info, std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
+    CbCPXDriver() = delete;
+    CbCPXDriver(const ModuleInfo& info, std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
                 std::unique_ptr<cb_temperaturesImplBase> p_temperatures, Conf& config) :
         ModuleBase(info),
         p_evse_board_support(std::move(p_evse_board_support)),
@@ -57,7 +57,7 @@ public:
     std::atomic_bool termination_requested {false};
 
     /// @brief CPX CAN Interface
-    std::unique_ptr<CbCpx> controller;
+    std::unique_ptr<CbCPX> controller;
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:

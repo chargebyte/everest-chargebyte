@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
-#include "CbCpx.hpp"
+#include "CbCPX.hpp"
 #include <libsocketcan.h>
 
 using namespace std::chrono_literals;
 
-CbCpx::CbCpx(int device_id, std::string can_interface, int can_bitrate) {
+CbCPX::CbCPX(int device_id, std::string can_interface, int can_bitrate) {
     // init EVerest-config parameters
     this->config.device_id = device_id;
     this->config.can_interface = can_interface;
@@ -73,25 +73,25 @@ CbCpx::CbCpx(int device_id, std::string can_interface, int can_bitrate) {
     this->can_bcm_rx_init();
 
     // launch notify thread
-    this->notify_thread = std::thread(&CbCpx::notify_worker, this);
+    this->notify_thread = std::thread(&CbCPX::notify_worker, this);
 
     // launch CAN BCM rx thread
-    this->can_bcm_rx_thread = std::thread(&CbCpx::can_bcm_rx_worker, this);
+    this->can_bcm_rx_thread = std::thread(&CbCPX::can_bcm_rx_worker, this);
 
     // launch CAN RAW rx thread
-    this->can_raw_rx_thread = std::thread(&CbCpx::can_raw_rx_worker, this);
+    this->can_raw_rx_thread = std::thread(&CbCPX::can_raw_rx_worker, this);
 }
 
-CbCpx::~CbCpx() {
+CbCPX::~CbCPX() {
     this->terminate();
 }
 
-void CbCpx::init(bool is_pluggable) {
+void CbCPX::init(bool is_pluggable) {
     // remember this setting
     this->is_pluggable = is_pluggable;
 }
 
-void CbCpx::terminate() {
+void CbCPX::terminate() {
     this->evse_enabled = false;
     this->tx_cc_enabled = false;
     this->rx_bcm_enabled = false;
@@ -145,7 +145,7 @@ void CbCpx::terminate() {
     }
 }
 
-void CbCpx::ensure_can_bitrate() {
+void CbCPX::ensure_can_bitrate() {
     struct can_bittiming bt{};
     if (can_get_bittiming(this->config.can_interface.c_str(), &bt) != 0) {
         throw std::runtime_error("can_get_bittiming failed: " + std::string(std::strerror(errno)));
@@ -167,7 +167,7 @@ void CbCpx::ensure_can_bitrate() {
 
 }
 
-void CbCpx::get_firmware_and_git_hash() {
+void CbCPX::get_firmware_and_git_hash() {
     // save current firmware information
     std::unique_lock<std::mutex> fv_lock(this->fv_mutex);
     std::unique_lock<std::mutex> gh_lock(this->gh_mutex);
@@ -253,7 +253,7 @@ void CbCpx::get_firmware_and_git_hash() {
     this->on_fw_info(this->fw_info);
 }
 
-void CbCpx::enable() {
+void CbCPX::enable() {
     // start sending of periodic Charge Control frames
     this->tx_cc_enabled = true;
 
@@ -264,7 +264,7 @@ void CbCpx::enable() {
     this->rx_raw_enabled = true;
 }
 
-canid_t CbCpx::get_can_id(int cpx_id, int message_id) {
+canid_t CbCPX::get_can_id(int cpx_id, int message_id) {
     canid_t base_id;
 
     if (cpx_id <= 0) {
@@ -282,7 +282,7 @@ canid_t CbCpx::get_can_id(int cpx_id, int message_id) {
     return base_id | CAN_EFF_FLAG;
 }
 
-void CbCpx::can_bcm_rx_init() {
+void CbCPX::can_bcm_rx_init() {
     // create msg-buffer
     alignas(std::max(alignof(bcm_msg_head), alignof(can_frame))) std::array<std::byte, can_msg_size> buf{};
     auto* hdr = reinterpret_cast<bcm_msg_head*>(buf.data());
@@ -332,7 +332,7 @@ void CbCpx::can_bcm_rx_init() {
     }
 }
 
-void CbCpx::charge_control_update() {
+void CbCPX::charge_control_update() {
     // create buffer for delete msg
     alignas(std::max(alignof(bcm_msg_head), alignof(can_frame))) std::array<std::byte, can_msg_size> buf_delete{};
     auto* hdr_delete = reinterpret_cast<bcm_msg_head*>(buf_delete.data());
@@ -395,7 +395,7 @@ void CbCpx::charge_control_update() {
     }
 }
 
-void CbCpx::set_duty_cycle(unsigned int duty_cycle) {
+void CbCPX::set_duty_cycle(unsigned int duty_cycle) {
     std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
 
     this->com_data.charge_control.cc_target_duty_cycle = duty_cycle;
@@ -412,11 +412,11 @@ void CbCpx::set_duty_cycle(unsigned int duty_cycle) {
     }
 }
 
-unsigned int CbCpx::get_duty_cycle() {
+unsigned int CbCPX::get_duty_cycle() {
     return this->get_cs_current_duty_cycle();
 }
 
-int CbCpx::switch_state(bool on) {
+int CbCPX::switch_state(bool on) {
     std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
 
     this->com_data.charge_control.cc_contactor1_state = on;
@@ -443,7 +443,7 @@ int CbCpx::switch_state(bool on) {
     return 0;
 }
 
-bool CbCpx::get_contactor_state_no_lock() {
+bool CbCPX::get_contactor_state_no_lock() {
     unsigned int i;
     bool at_least_one_is_configured = false;
     bool target_state = false;
@@ -471,19 +471,19 @@ bool CbCpx::get_contactor_state_no_lock() {
         return target_state;
 }
 
-bool CbCpx::get_contactor_state() {
+bool CbCPX::get_contactor_state() {
     return this->get_contactor_state_no_lock();
 }
 
-unsigned int CbCpx::get_temperature_channels() const {
+unsigned int CbCPX::get_temperature_channels() const {
     return CB_PROTO_MAX_PT1000S;
 }
 
-bool CbCpx::is_temperature_enabled(unsigned int channel) {
+bool CbCPX::is_temperature_enabled(unsigned int channel) {
     return this->get_pt1000_is_active(channel);
 }
 
-types::board_support_common::Ampacity CbCpx::pp_state_to_ampacity(uint8_t pp_state) {
+types::board_support_common::Ampacity CbCPX::pp_state_to_ampacity(uint8_t pp_state) {
     switch (pp_state) {
     case CAN_CHARGE_STATE1_CS_CURRENT_PP_STATE_NO_CABLE_DETECTED_CHOICE:
         return types::board_support_common::Ampacity::None;
@@ -506,41 +506,41 @@ types::board_support_common::Ampacity CbCpx::pp_state_to_ampacity(uint8_t pp_sta
     }
 }
 
-types::board_support_common::Ampacity CbCpx::get_ampacity() {
+types::board_support_common::Ampacity CbCPX::get_ampacity() {
     return this->pp_state_to_ampacity(this->get_cs_current_pp_state());
 }
 
-uint16_t CbCpx::get_cs_current_duty_cycle() {
+uint16_t CbCPX::get_cs_current_duty_cycle() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     return this->com_data.charge_state.cs_current_duty_cycle;
 }
 
-uint8_t CbCpx::get_cs_pwm_active() {
+uint8_t CbCPX::get_cs_pwm_active() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     return this->com_data.charge_state.cs_pwm_active;
 }
 
-uint8_t CbCpx::get_cs_current_cp_state() {
+uint8_t CbCPX::get_cs_current_cp_state() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     return this->com_data.charge_state.cs_current_cp_state;
 }
 
-uint8_t CbCpx::get_cs_short_circuit() {
+uint8_t CbCPX::get_cs_short_circuit() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     return this->com_data.charge_state.cs_cp_short_circuit;
 }
 
-uint8_t CbCpx::get_cs_diode_fault() {
+uint8_t CbCPX::get_cs_diode_fault() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     return this->com_data.charge_state.cs_diode_fault;
 }
 
-uint8_t CbCpx::get_cs_current_pp_state() {
+uint8_t CbCPX::get_cs_current_pp_state() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     return this->com_data.charge_state.cs_current_pp_state;
 }
 
-uint8_t CbCpx::get_cs_contactor_state(int contactor) {
+uint8_t CbCPX::get_cs_contactor_state(int contactor) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     switch (contactor){
     case 1:
@@ -554,7 +554,7 @@ uint8_t CbCpx::get_cs_contactor_state(int contactor) {
     }
 }
 
-uint8_t CbCpx::get_cc_contactor_state(int contactor) {
+uint8_t CbCPX::get_cc_contactor_state(int contactor) {
     std::unique_lock<std::mutex> cc_lock(this->cc_mutex);
     switch (contactor){
     case 1:
@@ -568,7 +568,7 @@ uint8_t CbCpx::get_cc_contactor_state(int contactor) {
     }
 }
 
-bool CbCpx::is_cs_contactor_error(int contactor) {
+bool CbCPX::is_cs_contactor_error(int contactor) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     switch (contactor){
     case 1:
@@ -585,12 +585,12 @@ bool CbCpx::is_cs_contactor_error(int contactor) {
     }
 }
 
-uint8_t CbCpx::get_cs_hv_ready() {
+uint8_t CbCPX::get_cs_hv_ready() {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     return this->com_data.charge_state.cs_hv_ready;
 }
 
-bool CbCpx::is_cs_estop_charging_abort(int estop) {
+bool CbCPX::is_cs_estop_charging_abort(int estop) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
     switch (estop){
     case 1:
@@ -612,7 +612,7 @@ bool CbCpx::is_cs_estop_charging_abort(int estop) {
     }
 }
 
-bool CbCpx::get_pt1000_is_active(int channel) {
+bool CbCPX::get_pt1000_is_active(int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
     switch (channel){
     case 1:
@@ -632,7 +632,7 @@ bool CbCpx::get_pt1000_is_active(int channel) {
     }
 }
 
-bool CbCpx::is_temperature_valid(unsigned int channel) {
+bool CbCPX::is_temperature_valid(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
     switch (channel){
     case 1:
@@ -652,7 +652,7 @@ bool CbCpx::is_temperature_valid(unsigned int channel) {
     }
 }
 
-bool CbCpx::is_pt_selftest_failed(unsigned int channel) {
+bool CbCPX::is_pt_selftest_failed(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
     switch (channel){
     case 1:
@@ -678,7 +678,7 @@ bool CbCpx::is_pt_selftest_failed(unsigned int channel) {
     }
 }
 
-bool CbCpx::is_pt_charging_stopped(unsigned int channel) {
+bool CbCPX::is_pt_charging_stopped(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
     switch (channel){
     case 1:
@@ -704,7 +704,7 @@ bool CbCpx::is_pt_charging_stopped(unsigned int channel) {
     }
 }
 
-float CbCpx::get_temperature(unsigned int channel) {
+float CbCPX::get_temperature(unsigned int channel) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
     switch (channel){
     case 1:
@@ -724,7 +724,7 @@ float CbCpx::get_temperature(unsigned int channel) {
     }
 }
 
-bool CbCpx::is_emergency() {
+bool CbCPX::is_emergency() {
     bool pp_error = false;
 
     if (this->is_pluggable) {
@@ -737,7 +737,7 @@ bool CbCpx::is_emergency() {
            this->is_cs_estop_charging_abort() || this->is_pt_selftest_failed() || this->is_pt_charging_stopped();
 }
 
-void CbCpx::read_charge_state(uint8_t* data) {
+void CbCPX::read_charge_state(uint8_t* data) {
     std::unique_lock<std::mutex> cs_lock(this->cs_mutex);
 
     can_charge_state1_unpack(&this->com_data.charge_state, data, CAN_CHARGE_STATE1_LENGTH);
@@ -745,7 +745,7 @@ void CbCpx::read_charge_state(uint8_t* data) {
     cs_lock.unlock();
 }
 
-void CbCpx::read_pt1000_state(uint8_t* data) {
+void CbCPX::read_pt1000_state(uint8_t* data) {
     std::unique_lock<std::mutex> pt_lock(this->pt_mutex);
 
     can_pt1000_state_unpack(&this->com_data.pt1000_state, data, CAN_PT1000_STATE_LENGTH);
@@ -759,21 +759,21 @@ void CbCpx::read_pt1000_state(uint8_t* data) {
     pt_lock.unlock();
 }
 
-void CbCpx::read_fw_version(uint8_t* data) {
+void CbCPX::read_fw_version(uint8_t* data) {
     std::unique_lock<std::mutex> fv_lock(this->fv_mutex);
     can_firmware_version_unpack(&this->com_data.firmware_version, data, CAN_FIRMWARE_VERSION_LENGTH);
 }
 
-void CbCpx::read_git_hash(uint8_t* data) {
+void CbCPX::read_git_hash(uint8_t* data) {
     std::unique_lock<std::mutex> gh_lock(this->gh_mutex);
     can_git_hash_unpack(&this->com_data.git_hash, data, CAN_GIT_HASH_LENGTH);
 }
 
-bool CbCpx::is_any_notify_flag_set() {
+bool CbCPX::is_any_notify_flag_set() {
     return notify_flags.any();
 }
 
-bool CbCpx::is_contactor_error(int contactor) {
+bool CbCPX::is_contactor_error(int contactor) {
     uint8_t cs_contactor_state = this->get_cs_contactor_state(contactor);
 
     return (cs_contactor_state == CAN_CHARGE_STATE1_CS_CONTACTOR1_STATE_OPEN_CHOICE ||
@@ -781,7 +781,7 @@ bool CbCpx::is_contactor_error(int contactor) {
             this->is_cs_contactor_error(contactor);
 }
 
-void CbCpx::launch_duty_cycle_check(unsigned int expected_duty_cycle) {
+void CbCPX::launch_duty_cycle_check(unsigned int expected_duty_cycle) {
     // stop previous thread if running
     if (this->duty_cycle_check_thread.joinable()) {
         this->duty_cycle_check_termination_requested = true;
@@ -817,7 +817,7 @@ void CbCpx::launch_duty_cycle_check(unsigned int expected_duty_cycle) {
     });
 }
 
-void CbCpx::handle_timeout_watchdog(int flag) {
+void CbCPX::handle_timeout_watchdog(int flag) {
     // disable thread in case CPX reports back
     if (flag == 0) {
         this->timeout_watchdog_termination_requested = true;
@@ -859,7 +859,7 @@ void CbCpx::handle_timeout_watchdog(int flag) {
     });
 }
 
-void CbCpx::notify_worker() {
+void CbCPX::notify_worker() {
     uint8_t previous_cp_state = static_cast<uint8_t>(CAN_CHARGE_STATE1_CS_CURRENT_CP_STATE_INVALID_CHOICE + 1);
 
     uint8_t current_cp_state;
@@ -946,7 +946,7 @@ void CbCpx::notify_worker() {
     EVLOG_info << "Notify Thread terminated";
 }
 
-void CbCpx::can_bcm_rx_worker() {
+void CbCPX::can_bcm_rx_worker() {
     // create buffer to handle CAN-RX-msg
     alignas(std::max(alignof(bcm_msg_head), alignof(can_frame))) std::array<std::byte, can_msg_size> buf{};
     auto* hdr = reinterpret_cast<bcm_msg_head*>(buf.data());
@@ -1079,7 +1079,7 @@ void CbCpx::can_bcm_rx_worker() {
     EVLOG_info << "CAN BCM Rx Thread stopped";
 }
 
-void CbCpx::can_raw_rx_worker() {
+void CbCPX::can_raw_rx_worker() {
     struct can_frame frame;
 
     EVLOG_info << "CAN RAW Rx Thread started";
