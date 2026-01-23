@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
-#ifndef CB_CPX_DRIVER_HPP
-#define CB_CPX_DRIVER_HPP
+#ifndef CB_CPXDRIVER_HPP
+#define CB_CPXDRIVER_HPP
 
 //
 // AUTO GENERATED - MARKED REGIONS WILL BE KEPT
@@ -81,4 +81,4 @@ private:
 
 } // namespace module
 
-#endif // CB_CPX_DRIVER_HPP
+#endif // CB_CPXDRIVER_HPP
