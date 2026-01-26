@@ -6,17 +6,17 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include "cb_chargesom_temperaturesImpl.hpp"
+#include "cb_temperaturesImpl.hpp"
 
 using namespace std::chrono_literals;
 
 namespace module {
 namespace temperatures {
 
-void cb_chargesom_temperaturesImpl::init() {
+void cb_temperaturesImpl::init() {
 }
 
-void cb_chargesom_temperaturesImpl::ready() {
+void cb_temperaturesImpl::ready() {
     this->publish_thread = std::thread([&]() {
         unsigned int supported_channels = this->mod->controller.get_temperature_channels();
         const std::vector<std::reference_wrapper<const std::string>> ident_config {
@@ -58,9 +58,9 @@ void cb_chargesom_temperaturesImpl::ready() {
                                << std::setprecision(1) << t.temperature << " °C";
                         EVLOG_error << errmsg.str();
 
-                        auto e = this->error_factory->create_error("cb_chargesom_temperatures/ChargingAbort",
-                                                                   t.identification.value(), errmsg.str(),
-                                                                   Everest::error::Severity::High);
+                        auto e =
+                            this->error_factory->create_error("cb_temperatures/ChargingAbort", t.identification.value(),
+                                                              errmsg.str(), Everest::error::Severity::High);
                         this->raise_error(e);
 
                         this->charging_abort_cause_reported[i] = true;
@@ -70,7 +70,7 @@ void cb_chargesom_temperaturesImpl::ready() {
                     // notify the user explicitly because the port was reset completely
                     if (this->charging_abort_cause_reported[i]) {
                         EVLOG_info << t.identification.value() << " charging abort flag reset";
-                        this->clear_error("cb_chargesom_temperatures/ChargingAbort", t.identification.value());
+                        this->clear_error("cb_temperatures/ChargingAbort", t.identification.value());
                         this->charging_abort_cause_reported[i] = false;
                     }
                 }
@@ -81,7 +81,7 @@ void cb_chargesom_temperaturesImpl::ready() {
                         errmsg << "Self-test for " << t.identification.value() << " failed.";
                         EVLOG_error << errmsg.str();
 
-                        auto e = this->error_factory->create_error("cb_chargesom_temperatures/SelftestFailed",
+                        auto e = this->error_factory->create_error("cb_temperatures/SelftestFailed",
                                                                    t.identification.value(), errmsg.str(),
                                                                    Everest::error::Severity::High);
                         this->raise_error(e);
@@ -95,7 +95,7 @@ void cb_chargesom_temperaturesImpl::ready() {
                     // notify the user explicitly because the port was reset completely
                     if (this->selftest_failed_reported[i]) {
                         EVLOG_info << t.identification.value() << " selftest failed flag reset";
-                        this->clear_error("cb_chargesom_temperatures/SelftestFailed", t.identification.value());
+                        this->clear_error("cb_temperatures/SelftestFailed", t.identification.value());
                         this->selftest_failed_reported[i] = false;
                     }
                 }

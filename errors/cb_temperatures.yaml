@@ -1,5 +1,5 @@
 description: >-
-  Errors used by Charge SOM temperature interface
+  Errors used by chargebyte's temperature interface
 errors:
   - name: SelftestFailed
     description: Temperature channel failed the internal selftest.

@@ -48,10 +48,10 @@ provides:
     interface: evse_board_support
   temperatures:
     description: Temperature readings as measured by the safety controller
-    interface: cb_chargesom_temperatures
+    interface: cb_temperatures
   mcs:
     description: Provide the Megawatt Charging Service related features
-    interface: cb_chargesom_mcs
+    interface: cb_mcs
 metadata:
   license: https://spdx.org/licenses/Apache-2.0.html
   authors:

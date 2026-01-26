@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Pionix GmbH and Contributors to EVerest
-#ifndef TEMPERATURES_CB_CHARGESOM_TEMPERATURES_IMPL_HPP
-#define TEMPERATURES_CB_CHARGESOM_TEMPERATURES_IMPL_HPP
+#ifndef TEMPERATURES_CB_TEMPERATURES_IMPL_HPP
+#define TEMPERATURES_CB_TEMPERATURES_IMPL_HPP
 
 //
 // AUTO GENERATED - MARKED REGIONS WILL BE KEPT
 // template version 3
 //
 
-#include <generated/interfaces/cb_chargesom_temperatures/Implementation.hpp>
+#include <generated/interfaces/cb_temperatures/Implementation.hpp>
 
-#include "../CbChargeSOMDriver.hpp"
+#include "../CbParsleyDriver.hpp"
 
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 // insert your custom include headers here
@@ -21,18 +21,17 @@ namespace temperatures {
 
 struct Conf {};
 
-class cb_chargesom_temperaturesImpl : public cb_chargesom_temperaturesImplBase {
+class cb_temperaturesImpl : public cb_temperaturesImplBase {
 public:
-    cb_chargesom_temperaturesImpl() = delete;
-    cb_chargesom_temperaturesImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbChargeSOMDriver>& mod,
-                                  Conf& config) :
-        cb_chargesom_temperaturesImplBase(ev, "temperatures"), mod(mod), config(config) {};
+    cb_temperaturesImpl() = delete;
+    cb_temperaturesImpl(Everest::ModuleAdapter* ev, const Everest::PtrContainer<CbParsleyDriver>& mod, Conf& config) :
+        cb_temperaturesImplBase(ev, "temperatures"), mod(mod), config(config) {};
 
     // ev@8ea32d28-373f-4c90-ae5e-b4fcc74e2a61:v1
     // insert your public definitions here
 
     /// @brief Dtor
-    ~cb_chargesom_temperaturesImpl() {
+    ~cb_temperaturesImpl() {
         if (this->publish_thread.joinable())
             this->publish_thread.join();
     }
@@ -46,7 +45,7 @@ protected:
     // ev@d2d1847a-7b88-41dd-ad07-92785f06f5c4:v1
 
 private:
-    const Everest::PtrContainer<CbChargeSOMDriver>& mod;
+    const Everest::PtrContainer<CbParsleyDriver>& mod;
     const Conf& config;
 
     virtual void init() override;
@@ -73,4 +72,4 @@ private:
 } // namespace temperatures
 } // namespace module
 
-#endif // TEMPERATURES_CB_CHARGESOM_TEMPERATURES_IMPL_HPP
+#endif // TEMPERATURES_CB_TEMPERATURES_IMPL_HPP
