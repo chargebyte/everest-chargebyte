@@ -464,7 +464,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
             continue;
         }
 
-        // Determine current CP state based on positive, negative side and duty cycle
+        // Determine current CP state based on positive and negative signal side
         bool is_cp_error {false};
         types::cb_board_support::CPState current_cp_state =
             determine_cp_state(positive_side, negative_side, is_cp_error);
