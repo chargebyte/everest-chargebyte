@@ -431,8 +431,12 @@ int CbCPX::switch_state(bool on) {
         return 0;
     }
 
-    // we should see the changes take effect after 1s (FIXME)
-    std::this_thread::sleep_for(1s);
+    std::unique_lock<std::mutex> contactor_cv_lock(this->contactor_cv_mutex);
+    contactor_change_cv.wait_for(contactor_cv_lock, 1s, [this] { return this->contactor_change.load(); });
+    contactor_cv_lock.unlock();
+
+    // // we should see the changes take effect after 1s (FIXME)
+    // std::this_thread::sleep_for(1s);
 
     if (this->get_cs_contactor_state(1) != on) {
         return 1;
@@ -958,7 +962,8 @@ void CbCPX::can_bcm_rx_worker() {
         uint8_t cp_state {0};
         bool estop[CB_PROTO_MAX_ESTOPS] {false, false, false};
         unsigned int cp_errors {0};
-        bool contactor_errors[CB_PROTO_MAX_CONTACTORS] {false, false};  
+        bool contactor_errors[CB_PROTO_MAX_CONTACTORS] {false, false};
+        bool contactor_states[CB_PROTO_MAX_CONTACTORS] {false, false};
     };
 
     // Capture the current notification state so we can compare before/after decoding a frame.
@@ -972,6 +977,7 @@ void CbCPX::can_bcm_rx_worker() {
         state.cp_errors = (static_cast<unsigned int>(this->get_cs_diode_fault()) << 1) | static_cast<unsigned int>(this->get_cs_short_circuit());
         for (unsigned int i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
             state.contactor_errors[i] = this->is_contactor_error(i + 1);
+            state.contactor_states[i] = this->get_cs_contactor_state(i + 1);
         }
         return state;
     };
@@ -1036,6 +1042,16 @@ void CbCPX::can_bcm_rx_worker() {
                     if (notify_required) {
                         this->notify_worker_cv.notify_one();
                     }
+
+                    // check contactor states seperately because it is only used within this module and no flag to be read
+                    // from the outside is set
+                    std::lock_guard<std::mutex> contactor_cv_lock(this->contactor_cv_mutex);
+                    this->contactor_change = false;
+                    if (previous_notify_state.contactor_states[0] != new_notify_state.contactor_states[0] ||
+                        previous_notify_state.contactor_states[1] != new_notify_state.contactor_states[1]) {
+                            this->contactor_change = true;
+                            this->contactor_change_cv.notify_one();
+                        }
 
                 } else if (hdr->can_id == this->pt1000_state_id && memcmp(frame->data, this->pt1000_state_data.data(), 8) != 0) {
                     // remember new frame as current

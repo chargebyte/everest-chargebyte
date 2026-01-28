@@ -427,6 +427,16 @@ private:
     /// @brief Condition variable to activate notify_worker action
     std::condition_variable notify_worker_cv;
 
+    /// @brief Condition variable to signal contactor state change
+    std::condition_variable contactor_change_cv;
+
+    /// @brief Remember if any contactor state was changed
+    std::atomic<bool> contactor_change {false};
+
+
+    /// @brief Mutex to protect contactor condition variable
+    std::mutex contactor_cv_mutex;
+    
     /// @brief Helper function to check if any notify_worker flag is set
     bool is_any_notify_flag_set();
 
