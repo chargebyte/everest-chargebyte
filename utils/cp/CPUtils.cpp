@@ -184,7 +184,8 @@ bool CPUtils::check_for_cp_errors(cp_state_errors& cp_errors,
 }
 
 bool CPUtils::check_for_cp_state_changes(struct cp_state_signal_side& signal_side,
-                                         const types::cb_board_support::CPState& measured_cp_state) {
+                                         const types::cb_board_support::CPState& measured_cp_state,
+                                         bool pwm_is_driven) {
     bool rv {false};
     // CP state change is only detected if measured state is equal to the previous measured state and
     // the actually detected state is not equal to the measured state
@@ -196,8 +197,14 @@ bool CPUtils::check_for_cp_state_changes(struct cp_state_signal_side& signal_sid
     // by two equal states (e.g. A -> B -> A)
     } else if ((measured_cp_state == signal_side.measured_state_t0) &&
                (measured_cp_state != signal_side.measured_state_t1)) {
-        EVLOG_warning << "CP state change from " << signal_side.measured_state_t0 << " to " << signal_side.measured_state_t1
-                      << " suppressed";
+        std::ostringstream oss;
+        oss << "CP state change from " << signal_side.measured_state_t0 << " to " << signal_side.measured_state_t1
+            << " suppressed";
+        if (pwm_is_driven) {
+            EVLOG_warning << oss.str();
+        } else {
+            EVLOG_debug << oss.str();
+        }
     }
     // Update measured states
     signal_side.measured_state_t0 = signal_side.measured_state_t1;
