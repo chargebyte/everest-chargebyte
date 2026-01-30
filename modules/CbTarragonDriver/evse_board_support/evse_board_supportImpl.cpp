@@ -224,7 +224,7 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
     this->pwm_controller.set_duty_cycle(value);
 }
 
-void evse_board_supportImpl::handle_pwm_off() {
+void evse_board_supportImpl::handle_cp_state_X1() {
     // pause CP observation to avoid race condition between this thread and the CP observation thread
     std::scoped_lock lock(this->cp_observation_lock);
 
@@ -236,7 +236,7 @@ void evse_board_supportImpl::handle_pwm_off() {
     this->pwm_controller.set_duty_cycle(new_duty_cycle);
 }
 
-void evse_board_supportImpl::handle_pwm_F() {
+void evse_board_supportImpl::handle_cp_state_F() {
     // pause CP observation to avoid race condition between this thread and the CP observation thread
     std::scoped_lock lock(this->cp_observation_lock);
 

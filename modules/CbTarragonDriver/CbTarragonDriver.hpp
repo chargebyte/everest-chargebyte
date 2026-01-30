@@ -82,7 +82,6 @@ public:
 
     /// @brief Member variable for holding RCM controller instance
     CbTarragonRCM rcm_controller;
-
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
