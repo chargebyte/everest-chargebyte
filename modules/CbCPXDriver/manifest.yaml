@@ -1,5 +1,9 @@
 description: Hardware abstraction layer for chargebyte's CPX
 config:
+  device_id:
+    description: First digit of the CAN-ID. Also used as VLAN-ID.
+    type: integer
+    default: 0
   connector_type:
     description: Type of charging connector available at this EVSE
     type: string
@@ -22,17 +26,18 @@ config:
       other limitating value/instance which represents the physical charger limits.
     type: number
     default: 80
-  can_interface:
+  CAN_interface:
     description: >-
-      Device name of the can interface to use for communication with CPX
+      Device name of the CAN interface to use for communication with CPX
       hardware.
     type: string
     default: can0
-  can_bitrate:
-    description: >-
-      Bitrate of CAN bus used by CPX can controller.
+  CAN_bitrate:
+    description: Bitrate of CAN bus used by CPX CAN controller.
     type: integer
     default: 500000
+    minimum: 1000
+    maximum: 1000000
   pt1000_1_identification:
     description: Identification string used when this temperature channel is published
     type: string
@@ -49,14 +54,6 @@ config:
     description: Identification string used when this temperature channel is published
     type: string
     default: "PT1000-4"
-  rcm_enable:
-    description: Enables or disables monitoring of an external Residual Current Device.
-    type: boolean
-    default: false
-  device_id:
-    description: First digit of the CAN-ID. Also used as VLAN-ID.
-    type: integer
-    default: 0
 provides:
   evse_board_support:
     description: >-

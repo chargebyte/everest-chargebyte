@@ -26,13 +26,12 @@ struct Conf {
     std::string connector_type;
     double min_current_A;
     double max_current_A;
-    std::string can_interface;
-    int can_bitrate;
+    std::string CAN_interface;
+    int CAN_bitrate;
     std::string pt1000_1_identification;
     std::string pt1000_2_identification;
     std::string pt1000_3_identification;
     std::string pt1000_4_identification;
-    bool rcm_enable;
     int device_id;
 };
 

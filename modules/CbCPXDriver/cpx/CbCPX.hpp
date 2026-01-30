@@ -5,7 +5,7 @@
 #include <sigslot/signal.hpp>
 #include <generated/types/board_support_common.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include "can_interface/can.h"
+#include "CAN_interface/CAN.h"
 #include <linux/can/raw.h>
 #include <sys/ioctl.h>
 #include <linux/can/bcm.h>
@@ -38,8 +38,8 @@ typedef struct {
 } com_data_t;
 
 struct Conf {
-    std::string can_interface;
-    int can_bitrate;
+    std::string CAN_interface;
+    int CAN_bitrate;
     int device_id;
 };
 
@@ -63,8 +63,9 @@ class CbCPX {
 public:
     /// @brief Default constructor.
     /// @param device_id Offset in CAN-ID used to identify hardware plattform
-    /// @param can_interface Name of the CAN-interface used for communication
-    CbCPX(int device_id, std::string can_interface, int can_bitrate);
+    /// @param CAN_interface Name of the CAN-interface used for communication
+    /// @param CAN_bitrate Bitrate of the CAN-controller of the CPX
+    CbCPX(int device_id, const std::string& CAN_interface, int CAN_bitrate);
 
     /// @brief Destructor.
     ~CbCPX();
@@ -107,7 +108,7 @@ public:
     void set_duty_cycle(unsigned int duty_cycle);
     
     /// @brief Set contactor state.
-    /// @param on Desired contactor state.
+    /// @param on Desired contactor state. Use true to close and false to open the contactor.
     /// @return 0 if CPX switched to desired state, 1 or 2 depending on which contactor did not switch
     int switch_state(bool on);
 
@@ -128,6 +129,7 @@ public:
     void read_git_hash(uint8_t* data);
 
     /// @brief Return the current contactor state (even when no contactor is configured)
+    /// @return true if contactor is closed, false otherwise
     bool get_contactor_state();
 
     /// @brief Get the current/actual duty cycle in [0.1 %].
@@ -221,22 +223,22 @@ private:
     struct ifreq ifr;
 
     /// @brief File descriptor of the (opened) CAN RAW interface
-    int can_raw_fd {-1};
+    int CAN_raw_fd {-1};
 
     /// @brief File descriptor of the (opened) CAN BCM RX interface
-    int can_bcm_rx_fd {-1};
+    int CAN_bcm_rx_fd {-1};
 
     /// @brief File descriptor of the (opened) CAN BCM TX interface
-    int can_bcm_tx_fd {-1};
+    int CAN_bcm_tx_fd {-1};
 
     /// @brief Holds the assembled firmware information string.
     std::string fw_info;
 
     /// @brief Thread for receiving CAN BCM messages
-    std::thread can_bcm_rx_thread;
+    std::thread CAN_bcm_rx_thread;
 
     /// @brief Thread for receiving CAN RAW messages
-    std::thread can_raw_rx_thread;
+    std::thread CAN_raw_rx_thread;
 
     /// @brief Thread for notifications upon changes
     std::thread notify_thread;
@@ -275,13 +277,13 @@ private:
     std::atomic_bool timeout_watchdog_termination_requested {false};
 
     /// @brief Register BCM rx messages
-    void can_bcm_rx_init();
+    void CAN_bcm_rx_init();
 
     /// @brief CAN BCM receive thread worker
-    void can_bcm_rx_worker();
+    void CAN_bcm_rx_worker();
 
     /// @brief CAN RAW receive thread worker
-    void can_raw_rx_worker();
+    void CAN_raw_rx_worker();
 
     /// @brief Notify thread worker
     void notify_worker();
@@ -314,7 +316,7 @@ private:
     std::mutex  bcm_mutex;
 
     /// @brief Size of CAN-msg
-    static constexpr std::size_t can_msg_size =
+    static constexpr std::size_t CAN_msg_size =
         sizeof(bcm_msg_head) + sizeof(can_frame);
 
     /// @brief Save last new received Charge State data
@@ -391,10 +393,10 @@ private:
     /// @brief Compose a 29-bit CAN identifier from the configured CPX-ID and a message ID.
     /// @param cpx_id Logical CPX identifier (0 keeps the raw message ID).
     /// @param msg_id Base message identifier to embed in the lower bits.
-    canid_t get_can_id(int cpx_id, int msg_id);
+    canid_t get_CAN_id(int cpx_id, int msg_id);
 
     /// @brief Enables verbose CAN-ID logging while requesting firmware information.
-    bool print_can_id_info {false};
+    bool print_CAN_id_info {false};
 
     /// @brief Remember if CPX CAN-message timed out
     std::atomic<bool> bcm_rx_timeout {false};
@@ -443,6 +445,6 @@ private:
     /// @brief Helper to check for contactor errors
     bool is_contactor_error(int contactor);
 
-    /// @brief Set CAN bitrate of the can-controller running the EVerest stack to match the CPX's
-    void ensure_can_bitrate();
+    /// @brief Set CAN bitrate of the CAN-controller running the EVerest stack to match the CPX's
+    void ensure_CAN_bitrate();
 };

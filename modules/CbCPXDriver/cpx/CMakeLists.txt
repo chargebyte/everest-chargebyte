@@ -8,7 +8,7 @@ pkg_check_modules(LIBSOCKETCAN REQUIRED libsocketcan)
 target_sources(cpx
     PRIVATE
         "CbCPX.cpp"
-        "can_interface/can.c"
+        "CAN_interface/CAN.c"
 )
 
 get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
@@ -30,6 +30,5 @@ target_link_libraries(cpx
         Pal::Sigslot
         nlohmann_json::nlohmann_json
         everest::log
-        everest::sqlite
         ${LIBSOCKETCAN_LIBRARIES}
 )
