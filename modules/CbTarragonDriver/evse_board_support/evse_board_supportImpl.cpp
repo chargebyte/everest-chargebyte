@@ -411,8 +411,16 @@ evse_board_supportImpl::determine_cp_state(const CPUtils::cp_state_signal_side& 
         current_cp_state = types::cb_board_support::CPState::PilotFault;
     }
 
-    is_cp_error = CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(),
-                                               cp_state_negative_side.voltage, cp_state_positive_side.voltage);
+    if (this->pwm_controller.is_enabled()) {
+        // we want and can see CP related errors only if we are driving the CP line actively
+        is_cp_error =
+            CPUtils::check_for_cp_errors(this->cp_errors, current_cp_state, this->pwm_controller.get_duty_cycle(),
+                                         cp_state_negative_side.voltage, cp_state_positive_side.voltage);
+    } else {
+        // on the other hand, the physical CP line can be floating and we could just report
+        // what we see, but this could confuse the upper layes, so pin to reporting state E here
+        current_cp_state = types::cb_board_support::CPState::E;
+    }
 
     return current_cp_state;
 }
@@ -453,11 +461,13 @@ void evse_board_supportImpl::cp_observation_worker(void) {
         // positive signal side: map to CP state and check for changes
         types::cb_board_support::CPState measured_cp_state;
         measured_cp_state = CPUtils::voltage_to_state(positive_side.voltage, positive_side.measured_state_t1);
-        cp_state_changed |= CPUtils::check_for_cp_state_changes(positive_side, measured_cp_state);
+        cp_state_changed |=
+            CPUtils::check_for_cp_state_changes(positive_side, measured_cp_state, this->pwm_controller.is_enabled());
 
         // negative signal side: map to CP state and check for changes
         measured_cp_state = CPUtils::voltage_to_state(negative_side.voltage, negative_side.measured_state_t1);
-        cp_state_changed |= CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state);
+        cp_state_changed |=
+            CPUtils::check_for_cp_state_changes(negative_side, measured_cp_state, this->pwm_controller.is_enabled());
 
         // If nothing has changed (yet [we wait for stable signals]) -> start a new measurement
         if (not cp_state_changed) {
