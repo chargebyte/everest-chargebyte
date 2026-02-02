@@ -87,7 +87,7 @@ namespace CPUtils {
 
     /// @brief Helper to determine whether one side of the CP signal caused a CP signal change
     bool check_for_cp_state_changes(struct cp_state_signal_side& signal_side,
-                                    const types::cb_board_support::CPState& measured_cp_state);
+                                    const types::cb_board_support::CPState& measured_cp_state, bool pwm_is_driven);
 
     /// @brief Helper to raise errors
     template <typename T, std::size_t N>
