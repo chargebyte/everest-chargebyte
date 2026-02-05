@@ -146,6 +146,29 @@ void evse_board_supportImpl::init() {
         if (current_cp_state == types::cb_board_support::CPState::A && this->pp_fault_reported.exchange(false)) {
             this->clear_error("evse_board_support/MREC23ProximityFault");
         }
+
+        // Note: usually, contactor switching feedback is reported via a dedicated slot,
+        // but this does not work when no contactor is enabled in the safety controller;
+        // in this case we have to tell here when:
+        // - CP states C or D are entered and thus the contactors should be closed now
+        // - CP states C or D are left and thus the contactors should be open meanwhile
+        // We can 'shortcut' here and use get_hv_ready() because this not only ensures
+        // the CP state, but also PT1000 and ESTOPs etc.
+        if (not this->mod->controller.contactors_in_use()) {
+            // get_contactor_state() gives us here the saved "allow power on" flag
+            if (this->mod->controller.get_contactor_state() and this->mod->controller.is_hv_ready()) {
+                if (!this->contactor_state_reported.exchange(true)) {
+                    // publish PowerOn event
+                    this->publish_event({types::board_support_common::Event::PowerOn});
+                }
+            }
+            if (not this->mod->controller.is_hv_ready()) {
+                if (this->contactor_state_reported.exchange(false)) {
+                    // publish PowerOff event
+                    this->publish_event({types::board_support_common::Event::PowerOff});
+                }
+            }
+        }
     });
 
     this->mod->controller.on_cp_error.connect([&]() {
@@ -411,7 +434,24 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
     }
 
     this->mod->controller.switch_state(value.allow_power_on);
-    // Note: actual switching and errors while switching are reported via slots
+
+    // Note: actual switching and errors while switching are reported via slots usually,
+    // but this does not work when no contactor is enabled in the safety controller;
+    // for this we have to generate the required feedback ourself (see also above)
+    if (not this->mod->controller.contactors_in_use()) {
+        if (value.allow_power_on and this->mod->controller.is_hv_ready()) {
+            if (!this->contactor_state_reported.exchange(true)) {
+                // publish PowerOn
+                this->publish_event({types::board_support_common::Event::PowerOn});
+            }
+        }
+        if (!value.allow_power_on) {
+            if (this->contactor_state_reported.exchange(false)) {
+                // publish PowerOff
+                this->publish_event({types::board_support_common::Event::PowerOff});
+            }
+        }
+    }
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {

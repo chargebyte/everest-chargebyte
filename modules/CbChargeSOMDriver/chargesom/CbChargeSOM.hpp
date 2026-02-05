@@ -128,6 +128,12 @@ public:
     /// @brief Return the current contactor state (even when no contactor is configured)
     bool get_contactor_state();
 
+    /// @brief Return whether at least one contactor is configured in safety controller.
+    bool contactors_in_use();
+
+    /// @brief Return whether the safety controller thinks it is safe to switch contactors on.
+    bool is_hv_ready();
+
     /// @brief Remember whether the PT1000 State frame was received at least once.
     bool temperature_data_is_valid {false};
 
