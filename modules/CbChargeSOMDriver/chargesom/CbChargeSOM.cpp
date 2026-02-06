@@ -777,6 +777,20 @@ bool CbChargeSOM::get_contactor_state() {
     return this->get_contactor_state_no_lock();
 }
 
+bool CbChargeSOM::contactors_in_use() {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    return cb_proto_contactors_are_used(&this->ctx);
+}
+
+bool CbChargeSOM::is_hv_ready() {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    return cb_proto_get_hv_ready(&this->ctx);
+}
+
 unsigned int CbChargeSOM::get_temperature_channels() const {
     return CB_PROTO_MAX_PT1000S;
 }
