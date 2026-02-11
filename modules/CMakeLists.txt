@@ -3,6 +3,7 @@ add_compile_options(-Wall -Wextra -Werror=switch)
 add_compile_options(-Wno-unused-function)
 
 ev_add_cpp_module(CbChargeSOMDriver)
+ev_add_cpp_module(CbCPXDriver)
 ev_add_cpp_module(CbTarragonDIs)
 ev_add_cpp_module(CbTarragonDriver)
 ev_add_cpp_module(CbTarragonPlugLock)
