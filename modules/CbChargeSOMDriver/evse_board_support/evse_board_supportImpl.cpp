@@ -314,11 +314,11 @@ void evse_board_supportImpl::handle_enable(bool& value) {
             this->mod->controller.enable();
 
         // generate state F on disable; on enable apply cached PWM duty cycle
-        unsigned int new_duty_cycle = value ? this->cached_duty_cycle_x10 : 0;
+        unsigned int new_duty_cycle_x10 = value ? this->cached_duty_cycle_x10 : 0;
 
         EVLOG_info << "handle_enable: " << (value ? "Applying cached" : "Setting") << " duty cycle of " << std::fixed
-                   << std::setprecision(1) << (new_duty_cycle / 10.0) << "%";
-        this->mod->controller.set_duty_cycle(new_duty_cycle);
+                   << std::setprecision(1) << (new_duty_cycle_x10 / 10.0) << "%";
+        this->mod->controller.set_duty_cycle(new_duty_cycle_x10);
 
         this->is_enabled = value;
     } catch (std::exception& e) {
@@ -328,13 +328,13 @@ void evse_board_supportImpl::handle_enable(bool& value) {
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
     try {
-        unsigned int new_duty_cycle = static_cast<unsigned int>(value * 10.0);
+        unsigned int new_duty_cycle_x10 = static_cast<unsigned int>(value * 10.0);
 
         EVLOG_info << "handle_pwm_on: " << (this->is_enabled ? "Setting" : "Caching") << " new duty cycle of "
                    << std::fixed << std::setprecision(1) << value << "%";
-        this->cached_duty_cycle_x10 = new_duty_cycle;
+        this->cached_duty_cycle_x10 = new_duty_cycle_x10;
         if (this->is_enabled) {
-            this->mod->controller.set_duty_cycle(new_duty_cycle);
+            this->mod->controller.set_duty_cycle(this->cached_duty_cycle_x10);
         }
     } catch (std::exception& e) {
         EVLOG_error << e.what();
@@ -380,12 +380,12 @@ void evse_board_supportImpl::handle_pwm_off() {
 void evse_board_supportImpl::handle_pwm_F() {
     try {
         // generate state F
-        unsigned int new_duty_cycle = 0;
+        unsigned int new_duty_cycle_x10 = 0;
 
         EVLOG_info << "handle_pwm_F: " << (this->is_enabled ? "Setting" : "Caching") << " CP state F";
         this->cached_duty_cycle_x10 = 0;
         if (this->is_enabled) {
-            this->mod->controller.set_duty_cycle(new_duty_cycle);
+            this->mod->controller.set_duty_cycle(new_duty_cycle_x10);
         }
     } catch (std::exception& e) {
         EVLOG_error << e.what();
