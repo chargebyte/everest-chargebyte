@@ -155,7 +155,7 @@ void evse_board_supportImpl::init() {
         // We can 'shortcut' here and use get_hv_ready() because this not only ensures
         // the CP state, but also PT1000 and ESTOPs etc.
         if (not this->mod->controller.contactors_in_use()) {
-            bool is_hv_ready = this->mod->controller.is_hv_ready();
+            const bool is_hv_ready = this->mod->controller.is_hv_ready();
 
             // get_contactor_state() gives us here the saved "allow power on" flag
             if (this->mod->controller.get_contactor_state() and is_hv_ready) {
