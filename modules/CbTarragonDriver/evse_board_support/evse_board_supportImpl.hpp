@@ -103,6 +103,9 @@ private:
     /// @brief Tracks whether this EVSE is enabled or not.
     std::atomic_bool is_enabled {false};
 
+    /// @brief Cache last requested PWM duty cycle (in percent).
+    double cached_pwm_duty_cycle {100.0};
+
     /// @brief Used to signal changes on `is_enabled` to the CP observation thread
     ///        which waits(sleeps) as long as `is_enabled` is false.
     std::condition_variable is_enabled_changed;

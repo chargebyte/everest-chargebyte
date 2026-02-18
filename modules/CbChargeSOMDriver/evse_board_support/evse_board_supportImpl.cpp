@@ -338,12 +338,12 @@ void evse_board_supportImpl::handle_enable(bool& value) {
         if (value)
             this->mod->controller.enable();
 
-        // generate state A or state F
-        unsigned int new_duty_cycle = value ? 1000 : 0;
+        // generate state F on disable; on enable apply cached PWM duty cycle
+        unsigned int new_duty_cycle_x10 = value ? this->cached_duty_cycle_x10 : 0;
 
-        EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(1)
-                   << (new_duty_cycle / 10.0) << "%";
-        this->mod->controller.set_duty_cycle(new_duty_cycle);
+        EVLOG_info << "handle_enable: " << (value ? "Applying cached" : "Setting") << " duty cycle of " << std::fixed
+                   << std::setprecision(1) << (new_duty_cycle_x10 / 10.0) << "%";
+        this->mod->controller.set_duty_cycle(new_duty_cycle_x10);
 
         this->is_enabled = value;
     } catch (std::exception& e) {
@@ -353,17 +353,26 @@ void evse_board_supportImpl::handle_enable(bool& value) {
 
 void evse_board_supportImpl::handle_pwm_on(double& value) {
     try {
-        unsigned int new_duty_cycle = static_cast<unsigned int>(value * 10.0);
+        unsigned int new_duty_cycle_x10 = static_cast<unsigned int>(value * 10.0);
 
-        EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(1)
-                   << (new_duty_cycle / 10.0) << "%";
-        this->mod->controller.set_duty_cycle(new_duty_cycle);
+        EVLOG_info << "handle_pwm_on: " << (this->is_enabled ? "Setting" : "Caching") << " new duty cycle of "
+                   << std::fixed << std::setprecision(1) << value << "%";
+        this->cached_duty_cycle_x10 = new_duty_cycle_x10;
+        if (this->is_enabled) {
+            this->mod->controller.set_duty_cycle(this->cached_duty_cycle_x10);
+        }
     } catch (std::exception& e) {
         EVLOG_error << e.what();
     }
 }
 
 void evse_board_supportImpl::handle_pwm_off() {
+    if (!this->is_enabled) {
+        EVLOG_info << "handle_pwm_off: Caching duty cycle of 100.0%";
+        this->cached_duty_cycle_x10 = 1000;
+        return;
+    }
+
     // in case safety controller was in emergency state, we have to reset it
     // with a disable -> enable toggle
     if (this->mod->controller.is_emergency()) {
@@ -383,11 +392,11 @@ void evse_board_supportImpl::handle_pwm_off() {
 
     try {
         // generate state A
-        unsigned int new_duty_cycle = 1000;
+        this->cached_duty_cycle_x10 = 1000;
 
         EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(1)
-                   << (new_duty_cycle / 10.0) << "%";
-        this->mod->controller.set_duty_cycle(new_duty_cycle);
+                   << (this->cached_duty_cycle_x10 / 10.0) << "%";
+        this->mod->controller.set_duty_cycle(this->cached_duty_cycle_x10);
     } catch (std::exception& e) {
         EVLOG_error << e.what();
     }
@@ -396,11 +405,13 @@ void evse_board_supportImpl::handle_pwm_off() {
 void evse_board_supportImpl::handle_pwm_F() {
     try {
         // generate state F
-        unsigned int new_duty_cycle = 0;
+        unsigned int new_duty_cycle_x10 = 0;
 
-        EVLOG_info << "handle_pwm_F: Generating CP state F";
-
-        this->mod->controller.set_duty_cycle(new_duty_cycle);
+        EVLOG_info << "handle_pwm_F: " << (this->is_enabled ? "Setting" : "Caching") << " CP state F";
+        this->cached_duty_cycle_x10 = 0;
+        if (this->is_enabled) {
+            this->mod->controller.set_duty_cycle(new_duty_cycle_x10);
+        }
     } catch (std::exception& e) {
         EVLOG_error << e.what();
     }
