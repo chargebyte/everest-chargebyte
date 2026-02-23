@@ -194,11 +194,11 @@ void evse_board_supportImpl::handle_enable(bool& value) {
     this->is_enabled = value;
     this->is_enabled_changed.notify_one();
 
-    // generate state A or state F
-    double new_duty_cycle = value ? 100.0 : 0.0;
+    // generate state F on disable; on enable apply cached PWM duty cycle
+    double new_duty_cycle = value ? this->cached_pwm_duty_cycle : 0.0;
 
-    EVLOG_info << "handle_enable: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
-               << "%";
+    EVLOG_info << "handle_enable: " << (value ? "Applying cached" : "Setting") << " duty cycle of " << std::fixed
+               << std::setprecision(2) << new_duty_cycle << "%";
     this->pwm_controller.set_duty_cycle(new_duty_cycle);
 }
 
@@ -217,9 +217,12 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
     if (10.0 <= value && value <= 96.0)
         amps_msg << " (" << std::fixed << std::setprecision(1) << amps << " A)";
 
-    EVLOG_info << "handle_pwm_on: Setting new duty cycle of " << std::fixed << std::setprecision(2) << value << "%"
-               << amps_msg.str();
-    this->pwm_controller.set_duty_cycle(value);
+    EVLOG_info << "handle_pwm_on: " << (this->is_enabled ? "Setting" : "Caching") << " new duty cycle of " << std::fixed
+               << std::setprecision(2) << value << "%" << amps_msg.str();
+    this->cached_pwm_duty_cycle = value;
+    if (this->is_enabled) {
+        this->pwm_controller.set_duty_cycle(value);
+    }
 }
 
 void evse_board_supportImpl::handle_pwm_off() {
@@ -229,17 +232,23 @@ void evse_board_supportImpl::handle_pwm_off() {
     // generate state A
     double new_duty_cycle = 100.0;
 
-    EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(2) << new_duty_cycle
-               << "%";
-    this->pwm_controller.set_duty_cycle(new_duty_cycle);
+    EVLOG_info << "handle_pwm_off: " << (this->is_enabled ? "Setting" : "Caching") << " new duty cycle of "
+               << std::fixed << std::setprecision(2) << new_duty_cycle << "%";
+    this->cached_pwm_duty_cycle = new_duty_cycle;
+    if (this->is_enabled) {
+        this->pwm_controller.set_duty_cycle(new_duty_cycle);
+    }
 }
 
 void evse_board_supportImpl::handle_pwm_F() {
     // pause CP observation to avoid race condition between this thread and the CP observation thread
     std::scoped_lock lock(this->cp_observation_lock);
 
-    EVLOG_info << "Generating CP state F";
-    this->pwm_controller.set_duty_cycle(0.0);
+    EVLOG_info << "handle_pwm_F: " << (this->is_enabled ? "Setting" : "Caching") << " CP state F";
+    this->cached_pwm_duty_cycle = 0.0;
+    if (this->is_enabled) {
+        this->pwm_controller.set_duty_cycle(0.0);
+    }
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
