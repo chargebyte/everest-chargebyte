@@ -85,8 +85,6 @@ private:
     Everest::SteadyTimer signed_firmware_update_download_timer;
     Everest::SteadyTimer signed_firmware_update_install_timer;
 
-    std::string boot_reason_key;
-
     /**
      * @brief Executes a standard firmware update using the given \p firmware_update_request
      *

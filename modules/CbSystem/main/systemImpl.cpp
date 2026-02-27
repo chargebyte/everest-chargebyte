@@ -29,6 +29,7 @@ const std::string FIRMWARE_UPDATER = "firmware_updater.sh";
 const std::string SIGNED_FIRMWARE_DOWNLOADER = "signed_firmware_downloader.sh";
 const std::string SIGNED_FIRMWARE_INSTALLER = "signed_firmware_installer.sh";
 const fs::path MARKER_FILE_PATH = "/var/lib/everest/.ocpp_fw_installed";
+const std::string BOOT_REASON_KEY = "ocpp_boot_reason";
 
 static const char* const diagnostic_files[] = {"/tmp/commands.log", /* must always be the first entry */
                                                "/etc/everest/config.yaml",
@@ -100,7 +101,6 @@ void systemImpl::init() {
     this->firmware_download_running = false;
     this->firmware_installation_running = false;
     this->standard_firmware_update_running = false;
-    this->boot_reason_key = "ocpp_boot_reason";
 
     if (fs::exists(MARKER_FILE_PATH)) {
         this->boot_reason = types::system::BootReason::FirmwareUpdate;
@@ -284,7 +284,7 @@ void systemImpl::standard_firmware_update(const types::system::FirmwareUpdateReq
             }
             if (firmware_status.firmware_update_status == types::system::FirmwareUpdateStatusEnum::Installed and
                 !this->mod->r_store.empty()) {
-                this->mod->r_store.at(0)->call_store(boot_reason_key,
+                this->mod->r_store.at(0)->call_store(BOOT_REASON_KEY,
                                                      boot_reason_to_string(types::system::BootReason::FirmwareUpdate));
             }
             cmd.wait();
@@ -514,7 +514,7 @@ void systemImpl::install_signed_firmware(const types::system::FirmwareUpdateRequ
         }
         if (firmware_status.firmware_update_status == types::system::FirmwareUpdateStatusEnum::Installed) {
             if (!this->mod->r_store.empty()) {
-                this->mod->r_store.at(0)->call_store(boot_reason_key,
+                this->mod->r_store.at(0)->call_store(BOOT_REASON_KEY,
                                                      boot_reason_to_string(types::system::BootReason::FirmwareUpdate));
             }
 
@@ -740,8 +740,8 @@ void systemImpl::handle_reset(types::system::ResetType& type, bool& scheduled) {
     // channels in parallel when this call returns
     std::thread([this, type, scheduled] {
         EVLOG_info << "Reset request received: " << type << ", " << (scheduled ? "" : "not ") << "scheduled";
-        if (!this->mod->r_store.empty() and !this->mod->r_store.at(0)->call_exists(boot_reason_key)) {
-            this->mod->r_store.at(0)->call_store(boot_reason_key,
+        if (!this->mod->r_store.empty() and !this->mod->r_store.at(0)->call_exists(BOOT_REASON_KEY)) {
+            this->mod->r_store.at(0)->call_store(BOOT_REASON_KEY,
                                                  boot_reason_to_string(types::system::BootReason::RemoteReset));
         }
 
@@ -790,13 +790,13 @@ types::system::BootReason systemImpl::handle_get_boot_reason() {
         // use our own rauc-based boot reason
         return this->boot_reason;
     }
-    auto reason_variant = this->mod->r_store.at(0)->call_load(boot_reason_key);
+    auto reason_variant = this->mod->r_store.at(0)->call_load(BOOT_REASON_KEY);
     auto* reason = std::get_if<std::string>(&reason_variant);
     auto final_reason{this->boot_reason}; // fallback: rauc-based
     if (reason != nullptr) {
         final_reason = types::system::string_to_boot_reason(*reason);
     }
-    this->mod->r_store.at(0)->call_delete(boot_reason_key);
+    this->mod->r_store.at(0)->call_delete(BOOT_REASON_KEY);
     return final_reason;
 }
 
