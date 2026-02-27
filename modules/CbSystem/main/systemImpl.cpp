@@ -132,9 +132,6 @@ static std::string get_partition(PartitionType part_type) {
 }
 
 void systemImpl::ready() {
-    // TODO: Remove this sleep when fix of the issues (ref: https://github.com/EVerest/libocpp/issues/758,
-    // https://github.com/EVerest/everest-core/issues/841) are implemented
-    sleep(20);
     check_update_marker();
 }
 
