@@ -12,16 +12,12 @@ ev_setup_cpp_module()
 pkg_search_module(LIBSYSTEMD REQUIRED libsystemd)
 target_link_libraries(${MODULE_NAME} PUBLIC ${LIBSYSTEMD_LIBRARIES})
 
-set (ADDITIONAL_MODULE_LIBS everest::timer)
-
-list(APPEND ADDITIONAL_MODULE_LIBS
-    date::date
-    date::date-tz
-)
-
 target_link_libraries(${MODULE_NAME}
     PRIVATE
-        ${ADDITIONAL_MODULE_LIBS}
+        date::date
+        date::date-tz
+        everest::timer
+        everest::run_application
 )
 # ev@bcc62523-e22b-41d7-ba2f-825b493a3c97:v1
 

@@ -29,8 +29,11 @@ provides:
   main:
     description: Implements the system interface
     interface: system
-requires: {}
-enable_external_mqtt: false
+requires:
+  store:
+    interface: kvs
+    min_connections: 0
+    max_connections: 1
 metadata:
   license: https://opensource.org/licenses/Apache-2.0
   authors:
