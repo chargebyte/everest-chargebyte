@@ -58,6 +58,9 @@ void evse_board_supportImpl::init() {
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
 
+    // yes we can - it is supported by hardware
+    this->hw_capabilities.supports_cp_state_E = true;
+
     // register our callback handlers
 
     this->mod->controller.on_pp_change.connect([&](const types::board_support_common::Ampacity& new_ampacity) {
@@ -366,9 +369,9 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
     }
 }
 
-void evse_board_supportImpl::handle_pwm_off() {
+void evse_board_supportImpl::handle_cp_state_X1() {
     if (!this->is_enabled) {
-        EVLOG_info << "handle_pwm_off: Caching duty cycle of 100.0%";
+        EVLOG_info << "handle_cp_state_X1: Caching duty cycle of 100.0%";
         this->cached_duty_cycle_x10 = 1000;
         return;
     }
@@ -378,7 +381,7 @@ void evse_board_supportImpl::handle_pwm_off() {
     if (this->mod->controller.is_emergency()) {
         std::scoped_lock lock(this->cp_mutex);
 
-        EVLOG_info << "handle_pwm_off: recovering after safe state";
+        EVLOG_info << "handle_cp_state_X1: recovering after safe state";
 
         // disable resets the controller and goes shortly to state E
         this->mod->controller.disable();
@@ -394,7 +397,7 @@ void evse_board_supportImpl::handle_pwm_off() {
         // generate state A
         this->cached_duty_cycle_x10 = 1000;
 
-        EVLOG_info << "handle_pwm_off: Setting new duty cycle of " << std::fixed << std::setprecision(1)
+        EVLOG_info << "handle_cp_state_X1: Setting new duty cycle of " << std::fixed << std::setprecision(1)
                    << (this->cached_duty_cycle_x10 / 10.0) << "%";
         this->mod->controller.set_duty_cycle(this->cached_duty_cycle_x10);
     } catch (std::exception& e) {
@@ -402,16 +405,25 @@ void evse_board_supportImpl::handle_pwm_off() {
     }
 }
 
-void evse_board_supportImpl::handle_pwm_F() {
+void evse_board_supportImpl::handle_cp_state_F() {
     try {
         // generate state F
         unsigned int new_duty_cycle_x10 = 0;
 
-        EVLOG_info << "handle_pwm_F: " << (this->is_enabled ? "Setting" : "Caching") << " CP state F";
+        EVLOG_info << "handle_cp_state_F: " << (this->is_enabled ? "Setting" : "Caching") << " CP state F";
         this->cached_duty_cycle_x10 = 0;
         if (this->is_enabled) {
             this->mod->controller.set_duty_cycle(new_duty_cycle_x10);
         }
+    } catch (std::exception& e) {
+        EVLOG_error << e.what();
+    }
+}
+
+void evse_board_supportImpl::handle_cp_state_E() {
+    try {
+        EVLOG_info << "Generating CP state E";
+        this->mod->controller.disable();
     } catch (std::exception& e) {
         EVLOG_error << e.what();
     }
