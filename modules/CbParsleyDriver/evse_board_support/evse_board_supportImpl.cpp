@@ -74,6 +74,9 @@ void evse_board_supportImpl::init() {
     // we also lie about the real connector, but fixed cable is correct
     this->hw_capabilities.connector_type = types::evse_board_support::Connector_type::IEC62196Type2Cable;
 
+    // this is not supported by hardware
+    this->hw_capabilities.supports_cp_state_E = false;
+
     // register our callback handlers
 
     this->mod->controller.on_ce_change.connect([&](const types::cb_board_support::CEState& ce_state) {
@@ -219,19 +222,24 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
                << "% (ignored)";
 }
 
-void evse_board_supportImpl::handle_pwm_off() {
-    EVLOG_info << "handle_pwm_off: setting new duty cycle of 100.0% (ignored)";
+void evse_board_supportImpl::handle_cp_state_X1() {
+    EVLOG_info << "handle_cp_state_X1: setting new duty cycle of 100.0% (ignored)";
 }
 
-void evse_board_supportImpl::handle_pwm_F() {
+void evse_board_supportImpl::handle_cp_state_F() {
     std::scoped_lock lock(this->cp_mutex);
     try {
-        EVLOG_info << "handle_pwm_F: generating CP state F (aka EC)";
+        EVLOG_info << "handle_cp_state_F: generating CP state F (aka EC)";
 
         this->mod->controller.set_ec_state();
     } catch (std::exception& e) {
         EVLOG_error << e.what();
     }
+}
+
+void evse_board_supportImpl::handle_cp_state_E() {
+    // this is not supported by hardware
+    EVLOG_warning << "handle_cp_state_E: request ignored (not supported)";
 }
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
