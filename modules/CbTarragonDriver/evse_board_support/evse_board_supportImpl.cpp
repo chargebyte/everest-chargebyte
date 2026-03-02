@@ -234,7 +234,7 @@ void evse_board_supportImpl::handle_cp_state_X1() {
     // generate state A
     double new_duty_cycle = 100.0;
 
-    EVLOG_info << "handle_pwm_off: " << (this->is_enabled ? "Setting" : "Caching") << " new duty cycle of "
+    EVLOG_info << "handle_cp_state_X1: " << (this->is_enabled ? "Setting" : "Caching") << " new duty cycle of "
                << std::fixed << std::setprecision(2) << new_duty_cycle << "%";
     this->cached_pwm_duty_cycle = new_duty_cycle;
     if (this->is_enabled) {
@@ -246,7 +246,7 @@ void evse_board_supportImpl::handle_cp_state_F() {
     // pause CP observation to avoid race condition between this thread and the CP observation thread
     std::scoped_lock lock(this->cp_observation_lock);
 
-    EVLOG_info << "handle_pwm_F: " << (this->is_enabled ? "Setting" : "Caching") << " CP state F";
+    EVLOG_info << "handle_cp_state_F: " << (this->is_enabled ? "Setting" : "Caching") << " CP state F";
     this->cached_pwm_duty_cycle = 0.0;
     if (this->is_enabled) {
         this->pwm_controller.set_duty_cycle(0.0);
@@ -254,7 +254,7 @@ void evse_board_supportImpl::handle_cp_state_F() {
 }
 
 void evse_board_supportImpl::handle_cp_state_E() {
-	// pause CP observation to avoid race condition between this thread and the CP observation thread
+    // pause CP observation to avoid race condition between this thread and the CP observation thread
     std::scoped_lock lock(this->cp_observation_lock);
 
     EVLOG_info << "Generating CP state E";
