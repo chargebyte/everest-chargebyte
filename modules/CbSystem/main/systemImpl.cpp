@@ -122,7 +122,7 @@ static std::string get_partition(PartitionType part_type) {
         break;
     }
 
-    const std::string shell_cmd = R"(rauc status | sed 's/\x1b\[[0-9;]*m//g' | awk '/rootfs\./ && /)" +
+    const std::string shell_cmd = R"(rauc status | sed "s/$(printf '\033')\[[0-9;]*m//g" | awk '/rootfs\./ && /)" +
                                   rauc_status_search + R"(/ {gsub(/\[|\]/, "", $2); print $2}')";
     boost::process::ipstream stream;
     boost::process::child cmd(boost::process::search_path("sh"), std::vector<std::string> {"-c", shell_cmd},
