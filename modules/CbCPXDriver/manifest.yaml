@@ -1,0 +1,69 @@
+description: Hardware abstraction layer for chargebyte's CPX
+config:
+  device_id:
+    description: First digit of the CAN-ID. Also used as VLAN-ID.
+    type: integer
+    default: 0
+  connector_type:
+    description: Type of charging connector available at this EVSE
+    type: string
+    enum:
+      - IEC62196Type2Cable
+      - IEC62196Type2Socket
+    default: IEC62196Type2Cable
+  min_current_A:
+    description: >-
+      The minimum current in ampere which can be imported/exported. The default value
+      of 6 A corresponds to the lowest value which is technically possible to signal
+      by the IEC 61851 standard via PWM.
+    type: number
+    default: 6
+  max_current_A:
+    description: >-
+      The maximum current in ampere which can be imported/exported. Here too,
+      the default corresponds to the maximum value which is possible to signal
+      with the IEC 61851 standard. The value should be adjusted if there is no
+      other limitating value/instance which represents the physical charger limits.
+    type: number
+    default: 80
+  can_interface:
+    description: >-
+      Device name of the CAN interface to use for communication with CPX
+      hardware.
+    type: string
+    default: can0
+  can_bitrate:
+    description: Bitrate of CAN bus used by CPX CAN controller.
+    type: integer
+    default: 500000
+    minimum: 1000
+    maximum: 1000000
+  pt1000_1_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: "PT1000-1"
+  pt1000_2_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: "PT1000-2"
+  pt1000_3_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: "PT1000-3"
+  pt1000_4_identification:
+    description: Identification string used when this temperature channel is published
+    type: string
+    default: "PT1000-4"
+provides:
+  evse_board_support:
+    description: >-
+      Provide the board support driver for the CPX platform, e.g., control pilot
+      monitoring and controlling, contactor switching and similar.
+    interface: evse_board_support
+  temperatures:
+    description: Temperature readings as measured by the safety controller
+    interface: cb_temperatures
+metadata:
+  license: https://spdx.org/licenses/Apache-2.0.html
+  authors:
+    - chargebyte GmbH
