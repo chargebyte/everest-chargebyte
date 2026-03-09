@@ -454,7 +454,7 @@ void CbChargeSOM::terminate() {
 }
 
 void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
-                       bool is_pluggable, bool serial_trace) {
+                       bool is_pluggable, bool serial_trace, const std::string& can_mirror_device) {
     int rv;
 
     // remember these settings
@@ -485,6 +485,15 @@ void CbChargeSOM::init(const std::string& reset_gpio_line_name, bool reset_activ
     }
 
     uart_trace(&this->uart, serial_trace);
+
+    // if an interface name is given here, we shall enable CAN mirroring
+    if (can_mirror_device.length()) {
+        rv = uart_can_mirror_enable(&this->uart, can_mirror_device.c_str());
+        if (rv) {
+            throw std::system_error(errno, std::generic_category(),
+                                    "Failed to configure CAN mirror interface '" + can_mirror_device + "'");
+        }
+    }
 
     // release reset to start safety controller
     this->set_mcu_reset(false);
