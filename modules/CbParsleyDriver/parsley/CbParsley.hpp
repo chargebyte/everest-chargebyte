@@ -45,8 +45,9 @@ public:
     /// @param reset_active_low Flag whether the reset line has active-low polarity.
     /// @param serial_port The name of the UART device to use for communication with the safety processor.
     /// @param serial_trace Enable debug traces in communication library if set to true.
+    /// @param can_mirror_device Enables CAN mirror functionality if non-empty string is given.
     void init(const std::string& reset_gpio_line_name, bool reset_active_low, const std::string& serial_port,
-              bool serial_trace);
+              bool serial_trace, const std::string& can_mirror_device);
 
     /// @brief Releases the reset of the safety controller and establish communication,
     ///        i.e. if not yet done, retrieve firmware version etc.

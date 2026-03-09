@@ -11,9 +11,17 @@ config:
     type: boolean
     default: false
   serial_trace:
-    description: Enable debug output of the raw UART frames
+    description: Enable debug output of the raw UART frames (to stdout)
     type: boolean
     default: false
+  can_mirror_device:
+    description: >-
+      If set to a CAN interface, e.g. "vcan0", then all UART protocol frames
+      are also mirrored to this interface as CAN packet. This allows to easily
+      capture a trace for debugging purpose and/or visualizing signal changes.
+      By default, this settings is an empty string which disabled this feature.
+    type: string
+    default: ""
   reset_gpio_line_name:
     description: >-
       The GPIO line name which is connected to the reset input of the
