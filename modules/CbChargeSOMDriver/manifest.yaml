@@ -22,6 +22,20 @@ config:
       other limitating value/instance which represents the physical charger limits.
     type: number
     default: 80
+  min_phase_count:
+    description: >-
+      Minimum number of AC phases the power electronics can use for both import and export.
+    type: integer
+    minimum: 1
+    maximum: 3
+    default: 1
+  max_phase_count:
+    description: >-
+      Maximum number of AC phases the power electronics can use for both import and export.
+    type: integer
+    minimum: 1
+    maximum: 3
+    default: 3
   serial_port:
     description: >-
       Device name of the serial port to use for communication with the
