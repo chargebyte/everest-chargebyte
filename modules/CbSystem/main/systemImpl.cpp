@@ -128,7 +128,13 @@ static std::string get_partition(PartitionType part_type) {
     const std::string shell_cmd = R"(rauc status | sed "s/$(printf '\033')\[[0-9;]*m//g" | awk '/rootfs\./ && /)" +
                                   rauc_status_search + R"(/ {gsub(/\[|\]/, "", $2); print $2}')";
     const CmdOutput cmd_output = run_application("sh", std::vector<std::string> {"-c", shell_cmd});
-    return cmd_output.output;
+
+    // remove trailing newlines
+    auto output = cmd_output.output;
+    while (!output.empty() && (output.back() == '\n' || output.back() == '\r')) {
+        output.pop_back();
+    }
+    return output;
 }
 
 void systemImpl::ready() {
