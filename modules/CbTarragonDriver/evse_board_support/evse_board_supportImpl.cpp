@@ -324,11 +324,6 @@ void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& 
     this->mod->contactor_controller->switch_phase_count(value);
 }
 
-void evse_board_supportImpl::handle_evse_replug(int& value) {
-    // your code for cmd evse_replug goes here
-    (void)value;
-}
-
 void evse_board_supportImpl::pp_observation_worker(void) {
 
     EVLOG_info << "Proximity Pilot Observation Thread started";
