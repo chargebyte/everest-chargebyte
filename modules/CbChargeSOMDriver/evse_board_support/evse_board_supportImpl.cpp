@@ -50,10 +50,17 @@ void evse_board_supportImpl::init() {
     // the Charge SOM is currently intended for DC only, there is no support in the
     // safety controller firmware for AC nor phase count switching yet
     this->hw_capabilities.supports_changing_phases_during_charging = false;
-    this->hw_capabilities.max_phase_count_import = 3;
-    this->hw_capabilities.min_phase_count_import = 3;
-    this->hw_capabilities.max_phase_count_export = 3;
-    this->hw_capabilities.min_phase_count_export = 3;
+
+    if (this->mod->config.min_phase_count > this->mod->config.max_phase_count) {
+        throw std::runtime_error(fmt::format("Invalid phase count configuration: min_phase_count ({}) must be <= "
+                                             "max_phase_count ({})",
+                                             this->mod->config.min_phase_count, this->mod->config.max_phase_count));
+    }
+
+    this->hw_capabilities.max_phase_count_import = this->mod->config.max_phase_count;
+    this->hw_capabilities.min_phase_count_import = this->mod->config.min_phase_count;
+    this->hw_capabilities.max_phase_count_export = this->mod->config.max_phase_count;
+    this->hw_capabilities.min_phase_count_export = this->mod->config.min_phase_count;
 
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);

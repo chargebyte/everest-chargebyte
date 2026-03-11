@@ -27,6 +27,8 @@ struct Conf {
     std::string connector_type;
     double min_current_A;
     double max_current_A;
+    int min_phase_count;
+    int max_phase_count;
     std::string serial_port;
     bool serial_debug;
     bool serial_trace;
