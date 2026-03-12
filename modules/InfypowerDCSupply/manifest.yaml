@@ -72,6 +72,6 @@ provides:
     interface: power_supply_DC
     description: Main interface for the power supply
 metadata:
-  license: https://spdx.org/licenses/Apache-2.0.html
+  license: https://opensource.org/licenses/Apache-2.0
   authors:
     - chargebyte GmbH
