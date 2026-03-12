@@ -12,6 +12,7 @@ else()
     message(STATUS "Skipping CbChargeSOMDriver and CbParsleyDriver: ra-utils not found")
 endif()
 
+ev_add_cpp_module(CbGPIOEnergyLimits)
 ev_add_cpp_module(CbTarragonDIs)
 ev_add_cpp_module(CbTarragonDriver)
 ev_add_cpp_module(CbTarragonPlugLock)
