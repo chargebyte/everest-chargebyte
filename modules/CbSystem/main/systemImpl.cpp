@@ -5,7 +5,9 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <systemd/sd-bus.h>
 #include <thread>
@@ -612,6 +614,19 @@ static bool build_upload_logs(const std::string& targetFile) {
     return rv == 0;
 }
 
+std::string systemImpl::create_logs_filename(const std::string& type) {
+    auto now = std::chrono::system_clock::now();
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+
+    std::tm tm {};
+    localtime_r(&t, &tm);
+
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%dT%H-%M-%SZ");
+
+    return type + "_" + oss.str() + ".tar.gz";
+}
+
 types::system::UploadLogsResponse
 systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_request) {
 
@@ -623,10 +638,7 @@ systemImpl::handle_upload_logs(types::system::UploadLogsRequest& upload_logs_req
         response.upload_logs_status = types::system::UploadLogsStatus::Accepted;
     }
 
-    const auto date_time = Everest::Date::to_rfc3339(date::utc_clock::now());
-    // TODO(piet): consider start time and end time
-
-    const auto diagnostics_file_name = "diagnostics" + date_time + ".tar.gz";
+    const auto diagnostics_file_name = this->create_logs_filename(upload_logs_request.type.value_or("diagnostics"));
     const auto diagnostics_file_path = fs::temp_directory_path() / diagnostics_file_name;
     EVLOG_info << "Diagnostics file: " << diagnostics_file_path;
 
