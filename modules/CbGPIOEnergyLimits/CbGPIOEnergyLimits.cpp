@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH, Pionix GmbH and Contributors to EVerest
 #include "CbGPIOEnergyLimits.hpp"
+#include <poll.h>
 #include <gpiodUtils.hpp>
 #include <chrono>
 
@@ -80,22 +81,45 @@ std::size_t CbGPIOEnergyLimits::get_gpios() {
 }
 
 void CbGPIOEnergyLimits::ready() {
+    struct pollfd fds[this->gpios.size()];
+    int rv;
 
-    std::size_t idx = this->get_gpios();
-
-    if (idx > this->limits.size() - 1) {
-        EVLOG_error << "Determined index of limits table out-of-range!";
-        return;
+    for (size_t i = 0; i < this->gpios.size(); ++i) {
+        fds[i].fd = this->gpios[i]->fd();
+        fds[i].events = POLLIN;
     }
 
-    auto [current_limit_A, max_phase_count] = this->limits[idx];
+    do {
+        // read the current GPIO state
+        std::size_t idx = this->get_gpios();
 
-    EVLOG_info << "Limiting to " << current_limit_A << " A/phase, "
-               << (max_phase_count.has_value()
-                       ? (std::string("w/ max phase count of ") + std::to_string(max_phase_count.value()))
-                       : "w/o max phase count");
+        if (idx < this->limits.size()) {
+            auto [current_limit_A, max_phase_count] = this->limits[idx];
 
-    this->apply_new_limit(current_limit_A, max_phase_count);
+            EVLOG_info << "Limiting to " << current_limit_A << " A/phase, "
+                       << (max_phase_count.has_value()
+                               ? (std::string("w/ max phase count of ") + std::to_string(max_phase_count.value()))
+                               : "w/o max phase count");
+
+            this->apply_new_limit(current_limit_A, max_phase_count);
+        } else {
+            EVLOG_error << "Determined index of limits table is out of range! Ignored.";
+        }
+
+        // sleep until any of the GPIO lines reported an event
+        rv = poll(fds, this->gpios.size(), -1);
+        if (rv > 0) {
+            // we don't really care about the actual events since we just loop and
+            // read the actual GPIO state again in the loop above,
+            // but we need to flush the events
+            for (size_t i = 0; i < this->gpios.size(); ++i) {
+                if (fds[i].revents & POLLIN) {
+                    gpiod::edge_event_buffer buf;
+                    this->gpios[i]->read_edge_events(buf);
+                }
+            }
+        }
+    } while (rv >= 0);
 }
 
 void CbGPIOEnergyLimits::init_dt_compatibles_list() {
@@ -146,7 +170,7 @@ GpioLineRequest CbGPIOEnergyLimits::acquire_gpio(const GpioLine& line) {
     line_settings.set_active_low(active_low);
 
     // a hard-coded value should do for here
-    std::chrono::microseconds debounce_ms {25ms};
+    std::chrono::microseconds debounce_ms {50ms};
     line_settings.set_debounce_period(debounce_ms);
 
     return std::make_unique<gpiod::line_request>(
