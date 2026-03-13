@@ -90,7 +90,7 @@ private:
     std::size_t get_gpios();
 
     // list of limits (max current and optional a max phase count);
-    // the list should have an entry for each possible item which use can encode
+    // the list should have an entry for each possible item which user can encode
     std::vector<LimitItem> limits;
 
     // helper to publish (new) limit to all linked energy nodes
