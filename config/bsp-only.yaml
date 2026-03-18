@@ -9,25 +9,54 @@ active_modules:
       evse_manager:
         - module_id: connector
           implementation_id: evse
+      evse_energy_sink:
+        - module_id: grid_connection_point
+          implementation_id: external_limits
       error_history:
         - module_id: error_history
           implementation_id: error_history
-  tarragon_bsp:
+  rpc_api:
+    module: RpcApi
+    connections:
+      evse_manager:
+        - module_id: connector
+          implementation_id: evse
+      evse_energy_sink:
+        - module_id: grid_connection_point
+          implementation_id: external_limits
+      charger_information:
+        - module_id: charger_info
+          implementation_id: main
+  charger_info:
+    module: ChargerInfo
+    config_module:
+      firmware_version_file: /usr/share/secc/VERSION
+    connections:
+      kvs:
+        - module_id: kvs
+          implementation_id: main
+  kvs:
+    module: YamlStore
+    config_module:
+      file: /etc/everest/charger_info.yaml
+  bsp:
     module: CbTarragonDriver
     config_module:
       contactor_1_feedback_type: none
-      relay_2_name: none
   tarragon_dig_in_ref:
     module: CbTarragonDIs
   connector:
     module: EvseManager
+    mapping:
+      module:
+        evse: 1
     config_module:
       connector_id: 1
       has_ventilation: false
       disable_authentication: true
     connections:
       bsp:
-        - module_id: tarragon_bsp
+        - module_id: bsp
           implementation_id: evse_board_support
   energy_manager:
     module: EnergyManager
@@ -37,6 +66,9 @@ active_modules:
           implementation_id: energy_grid
   grid_connection_point:
     module: EnergyNode
+    mapping:
+      module:
+        evse: 1
     config_module:
       fuse_limit_A: 16
       phase_count: 3
