@@ -69,7 +69,7 @@ private:
     bool log_upload_running {false};
     bool standard_firmware_update_running {false};
     bool firmware_download_running {false};
-    bool firmware_installation_running {false};
+    std::atomic<bool> firmware_installation_running {false};
     types::system::BootReason boot_reason {types::system::BootReason::PowerUp};
 
     std::condition_variable log_upload_cv;
