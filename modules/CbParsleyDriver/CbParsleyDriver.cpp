@@ -45,7 +45,7 @@ void CbParsleyDriver::init() {
 
     // instantiate UART controller object for communication with safety controller
     this->controller.init(this->config.reset_gpio_line_name, this->config.reset_active_low, this->config.serial_port,
-                          this->config.serial_trace);
+                          this->config.serial_trace, this->config.can_mirror_device);
 
     EVLOG_info << "Safety Controller Firmware: " << this->controller.get_fw_info();
 
