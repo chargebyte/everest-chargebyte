@@ -211,6 +211,11 @@ void InfypowerCANController::setup_can_bcm() {
         // now we have the current and use the cached voltage value
         float v = std::abs(static_cast<float>(this->received_voltage) / 1000.0f);
         float c = std::abs(static_cast<float>(this->received_current) / 1000.0f);
+        if (this->import_mode_enabled) {
+            // According to ISO 15118-20 V2G20-1034 / V2G20-1035,
+            // negative current indicates EV -> EVSE power transfer (discharging).
+            c = -c;
+        }
         this->on_vc_update(v, c);
     });
     this->can_bcm_cmds.push_back(std::move(cmd_c));
@@ -391,6 +396,8 @@ void InfypowerCANController::set_import_mode(bool enable_import) {
             throw std::runtime_error(os.str());
         }
     }
+
+    this->import_mode_enabled = enable_import;
 }
 
 void InfypowerCANController::set_enable(bool enable) {
