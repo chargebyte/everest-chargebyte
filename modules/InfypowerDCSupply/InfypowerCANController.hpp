@@ -96,6 +96,9 @@ private:
     /// @brief Remembers the user configured power module type
     std::string dc_module_type;
 
+    /// @brief Remembers whether the power module is currently in import mode
+    std::atomic_bool import_mode_enabled {false};
+
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};
 

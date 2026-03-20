@@ -2,6 +2,7 @@
 // Copyright Pionix GmbH and Contributors to EVerest
 
 #include <ios>
+#include <cmath>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
@@ -9,6 +10,24 @@
 
 namespace module {
 namespace main {
+
+namespace {
+constexpr double voltage_log_threshold_v = 0.5;
+constexpr double current_log_threshold_a = 0.2;
+
+bool should_log_setpoint(std::optional<double>& last_voltage, std::optional<double>& last_current, double voltage,
+                         double current) {
+    if (!last_voltage.has_value() || !last_current.has_value() ||
+        std::abs(voltage - *last_voltage) >= voltage_log_threshold_v ||
+        std::abs(current - *last_current) >= current_log_threshold_a) {
+        last_voltage = voltage;
+        last_current = current;
+        return true;
+    }
+
+    return false;
+}
+} // namespace
 
 void power_supply_DCImpl::init() {
 }
@@ -88,6 +107,13 @@ void power_supply_DCImpl::handle_setMode(types::power_supply_DC::Mode& mode,
 
     EVLOG_info << "handle_setMode(" << mode << ", " << phase << ")";
 
+    if (mode != this->last_logged_mode) {
+        last_logged_export_voltage.reset();
+        last_logged_export_current.reset();
+        last_logged_import_voltage.reset();
+        last_logged_import_current.reset();
+    }
+
     try {
         switch (mode) {
         case types::power_supply_DC::Mode::Export:
@@ -104,6 +130,7 @@ void power_supply_DCImpl::handle_setMode(types::power_supply_DC::Mode& mode,
 
         // finally report the current mode
         this->publish_mode(mode);
+        this->last_logged_mode = mode;
 
     } catch (std::runtime_error& e) {
         this->raise_error("power_supply_DC/VendorError", "", e.what());
@@ -113,8 +140,10 @@ void power_supply_DCImpl::handle_setMode(types::power_supply_DC::Mode& mode,
 void power_supply_DCImpl::handle_setExportVoltageCurrent(double& voltage, double& current) {
     std::scoped_lock lock(this->mutex);
 
-    EVLOG_info << std::fixed << std::setprecision(1) << "handle_setExportVoltageCurrent(" << voltage << " V, "
-               << current << " A)";
+    if (should_log_setpoint(this->last_logged_export_voltage, this->last_logged_export_current, voltage, current)) {
+        EVLOG_info << std::fixed << std::setprecision(1) << "handle_setExportVoltageCurrent(" << voltage << " V, "
+                   << current << " A)";
+    }
     try {
         this->mod->controller.set_voltage_current(voltage, current);
 
@@ -135,8 +164,10 @@ void power_supply_DCImpl::handle_setImportVoltageCurrent(double& voltage, double
     else
         cutoff_voltage = voltage;
 
-    EVLOG_info << std::fixed << std::setprecision(1) << "handle_setImportVoltageCurrent(" << voltage << " V, "
-               << current << " A, using cut-off voltage of " << cutoff_voltage << " V)";
+    if (should_log_setpoint(this->last_logged_import_voltage, this->last_logged_import_current, voltage, current)) {
+        EVLOG_info << std::fixed << std::setprecision(1) << "handle_setImportVoltageCurrent(" << voltage << " V, "
+                   << current << " A, using cut-off voltage of " << cutoff_voltage << " V)";
+    }
 
     try {
         this->mod->controller.set_import_cutoff_voltage(cutoff_voltage);

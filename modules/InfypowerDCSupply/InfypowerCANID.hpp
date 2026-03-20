@@ -20,8 +20,7 @@
 // clang-format on
 
 // not all values are specified
-enum class error_code : unsigned char
-{
+enum class error_code : unsigned char {
     normal = 0x00,
     cmd_invalid = 0x02,
     data_invalid = 0x03,
@@ -31,8 +30,7 @@ enum class error_code : unsigned char
 std::ostream& operator<<(std::ostream& os, const error_code& ec);
 
 // there are only two directions: controller to single module vs. controller to module group
-enum class device_no : unsigned char
-{
+enum class device_no : unsigned char {
     single_module = 0x0A,
     module_group = 0x0B,
 };
@@ -41,8 +39,7 @@ std::ostream& operator<<(std::ostream& os, const device_no& dn);
 
 // Note: not all commands are understood by each power module series!
 // For example, the BEC/BEG series only use 0x23 and 0x24.
-enum class cmd : unsigned char
-{
+enum class cmd : unsigned char {
     read_system_info_01 = 0x01,
     read_system_info_02 = 0x02,
     read_module_info_03 = 0x03,
