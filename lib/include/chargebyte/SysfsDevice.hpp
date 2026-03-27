@@ -1,3 +1,5 @@
+// Copyright © 2026 chargebyte GmbH
+// SPDX-License-Identifier: Apache-2.0
 #pragma once
 #include <filesystem>
 #include <string>

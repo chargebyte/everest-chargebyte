@@ -4,8 +4,8 @@
 #include <string>
 #include <memory>
 #include <gpiod.hpp>
-#include <IIOADC.hpp>
-#include <IIOADCUtils.hpp>
+#include <chargebyte/IIOADC.hpp>
+#include <chargebyte/IIOADCUtils.hpp>
 
 ///
 /// A class for abstracting an IIO ADC device for Control Pilot on Tarragon platform.

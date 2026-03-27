@@ -4,9 +4,9 @@
 #include <stdexcept>
 #include <string>
 #include <gpiod.hpp>
-#include <gpiodUtils.hpp>
-#include <IIOADC.hpp>
-#include <IIOADCUtils.hpp>
+#include <chargebyte/gpiodUtils.hpp>
+#include <chargebyte/IIOADC.hpp>
+#include <chargebyte/IIOADCUtils.hpp>
 #include "CbTarragonCPADC.hpp"
 
 CbTarragonCPADC::CbTarragonCPADC(void) {

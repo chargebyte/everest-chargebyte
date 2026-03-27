@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #include <everest/logging.hpp>
-#include <PWM.hpp>
-#include <PWMChip.hpp>
+#include <chargebyte/PWM.hpp>
+#include <chargebyte/PWMChip.hpp>
 
 #include "CbTarragonDIPWM.hpp"
 

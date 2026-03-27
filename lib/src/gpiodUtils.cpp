@@ -1,10 +1,12 @@
+// Copyright © 2026 chargebyte GmbH
+// SPDX-License-Identifier: Apache-2.0
 #include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <gpiod.hpp>
-#include "gpiodUtils.hpp"
+#include <chargebyte/gpiodUtils.hpp>
 
 gpiod::line_request get_gpioline_by_name(const std::string& name, const std::string& consumer,
                                          const gpiod::line_settings& settings) {

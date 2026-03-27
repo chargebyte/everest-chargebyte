@@ -1,10 +1,12 @@
+// Copyright © 2026 chargebyte GmbH
+// SPDX-License-Identifier: Apache-2.0
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include "SysfsDevice.hpp"
-#include "IIOADC.hpp"
+#include <chargebyte/SysfsDevice.hpp>
+#include <chargebyte/IIOADC.hpp>
 
 IIOADC::IIOADC(void) {
 }

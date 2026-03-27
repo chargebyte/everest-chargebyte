@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #include <string>
-#include "IIOADC.hpp"
+#include <chargebyte/IIOADC.hpp>
+
 //
 // A class for abstracting the capacitor sense handling
 //

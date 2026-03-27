@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 
 /* Files under test */
-#include <CPUtils.hpp>
+#include <chargebyte/linux_hw/CPUtils.hpp>
 
 using namespace types::cb_board_support;
 using namespace CPUtils;
 
-/// @brief check_for_cp_state_changes - good test cases 
+/// @brief check_for_cp_state_changes - good test cases
 /// @details Test the check_for_cp_state_changes function with different previous, current and measured states
 ///          to check if the correct state change is detected.
 TEST(CPUtilsTest, check_for_cp_errors_good_cases) {
@@ -92,7 +92,7 @@ TEST(CPUtilsTest, check_for_cp_errors_diode_fault) {
     EXPECT_TRUE(cp_errors.diode_fault.is_active);
     EXPECT_FALSE(cp_errors.pilot_fault.is_active);
     EXPECT_FALSE(cp_errors.ventilation_fault.is_active);
-    EXPECT_FALSE(cp_errors.cp_short_fault.is_active);    
+    EXPECT_FALSE(cp_errors.cp_short_fault.is_active);
 
     // Clear diode fault with CP state A
     current_cp_state = CPState::A;
@@ -100,7 +100,7 @@ TEST(CPUtilsTest, check_for_cp_errors_diode_fault) {
     EXPECT_FALSE(is_error);
     EXPECT_FALSE(cp_errors.diode_fault.is_active);
 
-    // Try to trigger diode fault in CP state A. This should not lead to an error, 
+    // Try to trigger diode fault in CP state A. This should not lead to an error,
     // because in A we assume the EV is disconnected
     current_cp_state = CPState::A;
     is_error = CPUtils::check_for_cp_errors(cp_errors, current_cp_state, 50, -12000 /*mV*/, 13000 /*mV*/);
@@ -139,7 +139,7 @@ TEST(CPUtilsTest, check_for_cp_errors_pilot_fault) {
 /// @brief CPUtilsTest: check_for_cp_errors - CP short fault test cases
 /// @details Conditions: 100 % or 0% duty cycle:  If a state transition to E is detected
 ///          Nominal duty cycle: If positive side below 2V and the difference between the absolute values
-///          of the voltages from negative and positive is smaller or equal then 1,2V 
+///          of the voltages from negative and positive is smaller or equal then 1,2V
 TEST(CPUtilsTest, check_for_cp_errors_CP_short_fault) {
     // Trigger CP short fault. Check upper boundary
     cp_state_errors cp_errors {};

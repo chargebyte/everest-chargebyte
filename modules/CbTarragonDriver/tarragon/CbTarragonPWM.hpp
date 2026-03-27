@@ -4,7 +4,7 @@
 #include <string>
 #include <memory>
 #include <gpiod.hpp>
-#include <PWM.hpp>
+#include <chargebyte/PWM.hpp>
 
 ///
 /// A class for abstracting a PWM device for Control Pilot on Tarragon platform.
