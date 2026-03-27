@@ -28,6 +28,7 @@ struct Conf {
     std::string serial_port;
     bool serial_debug;
     bool serial_trace;
+    std::string can_mirror_device;
     std::string reset_gpio_line_name;
     bool reset_active_low;
     std::string pt1000_1_identification;
