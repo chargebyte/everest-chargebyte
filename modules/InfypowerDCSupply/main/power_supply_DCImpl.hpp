@@ -16,6 +16,7 @@
 // insert your custom include headers here
 #include <atomic>
 #include <mutex>
+#include <optional>
 #include <string>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
@@ -81,6 +82,16 @@ private:
     ///        underlying floats (which may have only a small change) and thus can focus on
     ///        what the developer sees.
     std::string last_vc_dbgmsg;
+
+    /// @brief Remember last logged export setpoints to suppress insignificant EVLOG_info updates.
+    std::optional<double> last_logged_export_voltage;
+    std::optional<double> last_logged_export_current;
+
+    /// @brief Remember last logged import setpoints to suppress insignificant EVLOG_info updates.
+    std::optional<double> last_logged_import_voltage;
+    std::optional<double> last_logged_import_current;
+
+    types::power_supply_DC::Mode last_logged_mode {types::power_supply_DC::Mode::Off};
 
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
