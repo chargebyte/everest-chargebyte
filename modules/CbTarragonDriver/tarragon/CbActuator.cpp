@@ -5,7 +5,7 @@
 #include <ostream>
 #include <string>
 #include <gpiod.hpp>
-#include <gpiodUtils.hpp>
+#include <chargebyte/gpiodUtils.hpp>
 #include "CbActuator.hpp"
 
 CbActuator::CbActuator(const std::string& name, const std::vector<std::string>& gpio_line_names) :

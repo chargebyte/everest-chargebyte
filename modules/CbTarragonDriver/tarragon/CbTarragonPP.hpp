@@ -3,7 +3,7 @@
 #pragma once
 #include <string>
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
-#include <IIOADC.hpp>
+#include <chargebyte/IIOADC.hpp>
 
 ///
 /// A class for interpreting a measured ADC value for Proximity Pilot evaluation on Tarragon platform.

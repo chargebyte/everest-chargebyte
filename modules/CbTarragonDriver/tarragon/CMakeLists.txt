@@ -19,14 +19,12 @@ target_sources(tarragon
         "CbTarragonContactorControlMutual.cpp"
 )
 
-get_property(LINUX_HW_INCLUDE_DIR GLOBAL PROPERTY LINUX_HW_INCLUDE_DIR)
 get_property(CP_INCLUDE_DIR GLOBAL PROPERTY CP_INCLUDE_DIR)
 
 get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
 
 target_include_directories(tarragon
-    PRIVATE 
-        ${LINUX_HW_INCLUDE_DIR}
+    PRIVATE
         ${CP_INCLUDE_DIR}
         ${GENERATED_INCLUDE_DIR}
     )
@@ -35,7 +33,7 @@ add_dependencies(tarragon generate_cpp_files)
 
 target_link_libraries(tarragon
     PRIVATE
-        utils::linux_hw
+        chargebyte::utils
         everest::framework
         everest::log
 )

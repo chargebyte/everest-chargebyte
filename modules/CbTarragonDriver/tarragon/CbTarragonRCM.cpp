@@ -2,7 +2,7 @@
 // Copyright chargebyte GmbH and Contributors to EVerest
 #include "CbTarragonRCM.hpp"
 #include <gpiod.hpp>
-#include <gpiodUtils.hpp>
+#include <chargebyte/gpiodUtils.hpp>
 #include <chrono>
 
 CbTarragonRCM::CbTarragonRCM() {

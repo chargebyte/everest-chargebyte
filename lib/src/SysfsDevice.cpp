@@ -1,7 +1,9 @@
+// Copyright © 2026 chargebyte GmbH
+// SPDX-License-Identifier: Apache-2.0
 #include <fstream>
 #include <filesystem>
 #include <iostream>
-#include "SysfsDevice.hpp"
+#include <chargebyte/SysfsDevice.hpp>
 
 SysfsDevice::SysfsDevice(void) {
 }

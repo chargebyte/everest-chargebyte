@@ -1,8 +1,10 @@
+// Copyright © 2026 chargebyte GmbH
+// SPDX-License-Identifier: Apache-2.0
 #include <chrono>
 #include <cmath>
 #include <stdexcept>
 #include <string>
-#include "PWM.hpp"
+#include <chargebyte/PWM.hpp>
 
 PWM::PWM(void) {
 }

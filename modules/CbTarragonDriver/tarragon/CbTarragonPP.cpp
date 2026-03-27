@@ -2,7 +2,7 @@
 // Copyright chargebyte GmbH and Contributors to EVerest
 #include <chrono>
 #include <stdexcept>
-#include <IIOADCUtils.hpp>
+#include <chargebyte/IIOADCUtils.hpp>
 #include "CbTarragonPP.hpp"
 
 CbTarragonPP::CbTarragonPP(void) {

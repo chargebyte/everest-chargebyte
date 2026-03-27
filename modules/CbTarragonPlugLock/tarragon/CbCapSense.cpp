@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
+#include <chargebyte/IIOADCUtils.hpp>
 #include "CbCapSense.hpp"
-#include "IIOADCUtils.hpp"
 #include "CbLockSense.hpp"
 
 CbCapSense::CbCapSense(void) {

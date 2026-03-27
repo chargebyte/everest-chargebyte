@@ -6,9 +6,9 @@
 #include <string>
 #include <thread>
 #include <gpiod.hpp>
-#include <PWM.hpp>
-#include <PWMChip.hpp>
-#include <gpiodUtils.hpp>
+#include <chargebyte/PWM.hpp>
+#include <chargebyte/PWMChip.hpp>
+#include <chargebyte/gpiodUtils.hpp>
 #include <CPUtils.hpp>
 
 #include "CbTarragonPWM.hpp"

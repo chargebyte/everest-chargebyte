@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #include <string>
-#include "IIOADC.hpp"
+#include <chargebyte/IIOADC.hpp>
 
 /// @brief reference voltage which is used to scale capacitor voltage
 static constexpr unsigned int ADC_REF_VOLTAGE {3300};

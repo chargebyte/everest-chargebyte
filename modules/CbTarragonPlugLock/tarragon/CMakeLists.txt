@@ -7,15 +7,15 @@ target_sources(${MODULE_NAME}
         "CbCapSense.cpp"
 )
 
-get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
+#get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
 
-target_include_directories(${MODULE_NAME} PRIVATE ${GENERATED_INCLUDE_DIR})
+#target_include_directories(${MODULE_NAME} PRIVATE ${GENERATED_INCLUDE_DIR})
 
-add_dependencies(${MODULE_NAME} generate_cpp_files)
+#add_dependencies(${MODULE_NAME} generate_cpp_files)
 
 target_link_libraries(${MODULE_NAME}
     PRIVATE
-        utils::linux_hw
-        everest::framework
+        chargebyte::utils
+#        everest::framework
         everest::log
 )

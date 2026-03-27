@@ -25,14 +25,13 @@ target_link_libraries(${MODULE_NAME}
     PRIVATE
         tarragon
         utils::cp
+        chargebyte::utils
 )
 
-get_property(LINUX_HW_INCLUDE_DIR GLOBAL PROPERTY LINUX_HW_INCLUDE_DIR)
 get_property(CP_INCLUDE_DIR GLOBAL PROPERTY CP_INCLUDE_DIR)
 
 target_include_directories(${MODULE_NAME}
     PRIVATE
-        ${LINUX_HW_INCLUDE_DIR}
         ${CP_INCLUDE_DIR}
         ${TARRAGON_INCLUDE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}

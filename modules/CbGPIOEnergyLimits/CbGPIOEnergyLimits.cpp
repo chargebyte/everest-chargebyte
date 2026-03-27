@@ -2,8 +2,8 @@
 // Copyright chargebyte GmbH, Pionix GmbH and Contributors to EVerest
 #include "CbGPIOEnergyLimits.hpp"
 #include <poll.h>
-#include <gpiodUtils.hpp>
 #include <chrono>
+#include <chargebyte/gpiodUtils.hpp>
 
 using namespace std::chrono_literals;
 

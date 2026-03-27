@@ -32,7 +32,10 @@ else()
     find_package(everest-core REQUIRED)
 endif()
 
-# gpiod and CP utils
+# library with utils/helpers
+add_subdirectory("lib")
+
+# CP utils
 add_subdirectory("utils")
 
 # make custom interfaces and types visible

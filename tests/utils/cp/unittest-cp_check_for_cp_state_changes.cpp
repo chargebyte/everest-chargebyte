@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 /* Files under test */
-#include <CPUtils.hpp>
+#include <chargebyte/linux_hw/CPUtils.hpp>
 
 using namespace types::cb_board_support;
 
@@ -67,7 +67,7 @@ TEST(check_for_cp_state_changes, Test_6) {
     EXPECT_FALSE(CPUtils::check_for_cp_state_changes(cp_state, CPState::B));
 }
 
-/* Test 7: Configure 'A' after the first 'A' disturbance: 
+/* Test 7: Configure 'A' after the first 'A' disturbance:
  * Shall lead to a detected CP change after the disturbance */
 /// @brief Test 7: Configure 'A' after the first 'A' disturbance. Shall lead to a detected CP change after the
 ///                disturbance
