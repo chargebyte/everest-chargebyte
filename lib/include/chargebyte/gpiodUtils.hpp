@@ -30,3 +30,14 @@ gpiod::line_request get_gpioline_by_name(const std::string& name, const std::str
 /// @return A `gpiod::line_request` instance if the GPIO was found. Otherwise an exception is raised.
 gpiod::line_request get_gpiolines_by_name(const std::vector<std::string>& names, const std::string& consumer,
                                           const gpiod::line_settings& settings);
+
+///
+/// Return the current/actual state of a given GPIO line. Uses `get_gpioline_by_name` internally, so
+/// all restrictions and remarks are valid here, too.
+///
+/// @brief  Acquire the given GPIO, return its current value and release the GPIO.
+/// @param  name The name of the GPIO line to inspect.
+/// @param  active_low Whether the GPIO line should be threated with active-low semantic.
+/// @param  consumer A string which is passed to the kernel as 'user' for this GPIO line.
+/// @return True, whether the GPIO line is/was active, false otherwise.
+bool get_gpioline_state_by_name(const std::string& name, bool active_low, const std::string& consumer);
