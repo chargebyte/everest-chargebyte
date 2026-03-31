@@ -55,6 +55,8 @@ struct Conf {
     bool rcm_enable;
     std::string rcm_fault_gpio_line_name;
     bool rcm_fault_active_low;
+    std::string grid_phase_count_gpio_line_name;
+    bool grid_phase_count_active_low;
 };
 
 class CbTarragonDriver : public Everest::ModuleBase {
