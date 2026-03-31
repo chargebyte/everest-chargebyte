@@ -17,48 +17,30 @@ void CbGPIOEnergyLimits::init() {
 
     if (this->is_dt_compatible({"chargebyte,imx6ull-tarragon-master", "chargebyte,imx6ull-tarragon-slave",
                                 "chargebyte,imx6ull-tarragon-slavext", "chargebyte,imx6ull-tarragon-micro"})) {
-        // current limit, phase count
+        // phase count limit is evaluated by BSP so not considered here
         this->limits = {
-            {6.0f, 1}, {10.0f, 1}, {13.0f, 1}, {16.0f, 1}, {20.0f, 1}, {32.0f, 1}, {40.0f, 1}, {63.0f, 1},
-            {6.0f, 3}, {10.0f, 3}, {13.0f, 3}, {16.0f, 3}, {20.0f, 3}, {32.0f, 3}, {40.0f, 3}, {63.0f, 3},
+            {6.0f, std::nullopt},  {10.0f, std::nullopt}, {13.0f, std::nullopt}, {16.0f, std::nullopt},
+            {20.0f, std::nullopt}, {32.0f, std::nullopt}, {40.0f, std::nullopt}, {63.0f, std::nullopt},
         };
 
         gpio_lines = {
             {"ROTARY_SWITCH_1_1_N", true},
             {"ROTARY_SWITCH_1_2_N", true},
             {"ROTARY_SWITCH_1_4_N", true},
-            {"ROTARY_SWITCH_1_8_N", true},
         };
     }
 
-    if (this->is_dt_compatible("chargebyte,imx93-charge-som")) {
-        // customer has no phase count limit per user manual, only current
+    if (this->is_dt_compatible("chargebyte,imx93-ac-power-board")) {
+        // phase count limit is evaluated by BSP so not considered here
         this->limits = {
-            // first items are not covered by user manual
-            {6.0f, std::nullopt},
-            {6.0f, std::nullopt},
-            {6.0f, std::nullopt},
-            {6.0f, std::nullopt},
-            {6.0f, std::nullopt},
-            {6.0f, std::nullopt},
-            {6.0f, std::nullopt},
-            {6.0f, std::nullopt},
-            // only the below ones are documented
-            {6.0f, std::nullopt},
-            {7.0f, std::nullopt},
-            {8.0f, std::nullopt},
-            {9.0f, std::nullopt},
-            {10.0f, std::nullopt},
-            {12.0f, std::nullopt},
-            {13.0f, std::nullopt},
-            {16.0f, std::nullopt},
+            {6.0f, std::nullopt},  {7.0f, std::nullopt},  {8.0f, std::nullopt},  {9.0f, std::nullopt},
+            {10.0f, std::nullopt}, {12.0f, std::nullopt}, {13.0f, std::nullopt}, {16.0f, std::nullopt},
         };
 
         gpio_lines = {
             {"CURRENT_SETTING_4", false},
             {"CURRENT_SETTING_3", false},
             {"CURRENT_SETTING_2", false},
-            {"CURRENT_SETTING_1", false},
         };
     }
 
