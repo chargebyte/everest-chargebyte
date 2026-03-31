@@ -1,5 +1,6 @@
 // Copyright © 2026 chargebyte GmbH
 // SPDX-License-Identifier: Apache-2.0
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
@@ -7,6 +8,8 @@
 #include <vector>
 #include <gpiod.hpp>
 #include <chargebyte/gpiodUtils.hpp>
+
+using namespace std::chrono_literals;
 
 gpiod::line_request get_gpioline_by_name(const std::string& name, const std::string& consumer,
                                          const gpiod::line_settings& settings) {
@@ -92,4 +95,23 @@ gpiod::line_request get_gpiolines_by_name(const std::vector<std::string>& names,
 
     throw std::runtime_error("No GPIO bank found which provides all GPIO lines (" +
                              join_into_string_with_quotes(names) + ").");
+}
+
+bool get_gpioline_state_by_name(const std::string& name, bool active_low, const std::string& consumer) {
+
+    gpiod::line_settings line_settings;
+    line_settings.set_direction(gpiod::line::direction::INPUT);
+    line_settings.set_active_low(active_low);
+
+    // a hard-coded value should do for here
+    std::chrono::microseconds debounce_ms{50ms};
+    line_settings.set_debounce_period(debounce_ms);
+
+    auto line_request = get_gpioline_by_name(name, consumer, line_settings);
+
+    bool rv = line_request.get_value(line_request.offsets()[0]) == gpiod::line::value::ACTIVE;
+
+    line_request.release();
+
+    return rv;
 }
