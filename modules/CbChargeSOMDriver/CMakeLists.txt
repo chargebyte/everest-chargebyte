@@ -27,6 +27,7 @@ configure_file(VERSION.in VERSION @ONLY)
 target_link_libraries(${MODULE_NAME}
     PRIVATE
         utils::cp
+        chargebyte::utils
         chargesom
         Pal::Sigslot
         nlohmann_json::nlohmann_json
