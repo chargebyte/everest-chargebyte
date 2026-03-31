@@ -9,6 +9,7 @@
 #include <generated/types/cb_board_support.hpp>
 #include <CPUtils.hpp>
 #include "evse_board_supportImpl.hpp"
+#include <chargebyte/gpiodUtils.hpp>
 
 const std::string safestate_active_error_subtype = "Safe State";
 
@@ -47,13 +48,36 @@ void evse_board_supportImpl::init() {
     this->hw_capabilities.min_current_A_export = this->mod->config.min_current_A;
     this->hw_capabilities.max_current_A_export = this->mod->config.max_current_A;
 
-    // the Charge SOM is currently intended for DC only, there is no support in the
-    // safety controller firmware for AC nor phase count switching yet
-    this->hw_capabilities.supports_changing_phases_during_charging = false;
-    this->hw_capabilities.max_phase_count_import = 3;
-    this->hw_capabilities.min_phase_count_import = 3;
-    this->hw_capabilities.max_phase_count_export = 3;
-    this->hw_capabilities.min_phase_count_export = 3;
+    // assume 3 phase wiring as default
+    auto max_phase_count = 3;
+    bool support_3ph1ph = false;
+
+    // - double check whether there is a runtime switch on the board which might be
+    //   configured by user for single phase operation
+    if (!this->mod->config.grid_phase_count_gpio_line_name.empty()) {
+        if (get_gpioline_state_by_name(this->mod->config.grid_phase_count_gpio_line_name,
+                                       this->mod->config.grid_phase_count_active_low, "CbChargeSOMDriver")) {
+            // GPIO indicates three phase wiring
+            // so we don't need to adjust max_phase_count and we cannot tell whether
+            // phase count switching is support (keeping the value determined above)
+            EVLOG_info << "3-phase wiring mode";
+        } else {
+            // GPIO indicates/restricts to single phase mode
+            if (support_3ph1ph) {
+                EVLOG_info << "1-phase wiring mode (phase count switching disabled)";
+            } else {
+                EVLOG_info << "1-phase wiring mode";
+            }
+            max_phase_count = 1;
+            support_3ph1ph = false;
+        }
+    }
+
+    this->hw_capabilities.supports_changing_phases_during_charging = support_3ph1ph;
+    this->hw_capabilities.max_phase_count_import = max_phase_count;
+    this->hw_capabilities.min_phase_count_import = support_3ph1ph ? 1 : max_phase_count;
+    this->hw_capabilities.max_phase_count_export = max_phase_count;
+    this->hw_capabilities.min_phase_count_export = support_3ph1ph ? 1 : max_phase_count;
 
     this->hw_capabilities.connector_type =
         types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);

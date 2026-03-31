@@ -36,6 +36,8 @@ struct Conf {
     std::string pt1000_2_identification;
     std::string pt1000_3_identification;
     std::string pt1000_4_identification;
+    std::string grid_phase_count_gpio_line_name;
+    bool grid_phase_count_active_low;
 };
 
 class CbChargeSOMDriver : public Everest::ModuleBase {
