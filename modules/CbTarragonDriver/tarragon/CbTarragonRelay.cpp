@@ -59,6 +59,10 @@ void CbTarragonRelay::start(bool use_feedback, bool active_low) {
         this->feedback = std::make_unique<gpiod::line_request>(get_gpioline_by_name(
             this->feedback_gpio_line_name, "CbTarragonRelay (" + this->relay_name + ", sense)", line_settings));
 
+        // tell the upcoming monitor that we expect an "off" from the feedback and thus
+        // we could also see a falling edge (which is then not a spurious change anymore)
+        this->set_expected_edge(false);
+
         // start feedback handling thread
         this->feedback_monitor = std::thread(&CbTarragonRelay::feedback_monitor_worker, this);
     }
