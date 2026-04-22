@@ -6,6 +6,7 @@ ev_register_library_target(cb-utils)
 
 target_sources(cb-utils
     PRIVATE
+        src/dt.cpp
         src/gpiodUtils.cpp
         src/IIOADC.cpp
         src/IIOADCUtils.cpp

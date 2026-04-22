@@ -3,20 +3,23 @@
 #include "CbGPIOEnergyLimits.hpp"
 #include <poll.h>
 #include <chrono>
+#include <chargebyte/dt.hpp>
 #include <chargebyte/gpiodUtils.hpp>
 
 using namespace std::chrono_literals;
+using namespace chargebyte::dt;
 
 namespace module {
 
 void CbGPIOEnergyLimits::init() {
     std::vector<GpioLine> gpio_lines;
 
-    // read DT compatibles
-    this->init_dt_compatibles_list();
+    // the list of DT compatible strings of the board we are running on
+    auto dt_compatibles = read_dt_compatibles();
 
-    if (this->is_dt_compatible({"chargebyte,imx6ull-tarragon-master", "chargebyte,imx6ull-tarragon-slave",
-                                "chargebyte,imx6ull-tarragon-slavext", "chargebyte,imx6ull-tarragon-micro"})) {
+    if (is_dt_compatible(dt_compatibles,
+                         {"chargebyte,imx6ull-tarragon-master", "chargebyte,imx6ull-tarragon-slave",
+                          "chargebyte,imx6ull-tarragon-slavext", "chargebyte,imx6ull-tarragon-micro"})) {
         // phase count limit is evaluated by BSP so not considered here
         this->limits = {
             {6.0f, std::nullopt},  {10.0f, std::nullopt}, {13.0f, std::nullopt}, {16.0f, std::nullopt},
@@ -30,7 +33,7 @@ void CbGPIOEnergyLimits::init() {
         };
     }
 
-    if (this->is_dt_compatible("chargebyte,imx93-ac-power-board")) {
+    if (is_dt_compatible(dt_compatibles, "chargebyte,imx93-ac-power-board")) {
         // phase count limit is evaluated by BSP so not considered here
         this->limits = {
             {6.0f, std::nullopt},  {7.0f, std::nullopt},  {8.0f, std::nullopt},  {9.0f, std::nullopt},
@@ -102,45 +105,6 @@ void CbGPIOEnergyLimits::ready() {
             }
         }
     } while (rv >= 0);
-}
-
-void CbGPIOEnergyLimits::init_dt_compatibles_list() {
-    // the compatible file is list of C strings, separated by NUL bytes
-
-    std::string path = "/proc/device-tree/compatible";
-    std::ifstream f(path, std::ios::binary);
-    if (!f)
-        throw std::runtime_error("Failed to open '" + path + "'");
-
-    std::vector<char> buf((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-
-    std::size_t start = 0;
-    while (start < buf.size()) {
-        std::size_t end = start;
-        while (end < buf.size() && buf[end] != '\0')
-            ++end;
-
-        if (end > start) {
-            this->dt_compatibles.emplace_back(&buf[start], end - start);
-        }
-
-        start = end + 1;
-    }
-}
-
-bool CbGPIOEnergyLimits::is_dt_compatible(const std::string& value) {
-    return std::find(this->dt_compatibles.begin(), this->dt_compatibles.end(), value) != this->dt_compatibles.end();
-}
-
-bool CbGPIOEnergyLimits::is_dt_compatible(std::initializer_list<std::string_view> values) {
-
-    for (std::string_view s : values) {
-        if (std::find(dt_compatibles.begin(), dt_compatibles.end(), s) != dt_compatibles.end()) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 GpioLineRequest CbGPIOEnergyLimits::acquire_gpio(const GpioLine& line) {

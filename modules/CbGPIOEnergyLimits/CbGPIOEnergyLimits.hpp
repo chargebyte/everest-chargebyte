@@ -67,18 +67,6 @@ private:
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
     // insert your private definitions here
 
-    // the list of DT compatible strings of the board we are running on
-    std::vector<std::string> dt_compatibles;
-
-    // helper which initializes the DT compat list
-    void init_dt_compatibles_list();
-
-    // helper to check whether a given value is in the DT compat list
-    bool is_dt_compatible(const std::string& value);
-
-    // helper to check whether one of the given values is in the DT compat list
-    bool is_dt_compatible(std::initializer_list<std::string_view> values);
-
     // holds the acquired GPIO handles
     std::vector<GpioLineRequest> gpios;
 
