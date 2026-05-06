@@ -9,9 +9,11 @@ namespace mcs {
 void cb_mcsImpl::init() {
     // register our callback handlers
     this->mod->controller.on_id_change.connect([&](const types::cb_board_support::IDState& id_state) {
-        EVLOG_info << "ID change detected: " << this->last_id_state << " → " << id_state;
-        this->publish_id_state(id_state);
-        this->last_id_state = id_state;
+        if (this->last_id_state != id_state) {
+            EVLOG_info << "ID change detected: " << this->last_id_state << " → " << id_state;
+            this->publish_id_state(id_state);
+            this->last_id_state = id_state;
+        }
     });
 
     this->mod->controller.on_ce_change.connect([&](const types::cb_board_support::CEState& ce_state) {

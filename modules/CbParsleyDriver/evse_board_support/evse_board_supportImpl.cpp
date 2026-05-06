@@ -83,6 +83,10 @@ void evse_board_supportImpl::init() {
         std::scoped_lock lock(this->cp_mutex);
         auto current_cp_state = cestate_to_cpstate(ce_state);
 
+        // filter out uninitialized value (e.g. after reset)
+        if (current_cp_state == types::cb_board_support::CPState::PowerOn)
+            return;
+
         // B0 is mapped to D; we need to ignore B0 and not forward it here
         if (current_cp_state == types::cb_board_support::CPState::D)
             return;
