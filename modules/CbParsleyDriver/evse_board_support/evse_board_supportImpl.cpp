@@ -223,14 +223,37 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
 }
 
 void evse_board_supportImpl::handle_cp_state_X1() {
-    EVLOG_info << "handle_cp_state_X1: setting new duty cycle of 100.0% (ignored)";
+    if (this->mod->controller.is_emergency() and this->cp_current_state == types::cb_board_support::CPState::C) {
+        EVLOG_info << "handle_cp_state_X1: setting new duty cycle of 100.0% (in safe state)";
+
+        // When safety controller has gone into safe state, then we raised an error to EvseManager.
+        // EvseManagers reaction is to instruct us to go to 100%. A typical EV would switch to
+        // state B then. Here, the safety controller already opened S_s_3 which results in EC.
+        // The safety controller _could_ report EC (or then B0) but in case of CE malfunction,
+        // this could also not happen. To satisfy EvseManager, we report that we see state B.
+        // This prevents loosing sync and the error "Timeout of 6 seconds reached, EV did not
+        // go back to state B after PWM was switched off. Powering off under load.".
+        this->publish_event({types::board_support_common::Event::B});
+    } else {
+        EVLOG_info << "handle_cp_state_X1: setting new duty cycle of 100.0% (ignored)";
+    }
 }
 
 void evse_board_supportImpl::handle_cp_state_F() {
     std::scoped_lock lock(this->cp_mutex);
     try {
-        EVLOG_info << "handle_cp_state_F: generating CP state F (aka EC)";
-
+        if (this->mod->controller.is_emergency()) {
+            EVLOG_info << "handle_cp_state_F: ignored, safe state already active";
+        } else {
+            if (this->cp_current_state == types::cb_board_support::CPState::B) {
+                EVLOG_info << "handle_cp_state_F: forcing safe state (via state B0)";
+            } else if (this->cp_current_state == types::cb_board_support::CPState::C) {
+                EVLOG_info << "handle_cp_state_F: forcing safe state (via state EC)";
+            } else {
+                EVLOG_info << "handle_cp_state_F: forcing safe state (in state A)";
+            }
+        }
+        // we can unconditionally call into the method (it already checks itself)
         this->mod->controller.set_ec_state();
     } catch (std::exception& e) {
         EVLOG_error << e.what();
