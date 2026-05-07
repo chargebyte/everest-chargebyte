@@ -106,6 +106,9 @@ void evse_board_supportImpl::init() {
             this->mod->controller.enable();
         }
 
+        if (current_cp_state == types::cb_board_support::CPState::PilotFault)
+            return;
+
         try {
             const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
             this->publish_event(tmp);
