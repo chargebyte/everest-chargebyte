@@ -201,6 +201,26 @@ void evse_board_supportImpl::init() {
             this->clear_error("evse_board_support/VendorWarning", module_str);
         }
     });
+
+    this->mod->controller.on_id_change.connect([&](const types::cb_board_support::IDState& id_state) {
+        // general note: logging of state changes is already done in MCS interface, so we don't double it here
+
+        // we use ID changes only to have a trigger to recover from emergency states: usually such a reset
+        // is done when EV is disconnected and we see a CE state change from X to A, but in case of
+        // CE malfunction, we might not see it and thus we would be stuck in this state; using ID here
+        // could help to recover
+        // -
+        if (this->cp_current_state == types::cb_board_support::CPState::PilotFault and
+            this->mod->controller.is_emergency() and id_state == types::cb_board_support::IDState::NotConnected) {
+            EVLOG_info << "recovering after safe state (ID triggered)";
+
+            // disable resets the controller
+            this->mod->controller.disable();
+
+            // enable starts UART frame processing again
+            this->mod->controller.enable();
+        }
+    });
 }
 
 void evse_board_supportImpl::ready() {
