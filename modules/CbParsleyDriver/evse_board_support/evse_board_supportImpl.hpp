@@ -71,6 +71,9 @@ private:
     /// @brief Tracks whether this EVSE is enabled or not.
     std::atomic_bool is_enabled {false};
 
+    /// @brief Tracks the last seen CE state.
+    std::atomic<types::cb_board_support::CEState> ce_current_state {types::cb_board_support::CEState::PowerOn};
+
     /// @brief Tracks the last published CP state.
     types::cb_board_support::CPState cp_current_state {types::cb_board_support::CPState::PowerOn};
 

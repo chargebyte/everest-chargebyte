@@ -81,6 +81,14 @@ void evse_board_supportImpl::init() {
 
     this->mod->controller.on_ce_change.connect([&](const types::cb_board_support::CEState& ce_state) {
         std::scoped_lock lock(this->cp_mutex);
+
+        if (this->ce_current_state != ce_state) {
+            EVLOG_info << "CE change detected: " << this->ce_current_state << " → " << ce_state;
+        } else {
+            EVLOG_debug << "CE change detected: " << this->ce_current_state << " → " << ce_state;
+        }
+        this->ce_current_state = ce_state;
+
         auto current_cp_state = cestate_to_cpstate(ce_state);
 
         // filter out uninitialized value (e.g. after reset)
@@ -91,7 +99,7 @@ void evse_board_supportImpl::init() {
         if (current_cp_state == types::cb_board_support::CPState::D)
             return;
 
-        EVLOG_info << "CP state change from " << this->cp_current_state << " to " << current_cp_state;
+        EVLOG_info << "simulate CP change: " << this->cp_current_state << " → " << current_cp_state;
         this->cp_current_state = current_cp_state;
 
         // in case safety controller was in emergency state and EV is gone,
@@ -273,11 +281,11 @@ void evse_board_supportImpl::handle_cp_state_F() {
             EVLOG_info << "handle_cp_state_F: ignored, safe state already active";
         } else {
             if (this->cp_current_state == types::cb_board_support::CPState::B) {
-                EVLOG_info << "handle_cp_state_F: forcing safe state (via state B0)";
+                EVLOG_info << "handle_cp_state_F: forcing safe state (via CE state B0)";
             } else if (this->cp_current_state == types::cb_board_support::CPState::C) {
-                EVLOG_info << "handle_cp_state_F: forcing safe state (via state EC)";
+                EVLOG_info << "handle_cp_state_F: forcing safe state (via CE state EC)";
             } else {
-                EVLOG_info << "handle_cp_state_F: forcing safe state (in state A)";
+                EVLOG_info << "handle_cp_state_F: forcing safe state (in CP state A)";
             }
         }
         // we can unconditionally call into the method (it already checks itself)
