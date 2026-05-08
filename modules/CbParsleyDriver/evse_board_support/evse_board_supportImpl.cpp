@@ -81,6 +81,7 @@ void evse_board_supportImpl::init() {
 
     this->mod->controller.on_ce_change.connect([&](const types::cb_board_support::CEState& ce_state) {
         std::scoped_lock lock(this->cp_mutex);
+        const types::cb_board_support::CEState previous_ce_state = this->ce_current_state;
 
         if (this->ce_current_state != ce_state) {
             EVLOG_info << "CE change detected: " << this->ce_current_state << " → " << ce_state;
@@ -89,23 +90,19 @@ void evse_board_supportImpl::init() {
         }
         this->ce_current_state = ce_state;
 
-        auto current_cp_state = cestate_to_cpstate(ce_state);
-
         // filter out uninitialized value (e.g. after reset)
-        if (current_cp_state == types::cb_board_support::CPState::PowerOn)
+        if (ce_state == types::cb_board_support::CEState::PowerOn)
             return;
 
-        // B0 is mapped to D; we need to ignore B0 and not forward it here
-        if (current_cp_state == types::cb_board_support::CPState::D)
+        // we need to ignore B0 and not forward it here
+        if (ce_state == types::cb_board_support::CEState::B0)
             return;
-
-        EVLOG_info << "simulate CP change: " << this->cp_current_state << " → " << current_cp_state;
-        this->cp_current_state = current_cp_state;
 
         // in case safety controller was in emergency state and EV is gone,
         // we have to reset safety controller with a disable -> enable toggle
-        if (current_cp_state == types::cb_board_support::CPState::A and this->mod->controller.is_emergency()) {
-            EVLOG_info << "recovering after safe state";
+        if (this->mod->controller.is_emergency() and previous_ce_state != types::cb_board_support::CEState::A and
+            ce_state == types::cb_board_support::CEState::A) {
+            EVLOG_info << "recovering after safe state (CE triggered)";
 
             // disable resets the controller
             this->mod->controller.disable();
@@ -114,11 +111,15 @@ void evse_board_supportImpl::init() {
             this->mod->controller.enable();
         }
 
-        if (current_cp_state == types::cb_board_support::CPState::PilotFault)
+        auto new_cp_state = cestate_to_cpstate(ce_state);
+        EVLOG_info << "simulate CP change: " << this->cp_current_state << " → " << new_cp_state;
+        this->cp_current_state = new_cp_state;
+
+        if (new_cp_state == types::cb_board_support::CPState::PilotFault)
             return;
 
         try {
-            const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
+            const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(new_cp_state);
             this->publish_event(tmp);
         } catch (std::runtime_error& e) {
             // should never happen, when all invalid states are handled correctly
@@ -217,9 +218,11 @@ void evse_board_supportImpl::init() {
         // is done when EV is disconnected and we see a CE state change from X to A, but in case of
         // CE malfunction, we might not see it and thus we would be stuck in this state; using ID here
         // could help to recover
-        // -
-        if (this->cp_current_state == types::cb_board_support::CPState::PilotFault and
-            this->mod->controller.is_emergency() and id_state == types::cb_board_support::IDState::NotConnected) {
+        if (this->mod->controller.is_emergency() and
+            ((this->ce_current_state == types::cb_board_support::CEState::Invalid and
+              id_state == types::cb_board_support::IDState::NotConnected) or
+             (this->ce_current_state == types::cb_board_support::CEState::A and
+              id_state == types::cb_board_support::IDState::Connected))) {
             EVLOG_info << "recovering after safe state (ID triggered)";
 
             // disable resets the controller
