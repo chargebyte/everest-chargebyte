@@ -55,6 +55,10 @@ types::board_support_common::BspEvent cpstate_to_bspevent(const types::cb_board_
     }
 }
 
+errmsg_hash_key make_errmsg_hash_key(unsigned int module, unsigned int reason) {
+    return module << 16 | reason;
+}
+
 namespace module {
 namespace evse_board_support {
 
@@ -167,6 +171,9 @@ void evse_board_supportImpl::init() {
                 (this->last_reported_fault.sub_type == safestate_active_error_subtype)) {
                 this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
             }
+            // reset list of active warnings
+            this->clear_error("evse_board_support/VendorWarning");
+            this->active_errmsg.clear();
             break;
         case cs_safestate_active::CS_SAFESTATE_ACTIVE_SAFESTATE:
             EVLOG_error << "Safety Controller entered safe state";
@@ -190,24 +197,40 @@ void evse_board_supportImpl::init() {
     this->mod->controller.on_errmsg.connect([&](bool is_active, unsigned int module, const std::string& module_str,
                                                 unsigned int reason, const std::string& reason_str,
                                                 unsigned int additional_data1, unsigned int additional_data2) {
+        auto key = make_errmsg_hash_key(module, reason);
+
         if (is_active) {
             std::string errmsg =
                 fmt::format("{} ({:#06x}), {:#06x}, {:#06x}", reason_str, reason, additional_data1, additional_data2);
 
-            EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
-                                         errmsg);
+            auto result = this->active_errmsg.insert(key);
 
-            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg,
-                                                       Everest::error::Severity::High);
+            // report only the first seen message as warning, all others only as debug and don't raise new EVerest
+            // errors
+            if (result.second) {
+                EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                                             errmsg);
 
-            this->raise_error(e);
+                auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg,
+                                                           Everest::error::Severity::High);
 
+                this->raise_error(e);
+            } else {
+                EVLOG_debug << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                                           errmsg);
+            }
         } else {
             std::string errmsg = fmt::format("{} ({:#06x})", reason_str, reason);
 
-            EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module, errmsg);
+            if (this->active_errmsg.find(key) != this->active_errmsg.end()) {
+                EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module,
+                                          errmsg);
 
-            this->clear_error("evse_board_support/VendorWarning", module_str);
+                this->clear_error("evse_board_support/VendorWarning", module_str);
+            } else {
+                EVLOG_debug << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module,
+                                           errmsg);
+            }
         }
     });
 
