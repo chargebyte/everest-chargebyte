@@ -54,11 +54,13 @@ void CbChargeSOMDriver::init() {
     EVLOG_info << "Safety Controller Firmware: " << this->controller.get_fw_info();
 
     // initialize the interfaces now
+    invoke_init(*p_ac_rcd);
     invoke_init(*p_evse_board_support);
     invoke_init(*p_temperatures);
 }
 
 void CbChargeSOMDriver::ready() {
+    invoke_ready(*p_ac_rcd);
     invoke_ready(*p_evse_board_support);
     invoke_ready(*p_temperatures);
 }

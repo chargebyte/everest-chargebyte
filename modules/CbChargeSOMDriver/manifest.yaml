@@ -98,6 +98,10 @@ config:
     type: boolean
     default: false
 provides:
+  ac_rcd:
+    description: >-
+      Provide support for fault detection of an external AC Residual Current Device
+    interface: ac_rcd
   evse_board_support:
     description: >-
       Provide the board support driver for the Charge SOM platform, e.g., control pilot

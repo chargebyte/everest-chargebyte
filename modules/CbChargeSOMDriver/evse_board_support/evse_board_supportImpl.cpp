@@ -292,6 +292,8 @@ void evse_board_supportImpl::init() {
             case cs1_safestate_reason::CS1_SAFESTATE_REASON_CP_SHORT_CIRCUIT:
             case cs1_safestate_reason::CS1_SAFESTATE_REASON_CP_DIODE_FAULT:
             case cs1_safestate_reason::CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION:
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_RCM_ERROR:
+            case cs1_safestate_reason::CS1_SAFESTATE_REASON_RCM_SELFTEST:
                 // these errors are already handled via other means
                 return;
             case cs1_safestate_reason::CS1_SAFESTATE_REASON_EMERGENCY_INPUT_1:

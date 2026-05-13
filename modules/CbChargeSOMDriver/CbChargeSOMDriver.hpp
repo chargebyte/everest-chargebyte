@@ -11,6 +11,7 @@
 #include "ld-ev.hpp"
 
 // headers for provided interface implementations
+#include <generated/interfaces/ac_rcd/Implementation.hpp>
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
 #include <generated/interfaces/cb_temperatures/Implementation.hpp>
 
@@ -46,13 +47,16 @@ struct Conf {
 class CbChargeSOMDriver : public Everest::ModuleBase {
 public:
     CbChargeSOMDriver() = delete;
-    CbChargeSOMDriver(const ModuleInfo& info, std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
+    CbChargeSOMDriver(const ModuleInfo& info, std::unique_ptr<ac_rcdImplBase> p_ac_rcd,
+                      std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
                       std::unique_ptr<cb_temperaturesImplBase> p_temperatures, Conf& config) :
         ModuleBase(info),
+        p_ac_rcd(std::move(p_ac_rcd)),
         p_evse_board_support(std::move(p_evse_board_support)),
         p_temperatures(std::move(p_temperatures)),
         config(config) {};
 
+    const std::unique_ptr<ac_rcdImplBase> p_ac_rcd;
     const std::unique_ptr<evse_board_supportImplBase> p_evse_board_support;
     const std::unique_ptr<cb_temperaturesImplBase> p_temperatures;
     const Conf& config;

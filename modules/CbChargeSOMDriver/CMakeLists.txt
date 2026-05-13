@@ -47,6 +47,7 @@ target_include_directories(${MODULE_NAME}
 
 target_sources(${MODULE_NAME}
     PRIVATE
+        "ac_rcd/ac_rcdImpl.cpp"
         "evse_board_support/evse_board_supportImpl.cpp"
         "temperatures/cb_temperaturesImpl.cpp"
 )

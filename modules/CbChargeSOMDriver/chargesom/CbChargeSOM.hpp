@@ -104,6 +104,10 @@ public:
                     unsigned int>
         on_errmsg;
 
+    /// @brief Signal used to inform about RCM state changes.
+    ///        The parameter is the new RCM state.
+    sigslot::signal<const enum rcm_state&> on_rcm_state_change;
+
     /// @brief Return whether the safety controller detected an emergency state.
     bool is_emergency();
 
@@ -134,6 +138,9 @@ public:
 
     /// @brief Return whether the safety controller thinks it is safe to switch contactors on.
     bool is_hv_ready();
+
+    /// @brief Instruct the safety controller to run a self-test of the RCM.
+    void start_rcm_selftest();
 
     /// @brief Remember whether the PT1000 State frame was received at least once.
     bool temperature_data_is_valid {false};
@@ -265,6 +272,12 @@ private:
     /// @return True, in case there was no response within a given timeout;
     ///         false otherwise.
     bool send_inquiry_and_wait(enum cb_uart_com com);
+
+    /// @brief Helper to trigger the given action on the safety controller
+    void send_action_inquiry(enum action_id action);
+
+    /// @brief Helper to trigger an action and wait for confirmation from safety controller
+    void send_action_request_and_wait(enum action_id action);
 
     /// @brief Internal helper to determine the current contactor state.
     bool get_contactor_state_no_lock();

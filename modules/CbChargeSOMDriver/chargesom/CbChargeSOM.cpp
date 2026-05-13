@@ -51,6 +51,10 @@ std::ostream& operator<<(std::ostream& os, enum cs_safestate_active state) {
     return os << cb_proto_safe_state_active_to_str(state);
 }
 
+std::ostream& operator<<(std::ostream& os, enum rcm_state state) {
+    return os << cb_proto_rcm_state_to_str(state);
+}
+
 types::cb_board_support::ContactorState contactor_state_to_ContactorState(enum contactor_state state) {
     switch (state) {
     case contactor_state::CONTACTOR_STATE_OPEN:
@@ -81,6 +85,7 @@ CbChargeSOM::CbChargeSOM() {
         bool initial_contactor_states_seen = false;
         enum cs1_safestate_reason previous_safestate_reason = CS1_SAFESTATE_REASON_MAX;
         enum cs_safestate_active previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
+        enum rcm_state previous_rcm_state = RCM_STATE_NOT_CONFIGURED;
 
         EVLOG_debug << "Notify Thread started";
 
@@ -94,6 +99,7 @@ CbChargeSOM::CbChargeSOM() {
             enum contactor_state current_contactor_state[CB_PROTO_MAX_CONTACTORS];
             enum cs1_safestate_reason current_safestate_reason;
             enum cs_safestate_active current_safestate_active;
+            enum rcm_state current_rcm_state;
             unsigned int i;
 
             // wait for changes
@@ -188,6 +194,14 @@ CbChargeSOM::CbChargeSOM() {
                     this->on_safestate_active(current_safestate_active);
                 }
                 previous_safestate_active = current_safestate_active;
+            }
+
+            // handle RCM state changes
+            current_rcm_state = cb_proto_get_rcm_state(&tmpctx);
+            if (current_rcm_state != previous_rcm_state) {
+                EVLOG_debug << "on_rcm_state_change(" << previous_rcm_state << " → " << current_rcm_state << ")";
+                this->on_rcm_state_change(current_rcm_state);
+                previous_rcm_state = current_rcm_state;
             }
 
             // check for PP changes
@@ -338,6 +352,10 @@ CbChargeSOM::CbChargeSOM() {
             std::scoped_lock lock(this->ctx_mutexes[n]);
 
             switch (com) {
+            case cb_uart_com::COM_ACTION:
+                this->ctx.action_ack = payload;
+                break;
+
             case cb_uart_com::COM_CHARGE_STATE:
                 this->ctx.charge_state = payload;
                 // check if the previous value is different
@@ -604,6 +622,7 @@ bool CbChargeSOM::is_unexpected_rx_com(enum cb_uart_com com) {
     case COM_FW_VERSION:
     case COM_GIT_HASH:
     case COM_ERROR_MESSAGE:
+    case COM_ACTION:
         return false;
     default:
         return true;
@@ -644,6 +663,35 @@ bool CbChargeSOM::send_inquiry_and_wait(enum cb_uart_com com) {
         this->rx_enabled.exchange(old_rx_enabled);
 
     return rv;
+}
+
+void CbChargeSOM::send_action_inquiry(enum action_id action) {
+    std::scoped_lock lock(this->tx_mutex);
+
+    if (cb_send_uart_action_inquiry(&this->uart, action)) {
+        throw std::system_error(errno, std::generic_category(),
+                                std::string("Error while sending inquiry frame for action '") +
+                                    cb_proto_action_id_to_str(action) + "'");
+    }
+}
+
+void CbChargeSOM::send_action_request_and_wait(enum action_id action) {
+    size_t n = static_cast<std::size_t>(COM_ACTION);
+
+    // ensure that only one inquiry is running
+    std::scoped_lock inquiry_lock(this->inquiry_mutex);
+
+    // acquire this mutex now so that we can ensure that we don't miss any
+    // update to the response field in `ctx`
+    std::unique_lock<std::mutex> lock(this->ctx_mutexes[n]);
+
+    this->send_action_inquiry(action);
+
+    // we should received a response at least within 1s
+    if (not this->rx_cv[n].wait_for(lock, 1s, [&] { return cb_proto_get_confirmed_action(&this->ctx) == action; })) {
+        throw std::runtime_error(std::string("Safety Controller did not confirm action request for '") +
+                                 cb_proto_action_id_to_str(action) + "'");
+    }
 }
 
 types::board_support_common::Ampacity CbChargeSOM::pp_state_to_ampacity(enum pp_state pp_state) {
@@ -798,6 +846,10 @@ bool CbChargeSOM::is_hv_ready() {
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return cb_proto_get_hv_ready(&this->ctx);
+}
+
+void CbChargeSOM::start_rcm_selftest() {
+    this->send_action_request_and_wait(ACTION_ID_RCM_SELFTEST);
 }
 
 unsigned int CbChargeSOM::get_temperature_channels() const {
