@@ -580,8 +580,12 @@ void CbParsley::set_ec_state() {
     n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE_2);
     std::unique_lock<std::mutex> cs_lock(this->ctx_mutexes[n]);
 
-    // we should see that the safety controller enters a "safe" state (but
-    // not necessarily _the_ safe state) within at max 1s (FIXME)
+    // we should see that the safety controller reports a different state after
+    // our request since either the EV does not yet reacted to the emergency stop
+    // (then we should see state EC), or the EV already reacted (then we should see B0)
+    // or in worst-case, then there is coincidentally at the same time another
+    // emergency reason which forces the safety controller in safe state;
+    // we should see this within at max 1s (FIXME)
     if (not this->rx_cv[n].wait_for(cs_lock, 1s, [&] {
             return cb_proto_get_safe_state_active(&this->ctx) == CS_SAFESTATE_ACTIVE_SAFESTATE or
                    cb_proto_get_ce_state(&this->ctx) == cs2_ce_state::CS2_CE_STATE_B0 or
