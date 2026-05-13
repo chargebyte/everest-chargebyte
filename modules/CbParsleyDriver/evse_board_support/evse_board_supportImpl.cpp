@@ -86,26 +86,35 @@ void evse_board_supportImpl::init() {
     this->mod->controller.on_ce_change.connect([&](const types::cb_board_support::CEState& ce_state) {
         std::scoped_lock lock(this->cp_mutex);
         const types::cb_board_support::CEState previous_ce_state = this->ce_current_state;
+        auto new_ce_state = ce_state;
 
-        if (this->ce_current_state != ce_state) {
-            EVLOG_info << "CE change detected: " << this->ce_current_state << " → " << ce_state;
+        if (this->ce_current_state != new_ce_state) {
+            EVLOG_info << "CE change detected: " << this->ce_current_state << " → " << new_ce_state;
         } else {
-            EVLOG_debug << "CE change detected: " << this->ce_current_state << " → " << ce_state;
+            EVLOG_debug << "CE change detected: " << this->ce_current_state << " → " << new_ce_state;
         }
-        this->ce_current_state = ce_state;
+        this->ce_current_state = new_ce_state;
 
         // filter out uninitialized value (e.g. after reset)
-        if (ce_state == types::cb_board_support::CEState::PowerOn)
+        if (new_ce_state == types::cb_board_support::CEState::PowerOn)
             return;
 
-        // we need to ignore B0 and not forward it here
-        if (ce_state == types::cb_board_support::CEState::B0)
-            return;
+        // we need to ignore B0 and not forward it here... usually...
+        if (new_ce_state == types::cb_board_support::CEState::B0) {
+            // but when our previous state was C or EC, then we have to simulate new state B
+            if (previous_ce_state != types::cb_board_support::CEState::C and
+                previous_ce_state != types::cb_board_support::CEState::EC) {
+                return;
+            }
+            // override parameter so that CP conversion below gets state B
+            // (but remembering CE state as B0 is done above already)
+            new_ce_state = types::cb_board_support::CEState::B;
+        }
 
         // in case safety controller was in emergency state and EV is gone,
         // we have to reset safety controller with a disable -> enable toggle
         if (this->mod->controller.is_emergency() and previous_ce_state != types::cb_board_support::CEState::A and
-            ce_state == types::cb_board_support::CEState::A) {
+            new_ce_state == types::cb_board_support::CEState::A) {
             EVLOG_info << "recovering after safe state (CE triggered)";
 
             // disable resets the controller
