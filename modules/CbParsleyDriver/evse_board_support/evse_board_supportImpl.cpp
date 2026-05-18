@@ -124,7 +124,7 @@ void evse_board_supportImpl::init() {
             this->mod->controller.enable();
         }
 
-        auto new_cp_state = cestate_to_cpstate(ce_state);
+        auto new_cp_state = cestate_to_cpstate(new_ce_state);
         EVLOG_info << "simulate CP change: " << this->cp_current_state << " → " << new_cp_state;
         this->cp_current_state = new_cp_state;
 
