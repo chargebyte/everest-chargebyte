@@ -2,17 +2,18 @@
 
 This repository contains the control logic for chargebyte GmbH's Linux-based hardware products, implemented as modules within [EVerest](https://github.com/EVerest).
 
-This repository includes the following modules:  
-- **CbChargeSOMDriver**: Hardware abstraction layer for chargebyte's Charge SOM.  
-- **CbTarragonDriver**: Hardware abstraction layer for chargebyte's Tarragon board.  
-- **CbTarragonPlugLock**: Driver for plug lock control on chargebyte's Tarragon board.  
-- **CbTarragonDIs**: Driver for configuring digital input reference PWM on chargebyte's Tarragon board.  
+This repository includes the following modules:
+- **CbChargeSOMDriver**: Hardware abstraction layer for chargebyte's Charge SOM.
+- **CbTarragonDriver**: Hardware abstraction layer for chargebyte's Tarragon board.
+- **CbTarragonPlugLock**: Driver for plug lock control on chargebyte's Tarragon board.
+- **CbTarragonDIs**: Driver for configuring digital input reference PWM on chargebyte's Tarragon board.
 - **CbSystem**: Implements system wide operations for chargebyte's hardware products.
 - **InfypowerDCSupply**: Driver for Infypower's BEC/BEG power modules.
 
 ## Compatibility matrix
 | Tag    | EVerest release               |
 |--------|-------------------------------|
+| 0.31.0 | 2026.02.0 or newer[^or_newer] |
 | 0.30.0 | 2026.02.0 or newer[^or_newer] |
 | 0.29.0 | 2026.02.0 or newer[^or_newer] |
 | 0.28.0 | 2025.12.0 or newer[^or_newer] |
