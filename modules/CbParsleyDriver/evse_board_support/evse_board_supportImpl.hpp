@@ -19,9 +19,13 @@
 #include <chrono>
 #include <mutex>
 #include <thread>
+#include <unordered_set>
 // B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
 #undef B0
 #include <generated/types/cb_board_support.hpp>
+
+// helper for unordered list, see below (note: module and reason can have max value of uint16 by design)
+using errmsg_hash_key = unsigned int;
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 
 namespace module {
@@ -71,6 +75,9 @@ private:
     /// @brief Tracks whether this EVSE is enabled or not.
     std::atomic_bool is_enabled {false};
 
+    /// @brief Tracks the last seen CE state.
+    std::atomic<types::cb_board_support::CEState> ce_current_state {types::cb_board_support::CEState::PowerOn};
+
     /// @brief Tracks the last published CP state.
     types::cb_board_support::CPState cp_current_state {types::cb_board_support::CPState::PowerOn};
 
@@ -88,6 +95,9 @@ private:
 
     /// @brief Flag that we raised an error (common flag for all not-yet-covered ones).
     bool generic_fault_reported {false};
+
+    /// @brief Tracks active/reported/logged error frames.
+    std::unordered_set<errmsg_hash_key> active_errmsg;
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 

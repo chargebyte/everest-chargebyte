@@ -55,6 +55,10 @@ types::board_support_common::BspEvent cpstate_to_bspevent(const types::cb_board_
     }
 }
 
+errmsg_hash_key make_errmsg_hash_key(unsigned int module, unsigned int reason) {
+    return module << 16 | reason;
+}
+
 namespace module {
 namespace evse_board_support {
 
@@ -81,19 +85,37 @@ void evse_board_supportImpl::init() {
 
     this->mod->controller.on_ce_change.connect([&](const types::cb_board_support::CEState& ce_state) {
         std::scoped_lock lock(this->cp_mutex);
-        auto current_cp_state = cestate_to_cpstate(ce_state);
+        const types::cb_board_support::CEState previous_ce_state = this->ce_current_state;
+        auto new_ce_state = ce_state;
 
-        // B0 is mapped to D; we need to ignore B0 and not forward it here
-        if (current_cp_state == types::cb_board_support::CPState::D)
+        if (this->ce_current_state != new_ce_state) {
+            EVLOG_info << "CE change detected: " << this->ce_current_state << " → " << new_ce_state;
+        } else {
+            EVLOG_debug << "CE change detected: " << this->ce_current_state << " → " << new_ce_state;
+        }
+        this->ce_current_state = new_ce_state;
+
+        // filter out uninitialized value (e.g. after reset)
+        if (new_ce_state == types::cb_board_support::CEState::PowerOn)
             return;
 
-        EVLOG_info << "CP state change from " << this->cp_current_state << " to " << current_cp_state;
-        this->cp_current_state = current_cp_state;
+        // we need to ignore B0 and not forward it here... usually...
+        if (new_ce_state == types::cb_board_support::CEState::B0) {
+            // but when our previous state was C or EC, then we have to simulate new state B
+            if (previous_ce_state != types::cb_board_support::CEState::C and
+                previous_ce_state != types::cb_board_support::CEState::EC) {
+                return;
+            }
+            // override parameter so that CP conversion below gets state B
+            // (but remembering CE state as B0 is done above already)
+            new_ce_state = types::cb_board_support::CEState::B;
+        }
 
         // in case safety controller was in emergency state and EV is gone,
         // we have to reset safety controller with a disable -> enable toggle
-        if (current_cp_state == types::cb_board_support::CPState::A and this->mod->controller.is_emergency()) {
-            EVLOG_info << "recovering after safe state";
+        if (this->mod->controller.is_emergency() and previous_ce_state != types::cb_board_support::CEState::A and
+            new_ce_state == types::cb_board_support::CEState::A) {
+            EVLOG_info << "recovering after safe state (CE triggered)";
 
             // disable resets the controller
             this->mod->controller.disable();
@@ -102,8 +124,15 @@ void evse_board_supportImpl::init() {
             this->mod->controller.enable();
         }
 
+        auto new_cp_state = cestate_to_cpstate(new_ce_state);
+        EVLOG_info << "simulate CP change: " << this->cp_current_state << " → " << new_cp_state;
+        this->cp_current_state = new_cp_state;
+
+        if (new_cp_state == types::cb_board_support::CPState::PilotFault)
+            return;
+
         try {
-            const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(current_cp_state);
+            const types::board_support_common::BspEvent tmp = cpstate_to_bspevent(new_cp_state);
             this->publish_event(tmp);
         } catch (std::runtime_error& e) {
             // should never happen, when all invalid states are handled correctly
@@ -151,6 +180,9 @@ void evse_board_supportImpl::init() {
                 (this->last_reported_fault.sub_type == safestate_active_error_subtype)) {
                 this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
             }
+            // reset list of active warnings
+            this->clear_error("evse_board_support/VendorWarning");
+            this->active_errmsg.clear();
             break;
         case cs_safestate_active::CS_SAFESTATE_ACTIVE_SAFESTATE:
             EVLOG_error << "Safety Controller entered safe state";
@@ -174,24 +206,62 @@ void evse_board_supportImpl::init() {
     this->mod->controller.on_errmsg.connect([&](bool is_active, unsigned int module, const std::string& module_str,
                                                 unsigned int reason, const std::string& reason_str,
                                                 unsigned int additional_data1, unsigned int additional_data2) {
+        auto key = make_errmsg_hash_key(module, reason);
+
         if (is_active) {
             std::string errmsg =
                 fmt::format("{} ({:#06x}), {:#06x}, {:#06x}", reason_str, reason, additional_data1, additional_data2);
 
-            EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
-                                         errmsg);
+            auto result = this->active_errmsg.insert(key);
 
-            auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg,
-                                                       Everest::error::Severity::High);
+            // report only the first seen message as warning, all others only as debug and don't raise new EVerest
+            // errors
+            if (result.second) {
+                EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                                             errmsg);
 
-            this->raise_error(e);
+                auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg,
+                                                           Everest::error::Severity::High);
 
+                this->raise_error(e);
+            } else {
+                EVLOG_debug << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                                           errmsg);
+            }
         } else {
             std::string errmsg = fmt::format("{} ({:#06x})", reason_str, reason);
 
-            EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module, errmsg);
+            if (this->active_errmsg.find(key) != this->active_errmsg.end()) {
+                EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module,
+                                          errmsg);
 
-            this->clear_error("evse_board_support/VendorWarning", module_str);
+                this->clear_error("evse_board_support/VendorWarning", module_str);
+            } else {
+                EVLOG_debug << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module,
+                                           errmsg);
+            }
+        }
+    });
+
+    this->mod->controller.on_id_change.connect([&](const types::cb_board_support::IDState& id_state) {
+        // general note: logging of state changes is already done in MCS interface, so we don't double it here
+
+        // we use ID changes only to have a trigger to recover from emergency states: usually such a reset
+        // is done when EV is disconnected and we see a CE state change from X to A, but in case of
+        // CE malfunction, we might not see it and thus we would be stuck in this state; using ID here
+        // could help to recover
+        if (this->mod->controller.is_emergency() and
+            ((this->ce_current_state == types::cb_board_support::CEState::Invalid and
+              id_state == types::cb_board_support::IDState::NotConnected) or
+             (this->ce_current_state == types::cb_board_support::CEState::A and
+              id_state == types::cb_board_support::IDState::Connected))) {
+            EVLOG_info << "recovering after safe state (ID triggered)";
+
+            // disable resets the controller
+            this->mod->controller.disable();
+
+            // enable starts UART frame processing again
+            this->mod->controller.enable();
         }
     });
 }
@@ -223,14 +293,37 @@ void evse_board_supportImpl::handle_pwm_on(double& value) {
 }
 
 void evse_board_supportImpl::handle_cp_state_X1() {
-    EVLOG_info << "handle_cp_state_X1: setting new duty cycle of 100.0% (ignored)";
+    if (this->mod->controller.is_emergency() and this->cp_current_state == types::cb_board_support::CPState::C) {
+        EVLOG_info << "handle_cp_state_X1: setting new duty cycle of 100.0% (in safe state)";
+
+        // When safety controller has gone into safe state, then we raised an error to EvseManager.
+        // EvseManagers reaction is to instruct us to go to 100%. A typical EV would switch to
+        // state B then. Here, the safety controller already opened S_s_3 which results in EC.
+        // The safety controller _could_ report EC (or then B0) but in case of CE malfunction,
+        // this could also not happen. To satisfy EvseManager, we report that we see state B.
+        // This prevents loosing sync and the error "Timeout of 6 seconds reached, EV did not
+        // go back to state B after PWM was switched off. Powering off under load.".
+        this->publish_event({types::board_support_common::Event::B});
+    } else {
+        EVLOG_info << "handle_cp_state_X1: setting new duty cycle of 100.0% (ignored)";
+    }
 }
 
 void evse_board_supportImpl::handle_cp_state_F() {
     std::scoped_lock lock(this->cp_mutex);
     try {
-        EVLOG_info << "handle_cp_state_F: generating CP state F (aka EC)";
-
+        if (this->mod->controller.is_emergency()) {
+            EVLOG_info << "handle_cp_state_F: ignored, safe state already active";
+        } else {
+            if (this->cp_current_state == types::cb_board_support::CPState::B) {
+                EVLOG_info << "handle_cp_state_F: forcing safe state (via CE state B0)";
+            } else if (this->cp_current_state == types::cb_board_support::CPState::C) {
+                EVLOG_info << "handle_cp_state_F: forcing safe state (via CE state EC)";
+            } else {
+                EVLOG_info << "handle_cp_state_F: forcing safe state (in CP state A)";
+            }
+        }
+        // we can unconditionally call into the method (it already checks itself)
         this->mod->controller.set_ec_state();
     } catch (std::exception& e) {
         EVLOG_error << e.what();
