@@ -1,10 +1,18 @@
+// Copyright © 2026 chargebyte GmbH
+// SPDX-License-Identifier: Apache-2.0
+#include <cerrno>
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <system_error>
+#include <thread>
 #include <vector>
 #include <gpiod.hpp>
-#include "gpiodUtils.hpp"
+#include <chargebyte/gpiodUtils.hpp>
+
+using namespace std::chrono_literals;
 
 gpiod::line_request get_gpioline_by_name(const std::string& name, const std::string& consumer,
                                          const gpiod::line_settings& settings) {
@@ -90,4 +98,39 @@ gpiod::line_request get_gpiolines_by_name(const std::vector<std::string>& names,
 
     throw std::runtime_error("No GPIO bank found which provides all GPIO lines (" +
                              join_into_string_with_quotes(names) + ").");
+}
+
+bool get_gpioline_state_by_name(const std::string& name, bool active_low, const std::string& consumer) {
+    bool rv;
+    gpiod::line_settings line_settings;
+    line_settings.set_direction(gpiod::line::direction::INPUT);
+    line_settings.set_active_low(active_low);
+
+    // a hard-coded value should do for here
+    std::chrono::microseconds debounce_ms{50ms};
+    line_settings.set_debounce_period(debounce_ms);
+
+    while (true) {
+        try {
+            auto line_request = get_gpioline_by_name(name, consumer, line_settings);
+
+            rv = line_request.get_value(line_request.offsets()[0]) == gpiod::line::value::ACTIVE;
+
+            line_request.release();
+            break;
+        }
+        catch (const std::system_error& e) {
+            if (e.code().value() == EBUSY) {
+                // let's assume that another process is currently accessing this line for exactly the same reason
+                // and does not hold it forever, so let's wait shortly and retry - yes, in worst case, this
+                // might loop forever, but should be good enough here
+                std::this_thread::sleep_for(10ms);
+                continue;
+            }
+            // all other errors
+            throw;
+        }
+    }
+
+    return rv;
 }

@@ -1,7 +1,9 @@
+// Copyright © 2026 chargebyte GmbH
+// SPDX-License-Identifier: Apache-2.0
 #include <filesystem>
 #include <stdexcept>
 #include <string>
-#include "IIOADC.hpp"
+#include <chargebyte/IIOADC.hpp>
 
 IIOADC get_iioadc_by_name(const std::string& name) {
 

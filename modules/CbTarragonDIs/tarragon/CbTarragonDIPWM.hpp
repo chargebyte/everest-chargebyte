@@ -2,9 +2,9 @@
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <chrono>
-#include <PWM.hpp>
-#include <PWMChip.hpp>
 #include <string>
+#include <chargebyte/PWM.hpp>
+#include <chargebyte/PWMChip.hpp>
 
 namespace module {
 

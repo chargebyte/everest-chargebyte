@@ -1,8 +1,10 @@
+// Copyright © 2026 chargebyte GmbH
+// SPDX-License-Identifier: Apache-2.0
 #include <filesystem>
 #include <string>
 #include <vector>
-#include "SysfsDevice.hpp"
-#include "PWMChip.hpp"
+#include <chargebyte/SysfsDevice.hpp>
+#include <chargebyte/PWMChip.hpp>
 
 const std::filesystem::path PWMChip::default_sysfs_path("/sys/class/pwm");
 

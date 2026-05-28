@@ -11,7 +11,7 @@
 #include <gpiod.hpp>
 #include <sigslot/signal.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include <gpiodUtils.hpp>
+#include <chargebyte/gpiodUtils.hpp>
 #include "CbTarragonRelay.hpp"
 
 using namespace std::chrono_literals;

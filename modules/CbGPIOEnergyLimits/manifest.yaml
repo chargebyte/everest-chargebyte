@@ -1,0 +1,10 @@
+description: Module that implements energy limiting based on GPIO lines (DIP switches/rotary encoders...)
+requires:
+  energy_sink:
+    interface: external_energy_limits
+    min_connections: 1
+    max_connections: 128
+metadata:
+  license: https://opensource.org/licenses/Apache-2.0
+  authors:
+    - chargebyte GmbH

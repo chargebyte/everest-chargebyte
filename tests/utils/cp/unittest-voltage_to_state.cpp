@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
 /* Files under test */
-#include <CPUtils.hpp>
+#include <chargebyte/linux_hw/CPUtils.hpp>
 
 using namespace CPUtils;
 
