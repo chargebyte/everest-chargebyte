@@ -4,13 +4,14 @@
 #include <iostream>
 #include <string>
 #include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
-#include "CbTarragonContactorControlSerial.hpp"
+#include "CbContactorControl.hpp"
+#include "CbContactorControlSerial.hpp"
 #include <everest/logging.hpp>
 
-CbTarragonContactorControlSerial::CbTarragonContactorControlSerial(
-    std::unique_ptr<CbTarragonRelay> primary_relay, const std::string& primary_contactor_feedback_type,
-    std::unique_ptr<CbTarragonRelay> secondary_relay, const std::string& secondary_contactor_feedback_type) :
+CbContactorControlSerial::CbContactorControlSerial(std::unique_ptr<CbTarragonRelay> primary_relay,
+                                                   const std::string& primary_contactor_feedback_type,
+                                                   std::unique_ptr<CbTarragonRelay> secondary_relay,
+                                                   const std::string& secondary_contactor_feedback_type) :
     primary("Primary Contactor", std::move(primary_relay), primary_contactor_feedback_type),
     secondary("Secondary Contactor", std::move(secondary_relay), secondary_contactor_feedback_type) {
 
@@ -35,7 +36,7 @@ CbTarragonContactorControlSerial::CbTarragonContactorControlSerial(
         });
 }
 
-bool CbTarragonContactorControlSerial::is_inconsistent_state(std::ostringstream& error_hint) const {
+bool CbContactorControlSerial::is_inconsistent_state(std::ostringstream& error_hint) const {
     if (this->primary.is_state_mismatch()) {
         error_hint << this->primary;
         return true;
@@ -49,7 +50,7 @@ bool CbTarragonContactorControlSerial::is_inconsistent_state(std::ostringstream&
     return false;
 }
 
-bool CbTarragonContactorControlSerial::switch_state_on() {
+bool CbContactorControlSerial::switch_state_on() {
     bool rv_primary, rv_secondary;
 
     // when closing, we have to consider the secondary first
@@ -89,7 +90,7 @@ bool CbTarragonContactorControlSerial::switch_state_on() {
     return rv_primary and rv_secondary;
 }
 
-bool CbTarragonContactorControlSerial::switch_state_off() {
+bool CbContactorControlSerial::switch_state_off() {
     bool rv_primary, rv_secondary;
 
     // when opening, we can always switch both contactors in the correct sequence;
@@ -113,29 +114,29 @@ bool CbTarragonContactorControlSerial::switch_state_off() {
     return rv_primary and rv_secondary;
 }
 
-bool CbTarragonContactorControlSerial::switch_state(bool on) {
+bool CbContactorControlSerial::switch_state(bool on) {
     if (on)
         return this->switch_state_on();
     else
         return this->switch_state_off();
 }
 
-bool CbTarragonContactorControlSerial::get_state() const {
+bool CbContactorControlSerial::get_state() const {
     // it is sufficient to check the primary contactor here
     return this->primary.get_state();
 }
 
-std::chrono::milliseconds CbTarragonContactorControlSerial::get_closing_delay_left() const {
+std::chrono::milliseconds CbContactorControlSerial::get_closing_delay_left() const {
     // since we always switch the primary contactor but sometimes the secondary not,
     // we can just look at the primary -> it covers the secondary completely
     return this->primary.get_closing_delay_left();
 }
 
-std::ostream& CbTarragonContactorControlSerial::dump(std::ostream& os) const {
+std::ostream& CbContactorControlSerial::dump(std::ostream& os) const {
     os << this->primary << ", " << this->secondary;
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlSerial& c) {
+std::ostream& operator<<(std::ostream& os, const CbContactorControlSerial& c) {
     return c.dump(os);
 }

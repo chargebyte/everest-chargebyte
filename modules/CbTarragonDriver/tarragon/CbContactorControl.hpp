@@ -13,14 +13,14 @@
 /// It only defines the interface which is used by the upper layer.
 /// Derived classes implement specific contactor handling setups.
 ///
-class CbTarragonContactorControl {
+class CbContactorControl {
 
 public:
     /// @brief Constructor.
-    CbTarragonContactorControl() {};
+    CbContactorControl() {};
 
     /// @brief Destructor.
-    virtual ~CbTarragonContactorControl() = default;
+    virtual ~CbContactorControl() = default;
 
     /// @brief Checks the actual states of actuator and feedback for plausibility.
     ///        This is intended to be called once during startup only, since
@@ -62,10 +62,10 @@ public:
     ///        false otherwise.
     std::atomic_bool is_emergency {false};
 
-    /// @brief Feeds a string representation of the given CbTarragonContactorControl
+    /// @brief Feeds a string representation of the given CbContactorControl
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
-    friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControl& c);
+    friend std::ostream& operator<<(std::ostream& os, const CbContactorControl& c);
 
 protected:
     /// @brief Desired number of phases (1 or 3).

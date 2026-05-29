@@ -4,14 +4,14 @@
 #include <iostream>
 #include <string>
 #include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
-#include "CbTarragonContactorControlMutual.hpp"
+#include "CbContactorControl.hpp"
+#include "CbContactorControlMutual.hpp"
 #include <everest/logging.hpp>
 
-CbTarragonContactorControlMutual::CbTarragonContactorControlMutual(std::unique_ptr<CbTarragonRelay> relay_3ph,
-                                                                   const std::string& contactor_3ph_feedback_type,
-                                                                   std::unique_ptr<CbTarragonRelay> relay_1ph,
-                                                                   const std::string& contactor_1ph_feedback_type) :
+CbContactorControlMutual::CbContactorControlMutual(std::unique_ptr<CbTarragonRelay> relay_3ph,
+                                                   const std::string& contactor_3ph_feedback_type,
+                                                   std::unique_ptr<CbTarragonRelay> relay_1ph,
+                                                   const std::string& contactor_1ph_feedback_type) :
     contactor_3ph("3ph Contactor", std::move(relay_3ph), contactor_3ph_feedback_type),
     contactor_1ph("1ph Contactor", std::move(relay_1ph), contactor_1ph_feedback_type) {
 
@@ -36,7 +36,7 @@ CbTarragonContactorControlMutual::CbTarragonContactorControlMutual(std::unique_p
         });
 }
 
-bool CbTarragonContactorControlMutual::is_inconsistent_state(std::ostringstream& error_hint) const {
+bool CbContactorControlMutual::is_inconsistent_state(std::ostringstream& error_hint) const {
     if (this->contactor_3ph.is_state_mismatch()) {
         error_hint << this->contactor_3ph;
         return true;
@@ -50,30 +50,30 @@ bool CbTarragonContactorControlMutual::is_inconsistent_state(std::ostringstream&
     return false;
 }
 
-bool CbTarragonContactorControlMutual::switch_state(bool on) {
+bool CbContactorControlMutual::switch_state(bool on) {
     if (this->phase_count == 3)
         return this->switch_contactor(this->contactor_3ph, on);
     else
         return this->switch_contactor(this->contactor_1ph, on);
 }
 
-bool CbTarragonContactorControlMutual::get_state() const {
+bool CbContactorControlMutual::get_state() const {
     // we can combine both states by OR-ing
     return this->contactor_3ph.get_state() or this->contactor_1ph.get_state();
 }
 
-std::chrono::milliseconds CbTarragonContactorControlMutual::get_closing_delay_left() const {
+std::chrono::milliseconds CbContactorControlMutual::get_closing_delay_left() const {
     if (this->phase_count == 3)
         return this->contactor_3ph.get_closing_delay_left();
     else
         return this->contactor_1ph.get_closing_delay_left();
 }
 
-std::ostream& CbTarragonContactorControlMutual::dump(std::ostream& os) const {
+std::ostream& CbContactorControlMutual::dump(std::ostream& os) const {
     os << this->contactor_3ph << ", " << this->contactor_1ph;
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlMutual& c) {
+std::ostream& operator<<(std::ostream& os, const CbContactorControlMutual& c) {
     return c.dump(os);
 }
