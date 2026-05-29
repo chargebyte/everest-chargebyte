@@ -28,6 +28,7 @@ target_link_libraries(cb-utils
 
 set_target_properties(cb-utils
     PROPERTIES
+        EXPORT_NAME utils
         VERSION ${PROJECT_VERSION}
         SOVERSION 1
 )
@@ -49,6 +50,7 @@ install(
 install(
     EXPORT cb-utilsTargets
     FILE cb-utilsTargets.cmake
+    NAMESPACE chargebyte::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/cb-utils
 )
 
