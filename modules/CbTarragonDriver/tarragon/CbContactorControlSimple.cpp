@@ -3,12 +3,11 @@
 #include <chrono>
 #include <iostream>
 #include <string>
-#include "CbTarragonContactor.hpp"
 #include "CbContactorControl.hpp"
 #include "CbContactorControlSimple.hpp"
 #include <everest/logging.hpp>
 
-CbContactorControlSimple::CbContactorControlSimple(std::unique_ptr<CbTarragonRelay> relay,
+CbContactorControlSimple::CbContactorControlSimple(std::unique_ptr<CbRelay> relay,
                                                    const std::string& contactor_feedback_type) :
     contactor("Contactor", std::move(relay), contactor_feedback_type) {
 

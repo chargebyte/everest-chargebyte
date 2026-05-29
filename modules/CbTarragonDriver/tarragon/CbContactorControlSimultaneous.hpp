@@ -5,10 +5,9 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "CbTarragonContactor.hpp"
 #include "CbContactorControl.hpp"
 #include "CbContactorControlSerial.hpp"
-#include "CbTarragonRelay.hpp"
+#include "CbRelay.hpp"
 
 ///
 /// This class implements a 'simultaneous' wiring contactor setup for phase count switching.
@@ -24,15 +23,15 @@ class CbContactorControlSimultaneous : public CbContactorControlSerial {
 
 public:
     /// @brief Constructor.
-    /// @param primary_relay A pointer to an instance of CbTarragonRelay.
+    /// @param primary_relay A pointer to an instance of CbRelay.
     /// @param primary_contactor_feedback_type Defines the logic behind the feedback of the primary contactor (no =
     /// normally open, nc = normally close, none = no feedback).
-    /// @param secondary_relay A pointer to an instance of CbTarragonRelay.
+    /// @param secondary_relay A pointer to an instance of CbRelay.
     /// @param secondary_contactor_feedback_type Defines the logic behind the feedback of the secondary contactor (no =
     /// normally open, nc = normally close, none = no feedback).
-    CbContactorControlSimultaneous(std::unique_ptr<CbTarragonRelay> primary_relay,
+    CbContactorControlSimultaneous(std::unique_ptr<CbRelay> primary_relay,
                                    const std::string& primary_contactor_feedback_type,
-                                   std::unique_ptr<CbTarragonRelay> secondary_relay,
+                                   std::unique_ptr<CbRelay> secondary_relay,
                                    const std::string& secondary_contactor_feedback_type);
 
     /// @brief Destructor.

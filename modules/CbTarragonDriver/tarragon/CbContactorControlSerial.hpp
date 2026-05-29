@@ -2,13 +2,12 @@
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <chrono>
-#include <memory>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "CbTarragonContactor.hpp"
+#include "CbContactor.hpp"
 #include "CbContactorControl.hpp"
-#include "CbTarragonRelay.hpp"
+#include "CbRelay.hpp"
 
 ///
 /// This class implements a 'serial' wiring contactor setup, i.e. with support for phase count switching.
@@ -23,15 +22,14 @@ class CbContactorControlSerial : public CbContactorControl {
 
 public:
     /// @brief Constructor.
-    /// @param primary_relay A pointer to an instance of CbTarragonRelay.
+    /// @param primary_relay A pointer to an instance of CbRelay.
     /// @param primary_contactor_feedback_type Defines the logic behind the feedback of the primary contactor (no =
     /// normally open, nc = normally close, none = no feedback).
-    /// @param secondary_relay A pointer to an instance of CbTarragonRelay.
+    /// @param secondary_relay A pointer to an instance of CbRelay.
     /// @param secondary_contactor_feedback_type Defines the logic behind the feedback of the secondary contactor (no =
     /// normally open, nc = normally close, none = no feedback).
-    CbContactorControlSerial(std::unique_ptr<CbTarragonRelay> primary_relay,
-                             const std::string& primary_contactor_feedback_type,
-                             std::unique_ptr<CbTarragonRelay> secondary_relay,
+    CbContactorControlSerial(std::unique_ptr<CbRelay> primary_relay, const std::string& primary_contactor_feedback_type,
+                             std::unique_ptr<CbRelay> secondary_relay,
                              const std::string& secondary_contactor_feedback_type);
 
     /// @brief Destructor.
@@ -49,10 +47,10 @@ public:
 
 protected:
     /// @brief The primary contactor and its feedback abstraction.
-    CbTarragonContactor primary;
+    CbContactor primary;
 
     /// @brief The secondary contactor and its feedback abstraction.
-    CbTarragonContactor secondary;
+    CbContactor secondary;
 
     /// @brief Split `switch_state` into two dedicated functions so that we can override in derived classes.
     virtual bool switch_state_on();

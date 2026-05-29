@@ -6,11 +6,10 @@
 #include <string>
 #include <sigslot/signal.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include "CbTarragonRelay.hpp"
-#include "CbTarragonContactor.hpp"
+#include "CbContactor.hpp"
 
-CbTarragonContactor::CbTarragonContactor(const std::string& name, std::unique_ptr<CbTarragonRelay> relay,
-                                         const std::string& contactor_feedback_type) :
+CbContactor::CbContactor(const std::string& name, std::unique_ptr<CbRelay> relay,
+                         const std::string& contactor_feedback_type) :
     name(name),
     feedback_type(types::cb_board_support::string_to_contactor_feedback_type(contactor_feedback_type)),
     relay(std::move(relay)) {
@@ -30,40 +29,40 @@ CbTarragonContactor::CbTarragonContactor(const std::string& name, std::unique_pt
                        this->feedback_type == types::cb_board_support::ContactorFeedbackType::nc);
 }
 
-const std::string& CbTarragonContactor::get_name() const {
+const std::string& CbContactor::get_name() const {
     return this->name;
 }
 
-bool CbTarragonContactor::switch_state(bool on, bool wait_for_feedback) {
+bool CbContactor::switch_state(bool on, bool wait_for_feedback) {
     return this->relay->set_actuator_state(on, wait_for_feedback);
 }
 
-bool CbTarragonContactor::get_state() const {
+bool CbContactor::get_state() const {
     return this->relay->get_actuator_state();
 }
 
-types::cb_board_support::ContactorState CbTarragonContactor::get_feedback_state() const {
+types::cb_board_support::ContactorState CbContactor::get_feedback_state() const {
     return this->relay->get_feedback_state() ? types::cb_board_support::ContactorState::Closed
                                              : types::cb_board_support::ContactorState::Open;
 }
 
-bool CbTarragonContactor::is_state_mismatch() const {
+bool CbContactor::is_state_mismatch() const {
     return this->relay->get_actuator_state() != this->relay->get_feedback_state();
 }
 
-void CbTarragonContactor::set_expected_feedback_change(bool on) {
+void CbContactor::set_expected_feedback_change(bool on) {
     this->relay->set_expected_feedback_change(on);
 }
 
-bool CbTarragonContactor::wait_for_feedback() {
+bool CbContactor::wait_for_feedback() {
     return this->relay->wait_for_feedback();
 }
 
-std::chrono::milliseconds CbTarragonContactor::get_closing_delay_left() const {
+std::chrono::milliseconds CbContactor::get_closing_delay_left() const {
     return this->relay->get_closing_delay_left();
 }
 
-std::ostream& operator<<(std::ostream& os, const CbTarragonContactor& c) {
+std::ostream& operator<<(std::ostream& os, const CbContactor& c) {
     os << c.name << "@" << *c.relay;
     return os;
 }
