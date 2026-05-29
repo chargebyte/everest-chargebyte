@@ -41,6 +41,10 @@ add_subdirectory("utils")
 # make custom interfaces and types visible
 ev_add_project()
 
+if(TARGET cb-utils AND TARGET generate_cpp_files)
+    add_dependencies(cb-utils generate_cpp_files)
+endif()
+
 # config
 # FIXME (aw): this should be optional
 add_subdirectory(config)

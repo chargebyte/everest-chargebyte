@@ -11,12 +11,6 @@ target_sources(tarragon
         "CbTarragonPP.cpp"
         "CbTarragonRCM.cpp"
         "CbTarragonRelay.cpp"
-        "CbContactor.cpp"
-        "CbContactorControl.cpp"
-        "CbContactorControlSimple.cpp"
-        "CbContactorControlSerial.cpp"
-        "CbContactorControlSimultaneous.cpp"
-        "CbContactorControlMutual.cpp"
 )
 
 get_property(CP_INCLUDE_DIR GLOBAL PROPERTY CP_INCLUDE_DIR)
