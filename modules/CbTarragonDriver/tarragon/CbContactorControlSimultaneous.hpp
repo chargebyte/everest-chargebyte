@@ -6,8 +6,8 @@
 #include <sstream>
 #include <string>
 #include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
-#include "CbTarragonContactorControlSerial.hpp"
+#include "CbContactorControl.hpp"
+#include "CbContactorControlSerial.hpp"
 #include "CbTarragonRelay.hpp"
 
 ///
@@ -18,9 +18,9 @@
 /// the Linux's kernel feature to switch two GPIOs within the very same GPIO bank.
 /// This is enforced already by passing different `CbActuator` references during the relay
 /// instantiations. In this class there are only smaller differences thus we can derive it
-/// from `CbTarragonContactorControlSerial`.
+/// from `CbContactorControlSerial`.
 ///
-class CbTarragonContactorControlSimultaneous : public CbTarragonContactorControlSerial {
+class CbContactorControlSimultaneous : public CbContactorControlSerial {
 
 public:
     /// @brief Constructor.
@@ -30,20 +30,20 @@ public:
     /// @param secondary_relay A pointer to an instance of CbTarragonRelay.
     /// @param secondary_contactor_feedback_type Defines the logic behind the feedback of the secondary contactor (no =
     /// normally open, nc = normally close, none = no feedback).
-    CbTarragonContactorControlSimultaneous(std::unique_ptr<CbTarragonRelay> primary_relay,
-                                           const std::string& primary_contactor_feedback_type,
-                                           std::unique_ptr<CbTarragonRelay> secondary_relay,
-                                           const std::string& secondary_contactor_feedback_type);
+    CbContactorControlSimultaneous(std::unique_ptr<CbTarragonRelay> primary_relay,
+                                   const std::string& primary_contactor_feedback_type,
+                                   std::unique_ptr<CbTarragonRelay> secondary_relay,
+                                   const std::string& secondary_contactor_feedback_type);
 
     /// @brief Destructor.
-    virtual ~CbTarragonContactorControlSimultaneous() = default;
+    virtual ~CbContactorControlSimultaneous() = default;
 
     virtual bool get_state() const override;
 
-    /// @brief Feeds a string representation of the given CbTarragonContactorControlSimultaneous
+    /// @brief Feeds a string representation of the given CbContactorControlSimultaneous
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
-    friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlSimultaneous& c);
+    friend std::ostream& operator<<(std::ostream& os, const CbContactorControlSimultaneous& c);
 
 protected:
     /// @brief Compared to base class, the order is little bit different.

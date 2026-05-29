@@ -61,7 +61,7 @@ public:
     /// @brief Signal used to inform about unexpected state changes on the feedback contact.
     sigslot::signal<const std::string, types::cb_board_support::ContactorState> on_unexpected_change;
 
-    /// @brief Feeds a string representation of the given CbTarragonContactorControlSimple
+    /// @brief Feeds a string representation of the given CbContactorControlSimple
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
     friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactor& c);

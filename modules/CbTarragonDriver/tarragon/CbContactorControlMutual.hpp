@@ -7,7 +7,7 @@
 #include <sstream>
 #include <string>
 #include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
+#include "CbContactorControl.hpp"
 #include "CbTarragonRelay.hpp"
 
 ///
@@ -15,7 +15,7 @@
 /// This means, that the first contactor switches all 3 phases and the second contactor switches
 /// only a single phase. Both contactors are used mutually exclusive.
 ///
-class CbTarragonContactorControlMutual : public CbTarragonContactorControl {
+class CbContactorControlMutual : public CbContactorControl {
 
 public:
     /// @brief Constructor.
@@ -25,23 +25,22 @@ public:
     /// @param relay_1ph A pointer to an instance of CbTarragonRelay.
     /// @param contactor_1ph_feedback_type Defines the logic behind the feedback of the 1ph contactor (no = normally
     /// open, nc = normally close, none = no feedback).
-    CbTarragonContactorControlMutual(std::unique_ptr<CbTarragonRelay> relay_3ph,
-                                     const std::string& contactor_3ph_feedback_type,
-                                     std::unique_ptr<CbTarragonRelay> relay_1ph,
-                                     const std::string& contactor_1ph_feedback_type);
+    CbContactorControlMutual(std::unique_ptr<CbTarragonRelay> relay_3ph, const std::string& contactor_3ph_feedback_type,
+                             std::unique_ptr<CbTarragonRelay> relay_1ph,
+                             const std::string& contactor_1ph_feedback_type);
 
     /// @brief Destructor.
-    virtual ~CbTarragonContactorControlMutual() = default;
+    virtual ~CbContactorControlMutual() = default;
 
     virtual bool is_inconsistent_state(std::ostringstream& error_hint) const override;
     virtual bool switch_state(bool on) override;
     virtual bool get_state() const override;
     virtual std::chrono::milliseconds get_closing_delay_left() const override;
 
-    /// @brief Feeds a string representation of the given CbTarragonContactorControlMutual
+    /// @brief Feeds a string representation of the given CbContactorControlMutual
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
-    friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlMutual& c);
+    friend std::ostream& operator<<(std::ostream& os, const CbContactorControlMutual& c);
 
 private:
     /// @brief The contactor which switches all 3 phases and its feedback abstraction.

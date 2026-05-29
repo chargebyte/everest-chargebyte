@@ -7,7 +7,7 @@
 #include <sstream>
 #include <string>
 #include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
+#include "CbContactorControl.hpp"
 #include "CbTarragonRelay.hpp"
 
 ///
@@ -19,7 +19,7 @@
 /// "these phases are available" view to the car - in other words, the phases do not arrive with
 /// a time lag at the car.
 ///
-class CbTarragonContactorControlSerial : public CbTarragonContactorControl {
+class CbContactorControlSerial : public CbContactorControl {
 
 public:
     /// @brief Constructor.
@@ -29,23 +29,23 @@ public:
     /// @param secondary_relay A pointer to an instance of CbTarragonRelay.
     /// @param secondary_contactor_feedback_type Defines the logic behind the feedback of the secondary contactor (no =
     /// normally open, nc = normally close, none = no feedback).
-    CbTarragonContactorControlSerial(std::unique_ptr<CbTarragonRelay> primary_relay,
-                                     const std::string& primary_contactor_feedback_type,
-                                     std::unique_ptr<CbTarragonRelay> secondary_relay,
-                                     const std::string& secondary_contactor_feedback_type);
+    CbContactorControlSerial(std::unique_ptr<CbTarragonRelay> primary_relay,
+                             const std::string& primary_contactor_feedback_type,
+                             std::unique_ptr<CbTarragonRelay> secondary_relay,
+                             const std::string& secondary_contactor_feedback_type);
 
     /// @brief Destructor.
-    virtual ~CbTarragonContactorControlSerial() = default;
+    virtual ~CbContactorControlSerial() = default;
 
     virtual bool is_inconsistent_state(std::ostringstream& error_hint) const override;
     virtual bool switch_state(bool on) override;
     virtual bool get_state() const override;
     virtual std::chrono::milliseconds get_closing_delay_left() const override;
 
-    /// @brief Feeds a string representation of the given CbTarragonContactorControlSerial
+    /// @brief Feeds a string representation of the given CbContactorControlSerial
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
-    friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlSerial& c);
+    friend std::ostream& operator<<(std::ostream& os, const CbContactorControlSerial& c);
 
 protected:
     /// @brief The primary contactor and its feedback abstraction.

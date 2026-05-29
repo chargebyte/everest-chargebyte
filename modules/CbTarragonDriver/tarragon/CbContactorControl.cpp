@@ -4,11 +4,11 @@
 #include <string>
 #include <sigslot/signal.hpp>
 #include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
+#include "CbContactorControl.hpp"
 
 using namespace std::chrono_literals;
 
-bool CbTarragonContactorControl::switch_contactor(CbTarragonContactor& contactor, bool on, bool wait_for_feedback) {
+bool CbContactorControl::switch_contactor(CbTarragonContactor& contactor, bool on, bool wait_for_feedback) {
     bool rv;
 
     // reject power on in case emergency flag is set
@@ -28,19 +28,19 @@ bool CbTarragonContactorControl::switch_contactor(CbTarragonContactor& contactor
     return rv;
 }
 
-bool CbTarragonContactorControl::open() {
+bool CbContactorControl::open() {
     return this->switch_state(false);
 }
 
-void CbTarragonContactorControl::switch_phase_count(bool use_3phases) {
+void CbContactorControl::switch_phase_count(bool use_3phases) {
     this->phase_count = use_3phases ? 3 : 1;
 }
 
-std::ostream& CbTarragonContactorControl::dump(std::ostream& os) const {
-    os << "CbTarragonContactorControl";
+std::ostream& CbContactorControl::dump(std::ostream& os) const {
+    os << "CbContactorControl";
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControl& c) {
+std::ostream& operator<<(std::ostream& os, const CbContactorControl& c) {
     return c.dump(os);
 }

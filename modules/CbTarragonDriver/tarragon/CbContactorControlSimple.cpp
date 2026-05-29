@@ -4,12 +4,12 @@
 #include <iostream>
 #include <string>
 #include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
-#include "CbTarragonContactorControlSimple.hpp"
+#include "CbContactorControl.hpp"
+#include "CbContactorControlSimple.hpp"
 #include <everest/logging.hpp>
 
-CbTarragonContactorControlSimple::CbTarragonContactorControlSimple(std::unique_ptr<CbTarragonRelay> relay,
-                                                                   const std::string& contactor_feedback_type) :
+CbContactorControlSimple::CbContactorControlSimple(std::unique_ptr<CbTarragonRelay> relay,
+                                                   const std::string& contactor_feedback_type) :
     contactor("Contactor", std::move(relay), contactor_feedback_type) {
 
     EVLOG_info << this->contactor.get_name() << " feedback type: '" << contactor_feedback_type << "'";
@@ -22,7 +22,7 @@ CbTarragonContactorControlSimple::CbTarragonContactorControlSimple(std::unique_p
         });
 }
 
-bool CbTarragonContactorControlSimple::is_inconsistent_state(std::ostringstream& error_hint) const {
+bool CbContactorControlSimple::is_inconsistent_state(std::ostringstream& error_hint) const {
     bool rv = this->contactor.is_state_mismatch();
 
     if (rv)
@@ -31,23 +31,23 @@ bool CbTarragonContactorControlSimple::is_inconsistent_state(std::ostringstream&
     return rv;
 }
 
-bool CbTarragonContactorControlSimple::switch_state(bool on) {
+bool CbContactorControlSimple::switch_state(bool on) {
     return this->switch_contactor(this->contactor, on);
 }
 
-bool CbTarragonContactorControlSimple::get_state() const {
+bool CbContactorControlSimple::get_state() const {
     return this->contactor.get_state();
 }
 
-std::chrono::milliseconds CbTarragonContactorControlSimple::get_closing_delay_left() const {
+std::chrono::milliseconds CbContactorControlSimple::get_closing_delay_left() const {
     return this->contactor.get_closing_delay_left();
 }
 
-std::ostream& CbTarragonContactorControlSimple::dump(std::ostream& os) const {
+std::ostream& CbContactorControlSimple::dump(std::ostream& os) const {
     os << this->contactor;
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlSimple& c) {
+std::ostream& operator<<(std::ostream& os, const CbContactorControlSimple& c) {
     return c.dump(os);
 }
