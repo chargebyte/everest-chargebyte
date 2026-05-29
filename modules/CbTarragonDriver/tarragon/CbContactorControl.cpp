@@ -3,12 +3,12 @@
 #include <chrono>
 #include <string>
 #include <sigslot/signal.hpp>
-#include "CbTarragonContactor.hpp"
+#include "CbContactor.hpp"
 #include "CbContactorControl.hpp"
 
 using namespace std::chrono_literals;
 
-bool CbContactorControl::switch_contactor(CbTarragonContactor& contactor, bool on, bool wait_for_feedback) {
+bool CbContactorControl::switch_contactor(CbContactor& contactor, bool on, bool wait_for_feedback) {
     bool rv;
 
     // reject power on in case emergency flag is set

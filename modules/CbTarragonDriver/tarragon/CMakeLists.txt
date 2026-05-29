@@ -11,7 +11,7 @@ target_sources(tarragon
         "CbTarragonPP.cpp"
         "CbTarragonRCM.cpp"
         "CbTarragonRelay.cpp"
-        "CbTarragonContactor.cpp"
+        "CbContactor.cpp"
         "CbContactorControl.cpp"
         "CbContactorControlSimple.cpp"
         "CbContactorControlSerial.cpp"
@@ -27,7 +27,7 @@ target_include_directories(tarragon
     PRIVATE
         ${CP_INCLUDE_DIR}
         ${GENERATED_INCLUDE_DIR}
-    )
+)
 
 add_dependencies(tarragon generate_cpp_files)
 

@@ -13,10 +13,11 @@
 #include <sigslot/signal.hpp>
 #include <gpiod.hpp>
 #include "CbActuator.hpp"
+#include "CbRelay.hpp"
 
 using namespace std::chrono_literals;
 
-class CbTarragonRelay {
+class CbTarragonRelay : public CbRelay {
 
 public:
     /// @brief Constructor
@@ -30,13 +31,13 @@ public:
                     const std::string& feedback_gpio_line_name, const unsigned int feedback_gpio_debounce_us);
 
     /// @brief Destructor.
-    ~CbTarragonRelay();
+    ~CbTarragonRelay() override;
 
     /// @brief Tells whether the feedback signal monitoring should be used and actually starts it if so.
     ///        This function must be called before any other member functions are used.
     /// @param use_feedback True - use the feedback signal; false - ignore it.
     /// @param active_low Tells whether the feedback line should use inverted logic.
-    void start(bool use_feedback, bool active_low);
+    void start(bool use_feedback, bool active_low) override;
 
     /// @brief Switch the relay on/off. This function ensures that the minimum close interval between
     ///        consecutive closings is respected (ie. waits until the GPIO can be actually switched).
@@ -46,33 +47,26 @@ public:
     /// @param wait_for_feedback Tell whether to wait and evaluate the feedback before returning.
     /// @return Returns false if the new state could not reached successfully (based on sense signal evaluation
     ///         if configured and thus it is probably a contactor error), true otherwise.
-    bool set_actuator_state(bool on, bool wait_for_feedback);
+    bool set_actuator_state(bool on, bool wait_for_feedback) override;
 
     /// @brief Read the actual GPIO state of the actuator.
-    bool get_actuator_state() const;
+    bool get_actuator_state() const override;
 
     /// @brief Read the actual GPIO state of the feedback. If `start` was called with `use_feedback` set to `false`,
     ///        then this function just returns the current actuator state.
-    bool get_feedback_state() const;
+    bool get_feedback_state() const override;
 
     /// @brief Tell the feedback monitor about an expected feedback change which is not initiated by
     ///        a call to `set_actuator_state`, e.g. because of a special serial wiring of multiple contactors.
-    void set_expected_feedback_change(bool on);
+    void set_expected_feedback_change(bool on) override;
 
     /// @brief Sleeps until the next change event on the feedback signal occurs.
     /// @return Returns false if the new state could not reached successfully (based on sense signal evaluation
     ///         if configured and thus it is probably a contactor error), true otherwise.
-    bool wait_for_feedback();
+    bool wait_for_feedback() override;
 
     /// @brief Return the time to wait until the relay can be closed again.
-    std::chrono::milliseconds get_closing_delay_left() const;
-
-    /// @brief Signal used to inform about unexpected state changes on the feedback GPIO.
-    sigslot::signal<const std::string&, bool> on_unexpected_change;
-
-    /// @brief Feeds a string representation of the given CbTarragonRelay instance into an output stream.
-    /// @return A reference to the output stream operated on.
-    friend std::ostream& operator<<(std::ostream& os, const CbTarragonRelay& r);
+    std::chrono::milliseconds get_closing_delay_left() const override;
 
 private:
     /// @brief Name of the relay and its feedback as labeled on hardware.
@@ -138,4 +132,6 @@ private:
 
     /// @brief Feedback GPIO monitoring thread worker function.
     void feedback_monitor_worker();
+
+    std::ostream& dump(std::ostream& os) const override;
 };

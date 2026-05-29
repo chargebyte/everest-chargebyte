@@ -57,8 +57,8 @@ void CbTarragonDriver::init() {
         // per definition we use the relay 1 as primary/only relay
         auto nh_relay = this->relays.extract(this->config.relay_1_name);
 
-        this->contactor_controller = std::make_unique<CbContactorControlSimple>(
-            std::move(nh_relay.mapped()), this->config.contactor_1_feedback_type);
+        this->contactor_controller = std::make_unique<CbContactorControlSimple>(std::move(nh_relay.mapped()),
+                                                                                this->config.contactor_1_feedback_type);
 
     } else if (this->config.switch_3ph1ph_wiring == "serial") {
         // per definition we use the relay 1 as primary relay (all phases)

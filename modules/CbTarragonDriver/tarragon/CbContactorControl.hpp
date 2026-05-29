@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
+#include <atomic>
 #include <chrono>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <sigslot/signal.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include "CbTarragonContactor.hpp"
+#include "CbContactor.hpp"
 
 ///
 /// This is an "abstract" (not in sense of C++ meaning) class for handling contactor control.
@@ -77,7 +79,7 @@ protected:
     /// @param on The target state (true = on, false = off)
     /// @param wait_for_feedback Tell whether to wait and evaluate the feedback before returning.
     /// @return True on success, false on error.
-    bool switch_contactor(CbTarragonContactor& contactor, bool on, bool wait_for_feedback = true);
+    bool switch_contactor(CbContactor& contactor, bool on, bool wait_for_feedback = true);
 
     /// @brief Helper to feed a string representation into an output stream.
     /// @param os Output stream reference to operate on.

@@ -2,13 +2,12 @@
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <chrono>
-#include <memory>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "CbTarragonContactor.hpp"
+#include "CbContactor.hpp"
 #include "CbContactorControl.hpp"
-#include "CbTarragonRelay.hpp"
+#include "CbRelay.hpp"
 
 ///
 /// This class implements a standard/usual contactor setup, eg. a single contactor
@@ -18,10 +17,10 @@ class CbContactorControlSimple : public CbContactorControl {
 
 public:
     /// @brief Constructor.
-    /// @param relay A pointer to an instance of CbTarragonRelay.
+    /// @param relay A pointer to an instance of CbRelay.
     /// @param contactor_feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close,
     /// none = no feedback).
-    CbContactorControlSimple(std::unique_ptr<CbTarragonRelay> relay, const std::string& contactor_feedback_type);
+    CbContactorControlSimple(std::unique_ptr<CbRelay> relay, const std::string& contactor_feedback_type);
 
     /// @brief Destructor.
     virtual ~CbContactorControlSimple() = default;
@@ -38,7 +37,7 @@ public:
 
 private:
     /// @brief The contactor and it's feedback abstraction.
-    CbTarragonContactor contactor;
+    CbContactor contactor;
 
     /// @brief Helper to feed a string representation into an output stream.
     /// @param os Output stream reference to operate on.

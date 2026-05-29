@@ -2,13 +2,12 @@
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
 #include <chrono>
-#include <memory>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "CbTarragonContactor.hpp"
+#include "CbContactor.hpp"
 #include "CbContactorControl.hpp"
-#include "CbTarragonRelay.hpp"
+#include "CbRelay.hpp"
 
 ///
 /// This class implements a 'mutual' wiring contactor setup, i.e. with support for phase count switching.
@@ -19,17 +18,15 @@ class CbContactorControlMutual : public CbContactorControl {
 
 public:
     /// @brief Constructor.
-    /// @param relay_3ph A pointer to an instance of CbTarragonRelay.
+    /// @param relay_3ph A pointer to an instance of CbRelay.
     /// @param contactor_3ph_feedback_type Defines the logic behind the feedback of the 3ph contactor (no = normally
     /// open, nc = normally close, none = no feedback).
-    /// @param relay_1ph A pointer to an instance of CbTarragonRelay.
+    /// @param relay_1ph A pointer to an instance of CbRelay.
     /// @param contactor_1ph_feedback_type Defines the logic behind the feedback of the 1ph contactor (no = normally
     /// open, nc = normally close, none = no feedback).
-    CbContactorControlMutual(std::unique_ptr<CbTarragonRelay> relay_3ph, const std::string& contactor_3ph_feedback_type,
-                             std::unique_ptr<CbTarragonRelay> relay_1ph,
-                             const std::string& contactor_1ph_feedback_type);
+    CbContactorControlMutual(std::unique_ptr<CbRelay> relay_3ph, const std::string& contactor_3ph_feedback_type,
+                             std::unique_ptr<CbRelay> relay_1ph, const std::string& contactor_1ph_feedback_type);
 
-    /// @brief Destructor.
     virtual ~CbContactorControlMutual() = default;
 
     virtual bool is_inconsistent_state(std::ostringstream& error_hint) const override;
@@ -44,10 +41,10 @@ public:
 
 private:
     /// @brief The contactor which switches all 3 phases and its feedback abstraction.
-    CbTarragonContactor contactor_3ph;
+    CbContactor contactor_3ph;
 
     /// @brief The contactor which switches only 1 phase and its feedback abstraction.
-    CbTarragonContactor contactor_1ph;
+    CbContactor contactor_1ph;
 
     /// @brief Helper to feed a string representation into an output stream.
     /// @param os Output stream reference to operate on.
