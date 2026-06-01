@@ -90,13 +90,13 @@ public:
     sigslot::signal<const enum cs_safestate_active&> on_safestate_active;
 
     /// @brief Signal emitted whenever a contactor switch is detected.
-    ///        First parameter is the name of the contactor, second parameter is actual state.
-    sigslot::signal<const std::string&, types::cb_board_support::ContactorState> on_contactor_change;
+    ///        First parameter is the index of the contactor, second parameter is actual state.
+    sigslot::signal<const unsigned int, types::cb_board_support::ContactorState> on_contactor_change;
 
     /// @brief Signal used to inform about errors during contactor switching.
-    ///        First parameter is the name of the contactor, second parameter is intended state
+    ///        First parameter is the index of the contactor, second parameter is intended state
     ///        and third parameter is actual state.
-    sigslot::signal<const std::string&, bool, types::cb_board_support::ContactorState> on_contactor_error;
+    sigslot::signal<const unsigned int, const bool, const types::cb_board_support::ContactorState> on_contactor_error;
 
     /// @brief Signal emitted whenever an error message is received.
     ///        The parameters are filled with the data from the latest error message.
@@ -124,13 +124,23 @@ public:
     /// @brief Get the current state of the CP short circuit signal
     bool get_cp_short_circuit();
 
-    /// @brief Closes the contactor (on = true), or opens it (on = false):
-    ///        This is a synchronous call, i.e. it waits until it is confirmed
-    ///        by feedback signal (if used).
-    /// @return True on success, false on error.
-    bool switch_state(bool on);
+    /// @brief Closes the contactor N (on = true), or opens it (on = false):
+    ///        this call is cached until `set_contactorN_commit` is called
+    void set_contactorN_state(unsigned int idx, bool on);
+
+    /// @brief Actually sends out the updated request the safety controller
+    ///        to open/close some contactors
+    void set_contactorN_state_commit();
+
+    /// @brief Return the target state of contactor N
+    bool get_contactorN_target_state(unsigned int idx);
+
+    /// @brief Return the current state of contactor N
+    bool get_contactorN_state(unsigned int idx);
 
     /// @brief Return the current contactor state (even when no contactor is configured)
+    ///        This is used mainly when safetey controller has no contactor configured, i.e.
+    ///        when we are simulating a contactor.
     bool get_contactor_state();
 
     /// @brief Return whether at least one contactor is configured in safety controller.
@@ -278,6 +288,9 @@ private:
 
     /// @brief Helper to trigger an action and wait for confirmation from safety controller
     void send_action_request_and_wait(enum action_id action);
+
+    /// @brief Helper to remember the contactor state of a contactor which shall not be switched directly
+    bool prepared_contactor_state[CB_PROTO_MAX_CONTACTORS] = {};
 
     /// @brief Internal helper to determine the current contactor state.
     bool get_contactor_state_no_lock();

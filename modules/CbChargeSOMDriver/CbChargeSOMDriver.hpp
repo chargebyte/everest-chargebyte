@@ -20,6 +20,7 @@
 
 #include <atomic>
 #include <CbChargeSOM.hpp>
+#include <CbContactorControl.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -42,6 +43,9 @@ struct Conf {
     std::string pt1000_4_identification;
     std::string grid_phase_count_gpio_line_name;
     bool grid_phase_count_active_low;
+    std::string contactor_1_feedback_type;
+    std::string contactor_2_feedback_type;
+    std::string switch_3ph1ph_wiring;
 };
 
 class CbChargeSOMDriver : public Everest::ModuleBase {
@@ -69,6 +73,10 @@ public:
 
     /// @brief Safety controller UART Interface
     CbChargeSOM controller;
+
+    /// @brief Relay and contactor control
+    std::unique_ptr<CbContactorControl> contactor_controller;
+
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
