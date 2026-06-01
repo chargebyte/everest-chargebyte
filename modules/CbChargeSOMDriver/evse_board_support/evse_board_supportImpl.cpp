@@ -55,7 +55,10 @@ void evse_board_supportImpl::init() {
     // user must configure the actual phase wiring per configuration
     auto min_phase_count = this->mod->config.min_phase_count;
     auto max_phase_count = this->mod->config.max_phase_count;
-    bool support_3ph1ph = false;
+
+    // check whether the configuration allows to enable phase-count switching support:
+    // - 'switch_3ph1ph_wiring' must not be 'none'
+    bool support_3ph1ph = this->mod->config.switch_3ph1ph_wiring != "none";
 
     // - double check whether there is a runtime switch on the board which might be
     //   configured by user for single phase operation
@@ -229,49 +232,26 @@ void evse_board_supportImpl::init() {
         }
     });
 
-    this->mod->controller.on_contactor_change.connect(
-        [&](const std::string& source, types::cb_board_support::ContactorState actual_state) {
-            if (actual_state == types::cb_board_support::ContactorState::Unknown) {
-                EVLOG_debug << source << " state change detected: now " << actual_state;
-                return;
-            }
+    this->mod->controller.on_contactor_error.connect([&](const unsigned int idx, const bool desired_state,
+                                                         const types::cb_board_support::ContactorState actual_state) {
+        // An error occurred while switching - i.e. feedback does not match our expected new state.
+        // This fault is critical as it might be a sign of a hardware issue, therefore
+        // the fault will not be cleared to prevent further damage.
+        std::ostringstream errmsg;
+        errmsg << "Failed to " << (desired_state ? "CLOSE" : "OPEN") << " contactor " << (idx + 1) << ", it is still "
+               << actual_state;
 
-            // ignore the source for now, just log it
-            EVLOG_info << source << " state change detected: now " << actual_state;
+        // raise a contactor fault if it was not done before
+        if (!this->contactor_fault_reported.exchange(true)) {
+            EVLOG_error << errmsg.str() << ", raising MREC17EVSEContactorFault.";
 
-            bool current_contactor_state = this->mod->controller.get_contactor_state();
-            bool previous_state_reported = this->contactor_state_reported.exchange(current_contactor_state);
-
-            if (previous_state_reported != current_contactor_state) {
-                // publish PowerOn or PowerOff event
-                types::board_support_common::Event tmp_event = current_contactor_state
-                                                                   ? types::board_support_common::Event::PowerOn
-                                                                   : types::board_support_common::Event::PowerOff;
-                types::board_support_common::BspEvent tmp {tmp_event};
-                this->publish_event(tmp);
-            }
-        });
-
-    this->mod->controller.on_contactor_error.connect(
-        [&](const std::string& source, bool desired_state, types::cb_board_support::ContactorState actual_state) {
-            // An error occurred while switching - i.e. feedback does not match our expected new state.
-            // This fault is critical as it might be a sign of a hardware issue, therefore
-            // the fault will not be cleared to prevent further damage.
-            std::ostringstream errmsg;
-            errmsg << "Failed to " << (desired_state ? "CLOSE" : "OPEN") << " the " << source << ", it is still "
-                   << actual_state;
-
-            // raise a contactor fault if it was not done before
-            if (!this->contactor_fault_reported.exchange(true)) {
-                EVLOG_error << errmsg.str() << ", raising MREC17EVSEContactorFault.";
-
-                Everest::error::Error error_object = this->error_factory->create_error(
-                    "evse_board_support/MREC17EVSEContactorFault", "", errmsg.str(), Everest::error::Severity::High);
-                this->raise_error(error_object);
-            } else {
-                EVLOG_error << errmsg.str();
-            }
-        });
+            Everest::error::Error error_object = this->error_factory->create_error(
+                "evse_board_support/MREC17EVSEContactorFault", "", errmsg.str(), Everest::error::Severity::High);
+            this->raise_error(error_object);
+        } else {
+            EVLOG_error << errmsg.str();
+        }
+    });
 
     this->mod->controller.on_estop.connect([&](const enum cs1_safestate_reason& reason) {
         if (reason == CS1_SAFESTATE_REASON_NO_STOP) {
@@ -490,15 +470,16 @@ void evse_board_supportImpl::handle_cp_state_E() {
 
 void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::PowerOnOff& value) {
     // this method is called very often, even the contactor state is already matching the desired one
-    // so let's use this as helper to control the log noise a little bit
-    bool state_change = value.allow_power_on != this->mod->controller.get_contactor_state();
+    // so let's use this as helper to control the log noise a little bit and whether we actually
+    // need to report a BSP event
+    bool state_change = value.allow_power_on != this->mod->contactor_controller->get_state();
 
     if (value.allow_power_on && this->cp_current_state == types::cb_board_support::CPState::PilotFault) {
         EVLOG_warning << "Power on rejected due to detected pilot fault";
         return;
     }
 
-    if (value.allow_power_on && this->mod->controller.is_emergency()) {
+    if (value.allow_power_on && this->mod->contactor_controller->is_emergency) {
         EVLOG_warning << "Power on rejected due to detected emergency state";
         return;
     }
@@ -508,17 +489,37 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
         return;
     }
 
-    EVLOG_info << fmt::format("handle_allow_power_on: request to {} the contactor ({})",
-                              value.allow_power_on ? "CLOSE" : "OPEN", value.reason);
+    if (state_change)
+        EVLOG_info << fmt::format("handle_allow_power_on: request to {} the contactor ({})",
+                                  value.allow_power_on ? "CLOSE" : "OPEN", value.reason);
+    else
+        EVLOG_debug << fmt::format("handle_allow_power_on: request to {} the contactor ({})",
+                                   value.allow_power_on ? "CLOSE" : "OPEN", value.reason);
 
+    // exit early if we don't actually change the state
     if (!state_change) {
-        EVLOG_debug << "Current (unchanged) state: "
-                    << (this->mod->controller.get_contactor_state() ? "CLOSED" : "OPEN");
+        EVLOG_info << "Current (unchanged) state: " << *this->mod->contactor_controller;
         return;
     }
 
-    this->mod->controller.switch_state(value.allow_power_on);
+    if (this->mod->contactor_controller->switch_state(value.allow_power_on)) {
+        EVLOG_info << "Current state: " << *this->mod->contactor_controller;
 
+        if (value.allow_power_on and this->mod->controller.is_hv_ready()) {
+            if (!this->contactor_state_reported.exchange(true)) {
+                // publish PowerOn
+                this->publish_event({types::board_support_common::Event::PowerOn});
+            }
+        }
+        if (!value.allow_power_on) {
+            if (this->contactor_state_reported.exchange(false)) {
+                // publish PowerOff
+                this->publish_event({types::board_support_common::Event::PowerOff});
+            }
+        }
+    }
+
+#if 0
     // Note: actual switching and errors while switching are reported via slots usually,
     // but this does not work when no contactor is enabled in the safety controller;
     // for this we have to generate the required feedback ourself (see also above)
@@ -536,12 +537,14 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
             }
         }
     }
+#endif
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
     EVLOG_info << "handle_ac_switch_three_phases_while_charging: switching to " << (value ? "3-phase" : "1-phase")
                << " mode";
-    (void)value;
+
+    this->mod->contactor_controller->switch_phase_count(value);
 }
 
 void evse_board_supportImpl::handle_ac_set_overcurrent_limit_A(double& value) {

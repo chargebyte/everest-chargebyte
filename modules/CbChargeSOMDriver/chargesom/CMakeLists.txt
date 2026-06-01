@@ -5,6 +5,7 @@ add_library(chargesom STATIC)
 target_sources(chargesom
     PRIVATE
         "CbChargeSOM.cpp"
+        "CbCarrierBoardRelay.cpp"
 )
 
 get_target_property(GENERATED_INCLUDE_DIR generate_cpp_files EVEREST_GENERATED_INCLUDE_DIR)
