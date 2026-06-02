@@ -232,6 +232,28 @@ void evse_board_supportImpl::init() {
         }
     });
 
+    this->mod->contactor_controller->on_change.connect(
+        [&](const std::string& name, types::cb_board_support::ContactorState contactor_state) {
+            // we don't use the name here since it may be confusing: the published state here is
+            // the overall contactor state for EvseManager
+            (void)name;
+            EVLOG_info << "Contactor state change: now " << contactor_state;
+
+            if (contactor_state == types::cb_board_support::ContactorState::Closed) {
+                if (!this->contactor_state_reported.exchange(true)) {
+                    // publish PowerOn
+                    this->publish_event({types::board_support_common::Event::PowerOn});
+                }
+            }
+
+            if (contactor_state == types::cb_board_support::ContactorState::Open) {
+                if (this->contactor_state_reported.exchange(false)) {
+                    // publish PowerOff
+                    this->publish_event({types::board_support_common::Event::PowerOff});
+                }
+            }
+        });
+
     this->mod->controller.on_contactor_error.connect([&](const unsigned int idx, const bool desired_state,
                                                          const types::cb_board_support::ContactorState actual_state) {
         // An error occurred while switching - i.e. feedback does not match our expected new state.
@@ -518,26 +540,6 @@ void evse_board_supportImpl::handle_allow_power_on(types::evse_board_support::Po
             }
         }
     }
-
-#if 0
-    // Note: actual switching and errors while switching are reported via slots usually,
-    // but this does not work when no contactor is enabled in the safety controller;
-    // for this we have to generate the required feedback ourself (see also above)
-    if (not this->mod->controller.contactors_in_use()) {
-        if (value.allow_power_on and this->mod->controller.is_hv_ready()) {
-            if (!this->contactor_state_reported.exchange(true)) {
-                // publish PowerOn
-                this->publish_event({types::board_support_common::Event::PowerOn});
-            }
-        }
-        if (!value.allow_power_on) {
-            if (this->contactor_state_reported.exchange(false)) {
-                // publish PowerOff
-                this->publish_event({types::board_support_common::Event::PowerOff});
-            }
-        }
-    }
-#endif
 }
 
 void evse_board_supportImpl::handle_ac_switch_three_phases_while_charging(bool& value) {
