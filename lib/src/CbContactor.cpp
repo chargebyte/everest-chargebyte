@@ -13,6 +13,15 @@ CbContactor::CbContactor(const std::string& name, std::unique_ptr<CbRelay> relay
     name(name),
     feedback_type(types::cb_board_support::string_to_contactor_feedback_type(contactor_feedback_type)),
     relay(std::move(relay)) {
+    // forward on-change handling
+    this->relay->on_change.connect([&](const std::string& relay_name, bool seen_state) {
+        types::cb_board_support::ContactorState seen_contactor_state {
+            seen_state ? types::cb_board_support::ContactorState::Closed
+                       : types::cb_board_support::ContactorState::Open};
+
+        this->on_change(this->name + "@" + relay_name, seen_contactor_state);
+    });
+
     // register error handler
     this->relay->on_unexpected_change.connect([&](const std::string& relay_name, bool seen_state) {
         types::cb_board_support::ContactorState seen_contactor_state {

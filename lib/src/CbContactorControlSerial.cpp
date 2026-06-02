@@ -24,6 +24,16 @@ CbContactorControlSerial::CbContactorControlSerial(std::unique_ptr<CbRelay> prim
         EVLOG_warning << "The " << this->secondary.get_name()
                       << " has the feedback pin not connected. This is not recommended.";
 
+    this->primary.on_change.connect(
+        [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
+            this->consider_trigger_on_change(seen_contactor_state, this->secondary);
+        });
+
+    this->secondary.on_change.connect(
+        [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
+            this->consider_trigger_on_change(seen_contactor_state, this->primary);
+        });
+
     this->primary.on_unexpected_change.connect(
         [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
             this->on_unexpected_change(contactor_name, seen_contactor_state);
@@ -33,6 +43,26 @@ CbContactorControlSerial::CbContactorControlSerial(std::unique_ptr<CbRelay> prim
         [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
             this->on_unexpected_change(contactor_name, seen_contactor_state);
         });
+}
+
+void CbContactorControlSerial::consider_trigger_on_change(
+    const types::cb_board_support::ContactorState seen_contactor_state, CbContactor& other_contactor) {
+    if (this->phase_count == 3) {
+        // when phase count is three, then both contactors should have same state before we publish an event
+        if (seen_contactor_state == other_contactor.get_feedback_state()) {
+            if (this->published_contactor_state.exchange(seen_contactor_state) != seen_contactor_state) {
+                this->on_change(this->primary.get_name(), seen_contactor_state);
+            }
+        }
+    } else {
+        // one phase -> only primary is important;
+        // we can decide this (whether the reporting one is the primary) on whether the 'other' one is the secondary
+        if (&other_contactor == &this->secondary) {
+            if (this->published_contactor_state.exchange(seen_contactor_state) != seen_contactor_state) {
+                this->on_change(this->primary.get_name(), seen_contactor_state);
+            }
+        }
+    }
 }
 
 bool CbContactorControlSerial::is_inconsistent_state(std::ostringstream& error_hint) const {

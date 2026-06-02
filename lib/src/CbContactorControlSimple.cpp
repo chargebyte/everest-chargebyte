@@ -15,6 +15,11 @@ CbContactorControlSimple::CbContactorControlSimple(std::unique_ptr<CbRelay> rela
     if (contactor_feedback_type == "none")
         EVLOG_warning << "The contactor has the feedback pin not connected. This is not recommended.";
 
+    this->contactor.on_change.connect(
+        [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
+            this->on_change(contactor_name, seen_contactor_state);
+        });
+
     this->contactor.on_unexpected_change.connect(
         [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
             this->on_unexpected_change(contactor_name, seen_contactor_state);

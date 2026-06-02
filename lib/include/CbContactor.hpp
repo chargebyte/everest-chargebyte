@@ -56,6 +56,9 @@ public:
     /// @brief Return the time to wait until the contactor can be closed again.
     std::chrono::milliseconds get_closing_delay_left() const;
 
+    /// @brief Signal used to inform about expected state changes on the feedback contact.
+    sigslot::signal<const std::string, types::cb_board_support::ContactorState> on_change;
+
     /// @brief Signal used to inform about unexpected state changes on the feedback contact.
     sigslot::signal<const std::string, types::cb_board_support::ContactorState> on_unexpected_change;
 
