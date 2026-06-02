@@ -24,9 +24,19 @@ CbContactorControlMutual::CbContactorControlMutual(std::unique_ptr<CbRelay> rela
         EVLOG_warning << "The " << this->contactor_1ph.get_name()
                       << " has the feedback pin not connected. This is not recommended.";
 
+    this->contactor_3ph.on_change.connect(
+        [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
+            this->on_change(contactor_name, seen_contactor_state);
+        });
+
     this->contactor_3ph.on_unexpected_change.connect(
         [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
             this->on_unexpected_change(contactor_name, seen_contactor_state);
+        });
+
+    this->contactor_1ph.on_change.connect(
+        [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
+            this->on_change(contactor_name, seen_contactor_state);
         });
 
     this->contactor_1ph.on_unexpected_change.connect(

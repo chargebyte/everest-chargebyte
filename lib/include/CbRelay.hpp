@@ -19,6 +19,10 @@ public:
     virtual bool wait_for_feedback() = 0;
     virtual std::chrono::milliseconds get_closing_delay_left() const = 0;
 
+    /// @brief Signal for normal/async state changes
+    sigslot::signal<const std::string&, bool> on_change;
+
+    /// @brief Signal raised for unexpected state changes
     sigslot::signal<const std::string&, bool> on_unexpected_change;
 
     friend std::ostream& operator<<(std::ostream& os, const CbRelay& relay) {

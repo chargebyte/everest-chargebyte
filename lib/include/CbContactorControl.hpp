@@ -53,6 +53,9 @@ public:
     /// @brief Set the desired count of phases for next contactor closing.
     void switch_phase_count(bool use_3phases);
 
+    /// @brief Signal used to inform when the state changed asynchronously.
+    sigslot::signal<const std::string&, types::cb_board_support::ContactorState> on_change;
+
     /// @brief Signal used to inform about errors during switching.
     sigslot::signal<const std::string&, bool, types::cb_board_support::ContactorState> on_error;
 

@@ -40,12 +40,11 @@ void CbCarrierBoardRelay::start(bool use_feedback, bool active_low) {
                 if (!this->contactor_indexes.count(idx))
                     return;
 
+                EVLOG_debug << "Contactor " << (idx + 1) << " state change detected: now " << actual_state;
+
                 if (actual_state == types::cb_board_support::ContactorState::Unknown) {
-                    EVLOG_debug << "Contactor " << (idx + 1) << " state change detected: now " << actual_state;
                     return;
                 }
-
-                EVLOG_info << "Contactor " << (idx + 1) << " state change detected: now " << actual_state;
 
                 // check whether the event was expected...
                 if (this->expected_edge.has_value() and !this->expected_edge_matched.has_value()) {
@@ -58,6 +57,9 @@ void CbCarrierBoardRelay::start(bool use_feedback, bool active_low) {
                     // clear the expected edge
                     this->expected_edge.reset();
                 }
+
+                // report also via on_change event
+                this->on_change(this->relay_name, actual_state == types::cb_board_support::ContactorState::Closed);
             });
 
         this->controller.on_contactor_error.connect(

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <sstream>
@@ -40,6 +41,10 @@ public:
     virtual bool get_state() const override;
     virtual std::chrono::milliseconds get_closing_delay_left() const override;
 
+    /// @brief Is called when the underlying contactors report 'on_change' and forwards the notification conditionally.
+    virtual void consider_trigger_on_change(const types::cb_board_support::ContactorState seen_contactor_state,
+                                            CbContactor& other_contactor);
+
     /// @brief Feeds a string representation of the given CbContactorControlSerial
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
@@ -57,6 +62,10 @@ protected:
 
     /// @brief Split `switch_state` into two dedicated functions so that we can override in derived classes.
     virtual bool switch_state_off();
+
+    /// @brief Remeber the latest published state to not report it twice.
+    std::atomic<types::cb_board_support::ContactorState> published_contactor_state {
+        types::cb_board_support::ContactorState::Unknown};
 
     /// @brief Helper to feed a string representation into an output stream.
     /// @param os Output stream reference to operate on.
