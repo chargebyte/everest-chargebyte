@@ -9,7 +9,6 @@
 #include <mutex>
 #include <ostream>
 #include <optional>
-#include <set>
 #include <string>
 #include <thread>
 #include <sigslot/signal.hpp>
@@ -18,6 +17,11 @@
 
 using namespace std::chrono_literals;
 
+// This class models a relay on a Charge SOM carrier board. Actually, this might also be a MOSFET
+// or even nothing physical at all. The whole purpose is to abstract the three contactor switch
+// channels which are supported by current Charge SOM safety controller firmware.
+// Important: the actual relays on chargebyte's AC powerboard are not covered by this class, these
+// two relays are 'CbContactor's.
 class CbCarrierBoardRelay : public CbRelay {
 
 public:
@@ -29,8 +33,7 @@ public:
     };
 
     /// @brief Constructor
-    CbCarrierBoardRelay(CbChargeSOM& controller, std::initializer_list<Contactor> contactors,
-                        const std::string& relay_name, bool enslaved = false);
+    CbCarrierBoardRelay(CbChargeSOM& controller, Contactor contactor, bool enslaved = false);
 
     /// @brief Destructor.
     ~CbCarrierBoardRelay() override;
@@ -79,8 +82,8 @@ private:
     /// @brief Determines whether we can make a sync call to the controller or not.
     bool is_enslaved {false};
 
-    /// @brief Remember which contactors whether we can make a sync call to the controller or not.
-    std::set<unsigned int> contactor_indexes;
+    /// @brief Remember the contactor index (safety controller view).
+    unsigned int contactor_index;
 
     /// @brief Flag whether the feedback is used.
     bool has_feedback {false};

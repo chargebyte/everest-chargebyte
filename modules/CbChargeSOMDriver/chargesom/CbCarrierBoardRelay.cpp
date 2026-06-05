@@ -14,13 +14,13 @@
 
 using namespace std::chrono_literals;
 
-CbCarrierBoardRelay::CbCarrierBoardRelay(CbChargeSOM& controller, std::initializer_list<Contactor> contactors,
-                                         const std::string& relay_name, bool enslaved) :
-    controller(controller), relay_name(relay_name), is_enslaved(enslaved) {
-    // convert the used relays into their offsets
-    for (const auto contactor : contactors) {
-        this->contactor_indexes.insert(static_cast<unsigned int>(contactor));
-    }
+CbCarrierBoardRelay::CbCarrierBoardRelay(CbChargeSOM& controller, Contactor contactor, bool enslaved) :
+    controller(controller), is_enslaved(enslaved) {
+    // derive the name from the actual index
+    this->relay_name = std::string("Contactor ") + std::to_string(static_cast<unsigned int>(contactor) + 1);
+
+    // convert the used relay into its offset/index from safety controller view
+    this->contactor_index = static_cast<unsigned int>(contactor);
 }
 
 CbCarrierBoardRelay::~CbCarrierBoardRelay() {
@@ -37,7 +37,7 @@ void CbCarrierBoardRelay::start(bool use_feedback, bool active_low) {
         this->controller.on_contactor_change.connect(
             [&](const unsigned int idx, types::cb_board_support::ContactorState actual_state) {
                 // check whether the index is of interest at all (we are called for all contactors)
-                if (!this->contactor_indexes.count(idx))
+                if (idx != this->contactor_index)
                     return;
 
                 EVLOG_debug << "Contactor " << (idx + 1) << " state change detected: now " << actual_state;
@@ -65,7 +65,7 @@ void CbCarrierBoardRelay::start(bool use_feedback, bool active_low) {
         this->controller.on_contactor_error.connect(
             [&](const unsigned int idx, bool target_state, types::cb_board_support::ContactorState actual_state) {
                 // check whether the index is of interest at all (we are called for all contactors)
-                if (!this->contactor_indexes.count(idx))
+                if (idx != this->contactor_index)
                     return;
 
                 EVLOG_debug << "Contactor " << (idx + 1) << " error detected: expected "
@@ -104,10 +104,8 @@ bool CbCarrierBoardRelay::set_actuator_state(bool on, bool wait_for_feedback) {
     // determine whether we are expecting a state change on feedback
     this->set_expected_edge(on);
 
-    // actually toggle the relay(s)
-    for (const auto& idx : this->contactor_indexes) {
-        this->controller.set_contactorN_state(idx, on);
-    }
+    // actually toggle the relay
+    this->controller.set_contactorN_state(this->contactor_index, on);
     if (!this->is_enslaved) {
         this->controller.set_contactorN_state_commit();
     }
@@ -135,26 +133,14 @@ void CbCarrierBoardRelay::set_expected_edge(bool on) {
 }
 
 bool CbCarrierBoardRelay::get_actuator_state() const {
-    bool rv = false;
-
-    for (const auto& idx : this->contactor_indexes) {
-        rv |= this->controller.get_contactorN_target_state(idx);
-    }
-
-    return rv;
+    return this->controller.get_contactorN_target_state(this->contactor_index);
 }
 
 bool CbCarrierBoardRelay::get_feedback_state() const {
-    bool rv = false;
-
     if (!this->has_feedback)
         return this->get_actuator_state();
 
-    for (const auto& idx : this->contactor_indexes) {
-        rv |= this->controller.get_contactorN_state(idx);
-    }
-
-    return rv;
+    return this->controller.get_contactorN_state(this->contactor_index);
 }
 
 void CbCarrierBoardRelay::set_expected_feedback_change(bool on) {
