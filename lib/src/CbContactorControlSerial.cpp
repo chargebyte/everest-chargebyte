@@ -10,9 +10,10 @@
 CbContactorControlSerial::CbContactorControlSerial(std::unique_ptr<CbRelay> primary_relay,
                                                    const std::string& primary_contactor_feedback_type,
                                                    std::unique_ptr<CbRelay> secondary_relay,
-                                                   const std::string& secondary_contactor_feedback_type) :
-    primary("Primary Contactor", std::move(primary_relay), primary_contactor_feedback_type),
-    secondary("Secondary Contactor", std::move(secondary_relay), secondary_contactor_feedback_type) {
+                                                   const std::string& secondary_contactor_feedback_type,
+                                                   const std::string& primary_name, const std::string& secondary_name) :
+    primary(primary_name, std::move(primary_relay), primary_contactor_feedback_type),
+    secondary(secondary_name, std::move(secondary_relay), secondary_contactor_feedback_type) {
 
     EVLOG_info << this->primary.get_name() << " feedback type: '" << primary_contactor_feedback_type << "'";
     if (primary_contactor_feedback_type == "none")

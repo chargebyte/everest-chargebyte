@@ -28,11 +28,15 @@ public:
     /// normally open, nc = normally close, none = no feedback).
     /// @param secondary_relay A pointer to an instance of CbRelay.
     /// @param secondary_contactor_feedback_type Defines the logic behind the feedback of the secondary contactor (no =
-    /// normally open, nc = normally close, none = no feedback).
+    ///        normally open, nc = normally close, none = no feedback).
+    /// @param primary_name optional: takes a description/name of the 1st contactor
+    /// @param secondary_name optional: takes a description/name of the 2nd contactor
     CbContactorControlSimultaneous(std::unique_ptr<CbRelay> primary_relay,
                                    const std::string& primary_contactor_feedback_type,
                                    std::unique_ptr<CbRelay> secondary_relay,
-                                   const std::string& secondary_contactor_feedback_type);
+                                   const std::string& secondary_contactor_feedback_type,
+                                   const std::string& primary_name = "Primary Contactor",
+                                   const std::string& secondary_name = "Secondary Contactor");
 
     /// @brief Destructor.
     virtual ~CbContactorControlSimultaneous() = default;

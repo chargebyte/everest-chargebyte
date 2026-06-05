@@ -96,8 +96,13 @@ void evse_board_supportImpl::init() {
     this->hw_capabilities.max_phase_count_export = max_phase_count;
     this->hw_capabilities.min_phase_count_export = support_3ph1ph ? min_phase_count : max_phase_count;
 
-    this->hw_capabilities.connector_type =
-        types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
+    // fixup for DC
+    if (this->mod->config.connector_type == "cCCS2") {
+        this->hw_capabilities.connector_type = types::evse_board_support::Connector_type::IEC62196Type2Cable;
+    } else {
+        this->hw_capabilities.connector_type =
+            types::evse_board_support::string_to_connector_type(this->mod->config.connector_type);
+    }
 
     // yes we can - it is supported by hardware
     this->hw_capabilities.supports_cp_state_E = true;

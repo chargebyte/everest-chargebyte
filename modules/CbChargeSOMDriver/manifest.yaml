@@ -1,12 +1,15 @@
 description: Hardware abstraction layer for chargebyte's Charge SOM
 config:
   connector_type:
-    description: Type of charging connector available at this EVSE
+    description: >-
+      Type of charging connector available at this EVSE. This also determines
+      whether this is an AC or DC connector, so must be properly configured.
     type: string
     enum:
       - IEC62196Type2Cable
       - IEC62196Type2Socket
-    default: IEC62196Type2Cable
+      - cCCS2
+    default: cCCS2
   min_current_A:
     description: >-
       The minimum current in ampere which can be imported/exported. The default value
@@ -151,6 +154,19 @@ config:
       - simultaneous
       - mutual
     default: none
+  dc_contactor_wiring:
+    description: >-
+      Tells the implementation which wiring configuration for the DC contactor(s) is used:
+      - 'none': no conactor is directly connect, e.g. HV Ready signal is used by an external controller
+      - 'single': only Contactor 1 is used
+      - 'dual': Contactor 1 is used for DC+, Contactor 2 is used for DC-
+      See user guide for wiring schematics and details.
+    type: string
+    enum:
+      - none
+      - single
+      - dual
+    default: dual
 provides:
   ac_rcd:
     description: >-

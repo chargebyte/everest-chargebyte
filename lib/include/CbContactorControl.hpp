@@ -54,6 +54,8 @@ public:
     void switch_phase_count(bool use_3phases);
 
     /// @brief Signal used to inform when the state changed asynchronously.
+    ///        Note: this event is not fully implemented for all derived classes since it
+    ///        only makes sense in a content when changes can occur from outside.
     sigslot::signal<const std::string&, types::cb_board_support::ContactorState> on_change;
 
     /// @brief Signal used to inform about errors during switching.
