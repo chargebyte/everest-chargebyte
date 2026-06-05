@@ -46,6 +46,7 @@ struct Conf {
     std::string contactor_1_feedback_type;
     std::string contactor_2_feedback_type;
     std::string switch_3ph1ph_wiring;
+    std::string dc_contactor_wiring;
 };
 
 class CbChargeSOMDriver : public Everest::ModuleBase {

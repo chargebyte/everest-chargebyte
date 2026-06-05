@@ -8,6 +8,7 @@ target_sources(cb-utils
     PRIVATE
         src/CbContactor.cpp
         src/CbContactorControl.cpp
+        src/CbContactorControlEmulation.cpp
         src/CbContactorControlSimple.cpp
         src/CbContactorControlSerial.cpp
         src/CbContactorControlSimultaneous.cpp
