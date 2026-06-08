@@ -135,14 +135,26 @@ CbChargeSOM::CbChargeSOM() {
             current_contactor_error =
                 cb_proto_get_safestate_reason(&tmpctx) == CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION;
             if (current_contactor_error != previous_contactor_error) {
-                std::string name = "Contactor";
+                EVLOG_debug << "HV switch malfunction detected";
 
-                EVLOG_debug << "on_contactor_error()";
-                // FIXME: for now, we only look at the first contactor since we assume a DC use-case
-                this->on_contactor_error(name, cb_proto_contactorN_get_target_state(&this->ctx, 0),
-                                         cb_proto_contactorN_is_closed(&tmpctx, 0)
-                                             ? types::cb_board_support::ContactorState::Closed
-                                             : types::cb_board_support::ContactorState::Open);
+                // we have to check which contactor is not in sync with desired state
+                for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+                    if (!cb_proto_contactorN_is_enabled(&this->ctx, i))
+                        continue;
+
+                    bool should_be_closed = cb_proto_contactorN_get_target_state(&this->ctx, i);
+                    bool is_closed = cb_proto_contactorN_is_closed(&this->ctx, i);
+
+                    if (should_be_closed != is_closed) {
+                        EVLOG_debug << "on_contactor_error(" << i
+                                    << ", should be: " << (should_be_closed ? "CLOSED" : "OPEN")
+                                    << ", is: " << (is_closed ? "CLOSED" : "OPEN") << ")";
+
+                        this->on_contactor_error(i, should_be_closed,
+                                                 is_closed ? types::cb_board_support::ContactorState::Closed
+                                                           : types::cb_board_support::ContactorState::Open);
+                    }
+                }
                 previous_contactor_error = current_contactor_error;
             }
 
@@ -151,12 +163,10 @@ CbChargeSOM::CbChargeSOM() {
                 current_contactor_state[i] = cb_proto_contactorN_get_actual_state(&tmpctx, i);
 
                 if (current_contactor_state[i] != previous_contactor_state[i]) {
-                    std::string name = "Contactor " + std::to_string(i + 1);
-
                     // we suppress the initial change during boot
                     if (initial_contactor_states_seen) {
                         EVLOG_debug << "on_contactor_change(" << i << ", " << current_contactor_state[i] << ")";
-                        this->on_contactor_change(name, contactor_state_to_ContactorState(current_contactor_state[i]));
+                        this->on_contactor_change(i, contactor_state_to_ContactorState(current_contactor_state[i]));
                     } else {
                         EVLOG_debug << "on_contactor_change(" << i << ", " << current_contactor_state[i] << ")"
                                     << " [suppressed]";
@@ -781,25 +791,44 @@ bool CbChargeSOM::get_cp_short_circuit() {
     return cb_proto_is_cp_short_circuit(&this->ctx);
 }
 
-bool CbChargeSOM::switch_state(bool on) {
+void CbChargeSOM::set_contactorN_state(unsigned int idx, bool on) {
+    // remember (prepared) target state
+    this->prepared_contactor_state[idx] = on;
+}
+
+void CbChargeSOM::set_contactorN_state_commit() {
     // we need to take the lock to change the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
     unsigned int i;
 
+    // fetch the prepared states, apply and send out request
     for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
         // always remember the target state - without check whether it is configured at all
-        cb_proto_contactorN_set_state(&this->ctx, i, on);
+        cb_proto_contactorN_set_state(&this->ctx, i, this->prepared_contactor_state[i]);
     }
 
     // but release it now so that sending can take the lock again
     cc_lock.unlock();
 
     this->send_charge_control();
+}
 
-    // we must simply report success back here since the actual switching depends
-    // on seeing state C and we do not know exactly when this happens
-    return true;
+/// @brief Return the target state of contactor N
+bool CbChargeSOM::get_contactorN_target_state(unsigned int idx) {
+    return cb_proto_contactorN_get_target_state(&this->ctx, idx);
+}
+
+/// @brief Return the current state of contactor N
+bool CbChargeSOM::get_contactorN_state(unsigned int idx) {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    if (cb_proto_contactorN_is_enabled(&this->ctx, idx)) {
+        return cb_proto_contactorN_is_closed(&this->ctx, idx);
+    }
+
+    return cb_proto_contactorN_get_target_state(&this->ctx, idx);
 }
 
 bool CbChargeSOM::get_contactor_state_no_lock() {

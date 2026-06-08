@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <initializer_list>
 #include <memory>
 #include <mutex>
 #include <ostream>
@@ -11,27 +12,31 @@
 #include <string>
 #include <thread>
 #include <sigslot/signal.hpp>
-#include <gpiod.hpp>
-#include "CbActuator.hpp"
 #include "CbRelay.hpp"
+#include "CbChargeSOM.hpp"
 
 using namespace std::chrono_literals;
 
-class CbTarragonRelay : public CbRelay {
+// This class models a relay on a Charge SOM carrier board. Actually, this might also be a MOSFET
+// or even nothing physical at all. The whole purpose is to abstract the three contactor switch
+// channels which are supported by current Charge SOM safety controller firmware.
+// Important: the actual relays on chargebyte's AC powerboard are not covered by this class, these
+// two relays are 'CbContactor's.
+class CbCarrierBoardRelay : public CbRelay {
 
 public:
+    enum class Contactor
+    {
+        Contactor1 = 0,
+        Contactor2 = 1,
+        Contactor3 = 2,
+    };
+
     /// @brief Constructor
-    /// @param relay_name Name of the relay and its feedback sense as labeled on hardware.
-    /// @param actuator_ref The actuator reference to control the relais coil.
-    /// @param feedback_gpio_line_name The name of the GPIO line to which the feedback (aka sense) circuit is
-    /// connected to.
-    /// @param feedback_gpio_debounce_us The debounce period which should be configured for the feedback GPIO (in [us]).
-    /// Pass a value of zero to skip any configuration.
-    CbTarragonRelay(const std::string& relay_name, const CbActuatorReference actuator_ref,
-                    const std::string& feedback_gpio_line_name, const unsigned int feedback_gpio_debounce_us);
+    CbCarrierBoardRelay(CbChargeSOM& controller, Contactor contactor, bool enslaved = false);
 
     /// @brief Destructor.
-    ~CbTarragonRelay() override;
+    ~CbCarrierBoardRelay() override;
 
     /// @brief Tells whether the feedback signal monitoring should be used and actually starts it if so.
     ///        This function must be called before any other member functions are used.
@@ -39,8 +44,7 @@ public:
     /// @param active_low Tells whether the feedback line should use inverted logic.
     void start(bool use_feedback, bool active_low) override;
 
-    /// @brief Switch the relay on/off. This function ensures that the minimum close interval between
-    ///        consecutive closings is respected (ie. waits until the GPIO can be actually switched).
+    /// @brief Switch the relay on/off.
     ///        Usually, the function waits for the feedback confirming the switch, but this can be prevented
     ///        since in some setups, we might not see the feedback immediately.
     /// @param on The target state (true = on, false = off)
@@ -49,7 +53,7 @@ public:
     ///         if configured and thus it is probably a contactor error), true otherwise.
     bool set_actuator_state(bool on, bool wait_for_feedback) override;
 
-    /// @brief Read the actual GPIO state of the actuator.
+    /// @brief Read the actual state of the actuator.
     bool get_actuator_state() const override;
 
     /// @brief Read the actual GPIO state of the feedback. If `start` was called with `use_feedback` set to `false`,
@@ -69,27 +73,23 @@ public:
     std::chrono::milliseconds get_closing_delay_left() const override;
 
 private:
+    /// @brief Remember the reference to the controller instance
+    CbChargeSOM& controller;
+
     /// @brief Name of the relay and its feedback as labeled on hardware.
     std::string relay_name;
 
-    /// @brief The reference to the used actuator.
-    CbActuatorReference actuator_ref;
+    /// @brief Determines whether we can make a sync call to the controller or not.
+    bool is_enslaved {false};
 
-    /// @brief Name of the GPIO line to use for feedback/sense detection.
-    std::string feedback_gpio_line_name;
+    /// @brief Remember the contactor index (safety controller view).
+    unsigned int contactor_index;
 
-    /// @brief The debounce period which should be configured for the feedback GPIO (in [us]).
-    const unsigned int feedback_gpio_debounce_us;
-
-    /// @brief The GPIO handle of the used feedback (RELAY_1_SENSE or RELAY_2_SENSE).
-    std::unique_ptr<gpiod::line_request> feedback;
-
-    /// @brief This helper allows to remember whether a `set_actuator_state(false)` was
-    ///        seen while we wait for the `min_close_interval`.
-    std::atomic_bool execute_actuator_state_on_switch {false};
+    /// @brief Flag whether the feedback is used.
+    bool has_feedback {false};
 
     /// @brief Remember the next expected feedback edge event type in case of an actuator change initiated by ourself.
-    std::optional<gpiod::edge_event::event_type> expected_edge;
+    std::optional<types::cb_board_support::ContactorState> expected_edge;
 
     /// @brief Set the next expected feedback edge event type
     ///        Must be called with the mutex `expected_edge_mutex` hold.
@@ -110,28 +110,9 @@ private:
     /// @brief Used to signal `expected_edge_matched` back to the `set_actuator_state` method.
     std::condition_variable cv_expected_edge;
 
-    /// @brief The timestamp which records the moment when the contactor's state transitioned
-    ///        from OPEN to CLOSED.
-    std::chrono::time_point<std::chrono::steady_clock> last_closed_ts;
-
-    /// @brief The time in seconds which represents a minimum duration between relay
-    ///        closings to prevent internal relay wear out. The worst considered relay type
-    //         can withstand a maximum of 6 cycles (open and close actions) per
-    ///        minute i.e., 10 seconds between 2 relay closings.
-    std::chrono::milliseconds min_close_interval {10s};
-
-    /// @brief The time in milliseconds until the feedback GPIO should have reported
+    /// @brief The time in milliseconds until the feedback should have reported
     ///        an edge event when the relay was switched.
-    std::chrono::milliseconds feedback_timeout {250ms};
-
-    /// @brief Helper to signal thread termination wish
-    std::atomic_bool termination_requested {false};
-
-    /// @brief Thread handle of feedback GPIO monitoring thread.
-    std::thread feedback_monitor;
-
-    /// @brief Feedback GPIO monitoring thread worker function.
-    void feedback_monitor_worker();
+    std::chrono::milliseconds feedback_timeout {500ms};
 
     std::ostream& dump(std::ostream& os) const override;
 };

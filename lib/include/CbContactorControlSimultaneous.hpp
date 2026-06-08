@@ -5,10 +5,9 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
-#include "CbTarragonContactorControlSerial.hpp"
-#include "CbTarragonRelay.hpp"
+#include "CbContactorControl.hpp"
+#include "CbContactorControlSerial.hpp"
+#include "CbRelay.hpp"
 
 ///
 /// This class implements a 'simultaneous' wiring contactor setup for phase count switching.
@@ -18,32 +17,36 @@
 /// the Linux's kernel feature to switch two GPIOs within the very same GPIO bank.
 /// This is enforced already by passing different `CbActuator` references during the relay
 /// instantiations. In this class there are only smaller differences thus we can derive it
-/// from `CbTarragonContactorControlSerial`.
+/// from `CbContactorControlSerial`.
 ///
-class CbTarragonContactorControlSimultaneous : public CbTarragonContactorControlSerial {
+class CbContactorControlSimultaneous : public CbContactorControlSerial {
 
 public:
     /// @brief Constructor.
-    /// @param primary_relay A pointer to an instance of CbTarragonRelay.
+    /// @param primary_relay A pointer to an instance of CbRelay.
     /// @param primary_contactor_feedback_type Defines the logic behind the feedback of the primary contactor (no =
     /// normally open, nc = normally close, none = no feedback).
-    /// @param secondary_relay A pointer to an instance of CbTarragonRelay.
+    /// @param secondary_relay A pointer to an instance of CbRelay.
     /// @param secondary_contactor_feedback_type Defines the logic behind the feedback of the secondary contactor (no =
-    /// normally open, nc = normally close, none = no feedback).
-    CbTarragonContactorControlSimultaneous(std::unique_ptr<CbTarragonRelay> primary_relay,
-                                           const std::string& primary_contactor_feedback_type,
-                                           std::unique_ptr<CbTarragonRelay> secondary_relay,
-                                           const std::string& secondary_contactor_feedback_type);
+    ///        normally open, nc = normally close, none = no feedback).
+    /// @param primary_name optional: takes a description/name of the 1st contactor
+    /// @param secondary_name optional: takes a description/name of the 2nd contactor
+    CbContactorControlSimultaneous(std::unique_ptr<CbRelay> primary_relay,
+                                   const std::string& primary_contactor_feedback_type,
+                                   std::unique_ptr<CbRelay> secondary_relay,
+                                   const std::string& secondary_contactor_feedback_type,
+                                   const std::string& primary_name = "Primary Contactor",
+                                   const std::string& secondary_name = "Secondary Contactor");
 
     /// @brief Destructor.
-    virtual ~CbTarragonContactorControlSimultaneous() = default;
+    virtual ~CbContactorControlSimultaneous() = default;
 
     virtual bool get_state() const override;
 
-    /// @brief Feeds a string representation of the given CbTarragonContactorControlSimultaneous
+    /// @brief Feeds a string representation of the given CbContactorControlSimultaneous
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
-    friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlSimultaneous& c);
+    friend std::ostream& operator<<(std::ostream& os, const CbContactorControlSimultaneous& c);
 
 protected:
     /// @brief Compared to base class, the order is little bit different.

@@ -6,11 +6,11 @@
 #include "CbTarragonDriver.hpp"
 #include <CbActuator.hpp>
 #include <CbTarragonRelay.hpp>
-#include <CbTarragonContactorControl.hpp>
-#include <CbTarragonContactorControlSimple.hpp>
-#include <CbTarragonContactorControlSerial.hpp>
-#include <CbTarragonContactorControlSimultaneous.hpp>
-#include <CbTarragonContactorControlMutual.hpp>
+#include <CbContactorControl.hpp>
+#include <CbContactorControlSimple.hpp>
+#include <CbContactorControlSerial.hpp>
+#include <CbContactorControlSimultaneous.hpp>
+#include <CbContactorControlMutual.hpp>
 #include "configuration.h"
 
 namespace module {
@@ -57,8 +57,8 @@ void CbTarragonDriver::init() {
         // per definition we use the relay 1 as primary/only relay
         auto nh_relay = this->relays.extract(this->config.relay_1_name);
 
-        this->contactor_controller = std::make_unique<CbTarragonContactorControlSimple>(
-            std::move(nh_relay.mapped()), this->config.contactor_1_feedback_type);
+        this->contactor_controller = std::make_unique<CbContactorControlSimple>(std::move(nh_relay.mapped()),
+                                                                                this->config.contactor_1_feedback_type);
 
     } else if (this->config.switch_3ph1ph_wiring == "serial") {
         // per definition we use the relay 1 as primary relay (all phases)
@@ -66,7 +66,7 @@ void CbTarragonDriver::init() {
         auto nh_primary = this->relays.extract(this->config.relay_1_name);
         auto nh_secondary = this->relays.extract(this->config.relay_2_name);
 
-        this->contactor_controller = std::make_unique<CbTarragonContactorControlSerial>(
+        this->contactor_controller = std::make_unique<CbContactorControlSerial>(
             std::move(nh_primary.mapped()), this->config.contactor_1_feedback_type, std::move(nh_secondary.mapped()),
             this->config.contactor_2_feedback_type);
 
@@ -76,7 +76,7 @@ void CbTarragonDriver::init() {
         auto nh_primary = this->relays.extract(this->config.relay_1_name);
         auto nh_secondary = this->relays.extract(this->config.relay_2_name);
 
-        this->contactor_controller = std::make_unique<CbTarragonContactorControlSimultaneous>(
+        this->contactor_controller = std::make_unique<CbContactorControlSimultaneous>(
             std::move(nh_primary.mapped()), this->config.contactor_1_feedback_type, std::move(nh_secondary.mapped()),
             this->config.contactor_2_feedback_type);
 
@@ -85,7 +85,7 @@ void CbTarragonDriver::init() {
         auto nh_3ph = this->relays.extract(this->config.relay_1_name);
         auto nh_1ph = this->relays.extract(this->config.relay_2_name);
 
-        this->contactor_controller = std::make_unique<CbTarragonContactorControlMutual>(
+        this->contactor_controller = std::make_unique<CbContactorControlMutual>(
             std::move(nh_3ph.mapped()), this->config.contactor_1_feedback_type, std::move(nh_1ph.mapped()),
             this->config.contactor_2_feedback_type);
     }

@@ -6,6 +6,13 @@ ev_register_library_target(cb-utils)
 
 target_sources(cb-utils
     PRIVATE
+        src/CbContactor.cpp
+        src/CbContactorControl.cpp
+        src/CbContactorControlEmulation.cpp
+        src/CbContactorControlSimple.cpp
+        src/CbContactorControlSerial.cpp
+        src/CbContactorControlSimultaneous.cpp
+        src/CbContactorControlMutual.cpp
         src/dt.cpp
         src/gpiodUtils.cpp
         src/IIOADC.cpp
@@ -18,12 +25,15 @@ target_sources(cb-utils
 target_include_directories(cb-utils
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/generated/include>
         $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(cb-utils
     PUBLIC
         ${LIBGPIOD_LIBRARIES}
+    PRIVATE
+        everest::log
 )
 
 set_target_properties(cb-utils

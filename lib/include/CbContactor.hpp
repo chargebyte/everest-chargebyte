@@ -8,22 +8,20 @@
 #include <string>
 #include <sigslot/signal.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include "CbTarragonRelay.hpp"
-#include "CbTarragonContactor.hpp"
+#include "CbRelay.hpp"
 
-class CbTarragonContactor {
+class CbContactor {
 
 public:
     /// @brief Constructor.
     /// @param name An description, eg. a simple "Contactor" or "Primary contactor"...
-    /// @param relay A pointer to an instance of CbTarragonRelay.
+    /// @param relay A pointer to an instance of CbRelay.
     /// @param contactor_feedback_type Defines the logic behind the feedback (no = normally open, nc = normally close,
     /// none = no feedback).
-    CbTarragonContactor(const std::string& name, std::unique_ptr<CbTarragonRelay> relay,
-                        const std::string& contactor_feedback_type);
+    CbContactor(const std::string& name, std::unique_ptr<CbRelay> relay, const std::string& contactor_feedback_type);
 
     /// @brief Destructor.
-    ~CbTarragonContactor() = default;
+    ~CbContactor() = default;
 
     /// @brief Returns the contactor name
     /// @return The contactor name
@@ -58,13 +56,16 @@ public:
     /// @brief Return the time to wait until the contactor can be closed again.
     std::chrono::milliseconds get_closing_delay_left() const;
 
+    /// @brief Signal used to inform about expected state changes on the feedback contact.
+    sigslot::signal<const std::string, types::cb_board_support::ContactorState> on_change;
+
     /// @brief Signal used to inform about unexpected state changes on the feedback contact.
     sigslot::signal<const std::string, types::cb_board_support::ContactorState> on_unexpected_change;
 
-    /// @brief Feeds a string representation of the given CbTarragonContactorControlSimple
+    /// @brief Feeds a string representation of the given CbContactorControlSimple
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
-    friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactor& c);
+    friend std::ostream& operator<<(std::ostream& os, const CbContactor& c);
 
 private:
     /// @brief Stores the contactor description
@@ -74,5 +75,5 @@ private:
     types::cb_board_support::ContactorFeedbackType feedback_type;
 
     /// @brief The relay used to control the contactor and to evaluate the feedback (if used).
-    std::unique_ptr<CbTarragonRelay> relay;
+    std::unique_ptr<CbRelay> relay;
 };
