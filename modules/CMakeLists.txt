@@ -13,6 +13,7 @@ else()
 endif()
 
 ev_add_cpp_module(CbGPIOEnergyLimits)
+ev_add_cpp_module(CbGPIOSMITH)
 ev_add_cpp_module(CbTarragonDIs)
 ev_add_cpp_module(CbTarragonDriver)
 ev_add_cpp_module(CbTarragonPlugLock)
