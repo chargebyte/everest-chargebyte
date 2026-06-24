@@ -17,9 +17,9 @@
 // insert your custom include headers here
 #include <unistd.h>
 #include <atomic>
-#include <memory>
-#include <optional>
 #include <gpiod.hpp>
+#include <memory>
+#include <string>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -61,10 +61,7 @@ private:
     // marker whether we have seen at least one transition to ChargingStarted
     std::atomic_bool charging_started_seen {false};
 
-    // helper to find the PID of a process using /proc filesystem
-    std::optional<pid_t> find_process_pid_by_name(const std::string& process_name);
-
-    // helper to send flush signal to journald and sync filesystem
+    // helper to request journald sync and then flush the filesystem
     void flush_journald_and_filesystems();
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
 };

@@ -1,15 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH, Pionix GmbH and Contributors to EVerest
 #include "CbGPIOSMITH.hpp"
+#include <everest/system/safe_system.hpp>
 #include <chargebyte/gpiodUtils.hpp>
-#include <algorithm>
-#include <cctype>
-#include <chrono>
-#include <csignal>
-#include <filesystem>
-#include <fstream>
 #include <string>
-#include <thread>
 
 namespace module {
 
@@ -58,46 +52,17 @@ void CbGPIOSMITH::init() {
 void CbGPIOSMITH::ready() {
 }
 
-std::optional<pid_t> CbGPIOSMITH::find_process_pid_by_name(const std::string& process_name) {
-    for (const auto& entry : std::filesystem::directory_iterator("/proc")) {
-        if (!entry.is_directory()) {
-            continue;
-        }
-
-        const std::string pid_str = entry.path().filename().string();
-        if (pid_str.empty() ||
-            !std::all_of(pid_str.begin(), pid_str.end(), [](unsigned char c) { return std::isdigit(c) != 0; })) {
-            continue;
-        }
-
-        std::ifstream comm_file(entry.path() / "comm");
-        if (!comm_file.is_open()) {
-            continue;
-        }
-
-        std::string comm;
-        std::getline(comm_file, comm);
-        if (comm == process_name) {
-            return static_cast<pid_t>(std::stoi(pid_str));
-        }
-    }
-
-    return std::nullopt;
-}
-
 void CbGPIOSMITH::flush_journald_and_filesystems() {
-    const auto journald_pid = find_process_pid_by_name("systemd-journal");
-    if (journald_pid.has_value()) {
-        if (::kill(*journald_pid, SIGUSR1) == 0) {
-            EVLOG_debug << "Sent SIGUSR1 to systemd-journald (PID: " << *journald_pid << ")";
-        } else {
-            EVLOG_warning << "Failed to send SIGUSR1 to systemd-journald (PID: " << *journald_pid << ")";
-        }
-    } else {
-        EVLOG_warning << "PID of systemd-journald not found";
-    }
+    EVLOG_debug << "Calling `journalctl --sync`";
 
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    const auto result = everest::lib::system::safe_system("/bin/journalctl", {"journalctl", "--sync"});
+    if (result.status == everest::lib::system::CMD_SUCCESS && result.code == 0 && !result.timeout) {
+        EVLOG_debug << "Successfully synchronized journal.";
+    } else {
+        EVLOG_warning << "Failed to synchronize journal: status="
+                      << everest::lib::system::cmd_execution_status_to_string(result.status) << ", code=" << result.code
+                      << ", timeout=" << (result.timeout ? "true" : "false");
+    }
 
     // flush filesystem buffers
     ::sync();
