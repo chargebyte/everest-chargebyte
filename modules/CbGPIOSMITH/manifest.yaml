@@ -1,0 +1,20 @@
+description: Module that implements a Shoot-Me-In-The-Head functionality on contactor errors
+config:
+  gpio_line_name:
+    description: >-
+      The GPIO line name to use as 'gun'
+    type: string
+  gpio_active_low:
+    description: The GPIO polarity (active low = true, active high = false)
+    type: boolean
+    default: false
+requires:
+  evse_manager:
+    interface: evse_manager
+    min_connections: 1
+    max_connections: 128
+enable_global_errors: true
+metadata:
+  license: https://opensource.org/licenses/Apache-2.0
+  authors:
+    - chargebyte GmbH

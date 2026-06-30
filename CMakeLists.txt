@@ -30,6 +30,7 @@ if(NOT DISABLE_EDM)
     evc_setup_edm()
 else()
     find_package(everest-core REQUIRED)
+    find_package(everest-everest_system REQUIRED)
 endif()
 
 # library with utils/helpers
