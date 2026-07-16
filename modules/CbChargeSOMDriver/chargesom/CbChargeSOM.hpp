@@ -108,6 +108,10 @@ public:
     ///        The parameter is the new RCM state.
     sigslot::signal<const enum rcm_state&> on_rcm_state_change;
 
+    /// @brief Signal used to inform about inlet state changes.
+    ///        The parameter is the new inlet state.
+    sigslot::signal<const enum inlet_state&> on_inlet_state_change;
+
     /// @brief Return whether the safety controller detected an emergency state.
     bool is_emergency();
 
@@ -148,6 +152,12 @@ public:
 
     /// @brief Return whether the safety controller thinks it is safe to switch contactors on.
     bool is_hv_ready();
+
+    /// @brief Instruct the safety controller to close the inlet lock.
+    void inlet_lock();
+
+    /// @brief Instruct the safety controller to open the inlet lock.
+    void inlet_unlock();
 
     /// @brief Instruct the safety controller to run a self-test of the RCM.
     void start_rcm_selftest();

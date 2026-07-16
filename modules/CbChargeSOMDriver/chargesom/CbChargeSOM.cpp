@@ -86,6 +86,7 @@ CbChargeSOM::CbChargeSOM() {
         enum cs1_safestate_reason previous_safestate_reason = CS1_SAFESTATE_REASON_MAX;
         enum cs_safestate_active previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
         enum rcm_state previous_rcm_state = RCM_STATE_NOT_CONFIGURED;
+        enum inlet_state previous_inlet_state = INLET_STATE_MAX;
 
         EVLOG_debug << "Notify Thread started";
 
@@ -100,6 +101,7 @@ CbChargeSOM::CbChargeSOM() {
             enum cs1_safestate_reason current_safestate_reason;
             enum cs_safestate_active current_safestate_active;
             enum rcm_state current_rcm_state;
+            enum inlet_state current_inlet_state;
             unsigned int i;
 
             // wait for changes
@@ -212,6 +214,22 @@ CbChargeSOM::CbChargeSOM() {
                 EVLOG_debug << "on_rcm_state_change(" << previous_rcm_state << " → " << current_rcm_state << ")";
                 this->on_rcm_state_change(current_rcm_state);
                 previous_rcm_state = current_rcm_state;
+            }
+
+            // handle inlet state changes
+            current_inlet_state = cb_proto_get_inlet_state(&tmpctx);
+            if (current_inlet_state != previous_inlet_state) {
+                EVLOG_debug << "on_inlet_state_change(" << cb_proto_inlet_state_to_str(previous_inlet_state) << " → "
+                            << cb_proto_inlet_state_to_str(current_inlet_state) << ")";
+
+                if (previous_inlet_state == INLET_STATE_MAX && current_inlet_state == INLET_STATE_UNDEFINED) {
+                    EVLOG_debug << "on_inlet_state_change(" << cb_proto_inlet_state_to_str(current_inlet_state) << ")"
+                                << " [suppressed]";
+                } else {
+                    this->on_inlet_state_change(current_inlet_state);
+                }
+
+                previous_inlet_state = current_inlet_state;
             }
 
             // check for PP changes
@@ -875,6 +893,14 @@ bool CbChargeSOM::is_hv_ready() {
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return cb_proto_get_hv_ready(&this->ctx);
+}
+
+void CbChargeSOM::inlet_lock() {
+    this->send_action_request_and_wait(ACTION_ID_INLET_CLOSE);
+}
+
+void CbChargeSOM::inlet_unlock() {
+    this->send_action_request_and_wait(ACTION_ID_INLET_OPEN);
 }
 
 void CbChargeSOM::start_rcm_selftest() {

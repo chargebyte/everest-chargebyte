@@ -85,7 +85,7 @@ void CbChargeSOMDriver::init() {
             auto plus =
                 std::make_unique<CbCarrierBoardRelay>(this->controller, CbCarrierBoardRelay::Contactor::Contactor1);
             auto minus = std::make_unique<CbCarrierBoardRelay>(this->controller,
-                                                                   CbCarrierBoardRelay::Contactor::Contactor2, true);
+                                                               CbCarrierBoardRelay::Contactor::Contactor2, true);
 
             this->contactor_controller = std::make_unique<CbContactorControlSimultaneous>(
                 std::move(plus), this->config.contactor_1_feedback_type, std::move(minus),
@@ -141,12 +141,14 @@ void CbChargeSOMDriver::init() {
 
     // initialize the interfaces now
     invoke_init(*p_ac_rcd);
+    invoke_init(*p_connector_lock);
     invoke_init(*p_evse_board_support);
     invoke_init(*p_temperatures);
 }
 
 void CbChargeSOMDriver::ready() {
     invoke_ready(*p_ac_rcd);
+    invoke_ready(*p_connector_lock);
     invoke_ready(*p_evse_board_support);
     invoke_ready(*p_temperatures);
 }

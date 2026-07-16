@@ -172,6 +172,10 @@ provides:
     description: >-
       Provide support for fault detection of an external AC Residual Current Device
     interface: ac_rcd
+  connector_lock:
+    description: >-
+      Provide support for the inlet locking feature of the safety controller
+    interface: connector_lock
   evse_board_support:
     description: >-
       Provide the board support driver for the Charge SOM platform, e.g., control pilot
