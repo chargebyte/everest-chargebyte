@@ -32,6 +32,7 @@ target_include_directories(cb-utils
 target_link_libraries(cb-utils
     PUBLIC
         ${LIBGPIOD_LIBRARIES}
+        $<BUILD_INTERFACE:nlohmann_json::nlohmann_json>
     PRIVATE
         everest::log
 )
