@@ -335,6 +335,9 @@ void evse_board_supportImpl::init() {
             // reset list of active warnings
             this->clear_error("evse_board_support/VendorWarning");
             this->active_errmsg.clear();
+
+            // also reset the flag in contactor controller
+            this->mod->contactor_controller->is_emergency = false;
             break;
         case cs_safestate_active::CS_SAFESTATE_ACTIVE_SAFESTATE:
             EVLOG_error << "Safety Controller entered safe state";
@@ -348,6 +351,9 @@ void evse_board_supportImpl::init() {
                 this->raise_error(this->last_reported_fault);
                 this->generic_fault_reported = true;
             }
+
+            // tell contactor controller about this fact
+            this->mod->contactor_controller->is_emergency = true;
             break;
         default:
             // all other values: we don't care
