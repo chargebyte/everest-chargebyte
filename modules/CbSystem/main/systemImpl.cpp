@@ -746,7 +746,7 @@ void systemImpl::handle_reset(types::system::ResetType& type, bool& scheduled) {
 
         if (type == types::system::ResetType::Soft) {
             EVLOG_info << "Performing soft reset now.";
-            kill(getpid(), SIGINT);
+            kill(getpid(), SIGTERM);
         } else {
             EVLOG_info << "Performing hard reset. Rebooting...";
             run_application("reboot", {});
