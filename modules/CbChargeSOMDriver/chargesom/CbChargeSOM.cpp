@@ -280,6 +280,7 @@ CbChargeSOM::CbChargeSOM() {
     // we need a thread to handle all the error message notifications asynchronously
     // to the frame receiving to avoid stalling and to not miss a single one
     this->errmsg_thread = std::thread([&]() {
+        char reason_buffer[256];
         EVLOG_debug << "Error Message Thread started";
 
         while (!this->termination_requested) {
@@ -309,8 +310,10 @@ CbChargeSOM::CbChargeSOM() {
             reason = cb_proto_errmsg_get_reason(&tmpctx);
             additional_data1 = cb_proto_errmsg_get_additional_data_1(&tmpctx);
             additional_data2 = cb_proto_errmsg_get_additional_data_2(&tmpctx);
-            std::string module_str {cb_proto_errmsg_module_to_str(module)};
-            std::string reason_str {cb_proto_errmsg_reason_to_str(module, reason)};
+            std::string_view module_str(cb_proto_errmsg_module_to_str(module));
+            cb_proto_errmsg_to_str(reason_buffer, sizeof(reason_buffer), module, reason, additional_data1,
+                                   additional_data2);
+            std::string reason_str(reason_buffer);
 
             this->on_errmsg(is_active, static_cast<unsigned int>(module), module_str, reason, reason_str,
                             additional_data1, additional_data2);

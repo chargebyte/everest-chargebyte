@@ -4,12 +4,14 @@
 #include <chrono>
 #include <iomanip>
 #include <stdexcept>
+#include <string_view>
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 #include <generated/types/cb_board_support.hpp>
 #include <CPUtils.hpp>
 #include "evse_board_supportImpl.hpp"
 #include <chargebyte/gpiodUtils.hpp>
+#include <ra-utils/cb_protocol.h>
 
 const std::string safestate_active_error_subtype = "Safe State";
 
@@ -361,41 +363,48 @@ void evse_board_supportImpl::init() {
         }
     });
 
-    this->mod->controller.on_errmsg.connect([&](bool is_active, unsigned int module, const std::string& module_str,
-                                                unsigned int reason, const std::string& reason_str,
+    this->mod->controller.on_errmsg.connect([&](bool is_active, unsigned int module, const std::string_view& module_str,
+                                                unsigned int reason, const std::string_view& reason_str,
                                                 unsigned int additional_data1, unsigned int additional_data2) {
+        // filter out pluglock (aka inlet) related errors -> handled in connector lock interface
+        if (module == ERRMSG_MODULE_APP_INLET)
+            return;
+
         auto key = make_errmsg_hash_key(module, reason);
+        const std::string error_sub_type {module_str};
 
         if (is_active) {
             std::string errmsg =
-                fmt::format("{} ({:#06x}), {:#06x}, {:#06x}", reason_str, reason, additional_data1, additional_data2);
+                fmt::format("{} ({:#06x}, {:#06x}, {:#06x})", reason_str, reason, additional_data1, additional_data2);
 
             auto result = this->active_errmsg.insert(key);
 
             // report only the first seen message as warning, all others only as debug and don't raise new EVerest
             // errors
             if (result.second) {
-                EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                EVLOG_warning << fmt::format("Safety Controller reported error: {} ({:#06x}): {}", module_str, module,
                                              errmsg);
 
-                auto e = this->error_factory->create_error("evse_board_support/VendorWarning", module_str, errmsg,
+                auto e = this->error_factory->create_error("evse_board_support/VendorWarning", error_sub_type, errmsg,
                                                            Everest::error::Severity::High);
 
                 this->raise_error(e);
             } else {
-                EVLOG_debug << fmt::format("Safety Controller reported error: {} ({:#06x}), {}", module_str, module,
+                EVLOG_debug << fmt::format("Safety Controller reported error: {} ({:#06x}): {}", module_str, module,
                                            errmsg);
             }
         } else {
             std::string errmsg = fmt::format("{} ({:#06x})", reason_str, reason);
 
             if (this->active_errmsg.find(key) != this->active_errmsg.end()) {
-                EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module,
+                EVLOG_info << fmt::format("Safety Controller cleared error: {} ({:#06x}): {}", module_str, module,
                                           errmsg);
 
-                this->clear_error("evse_board_support/VendorWarning", module_str);
+                this->clear_error("evse_board_support/VendorWarning", error_sub_type);
+
+                this->active_errmsg.erase(key);
             } else {
-                EVLOG_debug << fmt::format("Safety Controller cleared error: {} ({:#06x}), {}", module_str, module,
+                EVLOG_debug << fmt::format("Safety Controller cleared error: {} ({:#06x}): {}", module_str, module,
                                            errmsg);
             }
         }

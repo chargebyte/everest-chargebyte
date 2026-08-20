@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <gpiod.hpp>
 #include <sigslot/signal.hpp>
@@ -100,7 +101,7 @@ public:
 
     /// @brief Signal emitted whenever an error message is received.
     ///        The parameters are filled with the data from the latest error message.
-    sigslot::signal<bool, unsigned int, const std::string&, unsigned int, const std::string&, unsigned int,
+    sigslot::signal<bool, unsigned int, const std::string_view&, unsigned int, const std::string_view&, unsigned int,
                     unsigned int>
         on_errmsg;
 
