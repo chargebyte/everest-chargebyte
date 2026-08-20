@@ -65,6 +65,9 @@ public:
     /// @brief Resets the safety controller.
     void reset();
 
+    /// @brief Signal emitted after a successful safety controller reset.
+    sigslot::signal<> on_reset;
+
     /// @brief Signal used to inform about PP state changes.
     ///        The parameter contains the new ampacity.
     sigslot::signal<const types::board_support_common::Ampacity&> on_pp_change;

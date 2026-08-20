@@ -635,6 +635,7 @@ void CbChargeSOM::reset() {
     }
 
     this->set_mcu_reset(false);
+    this->on_reset();
 }
 
 void CbChargeSOM::send_charge_control() {
