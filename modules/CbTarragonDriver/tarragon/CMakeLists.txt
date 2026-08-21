@@ -11,12 +11,6 @@ target_sources(tarragon
         "CbTarragonPP.cpp"
         "CbTarragonRCM.cpp"
         "CbTarragonRelay.cpp"
-        "CbTarragonContactor.cpp"
-        "CbTarragonContactorControl.cpp"
-        "CbTarragonContactorControlSimple.cpp"
-        "CbTarragonContactorControlSerial.cpp"
-        "CbTarragonContactorControlSimultaneous.cpp"
-        "CbTarragonContactorControlMutual.cpp"
 )
 
 get_property(CP_INCLUDE_DIR GLOBAL PROPERTY CP_INCLUDE_DIR)
@@ -27,7 +21,7 @@ target_include_directories(tarragon
     PRIVATE
         ${CP_INCLUDE_DIR}
         ${GENERATED_INCLUDE_DIR}
-    )
+)
 
 add_dependencies(tarragon generate_cpp_files)
 

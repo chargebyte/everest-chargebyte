@@ -20,7 +20,7 @@
 #include <memory>
 #include <string>
 #include <CbTarragonRelay.hpp>
-#include <CbTarragonContactorControl.hpp>
+#include <CbContactorControl.hpp>
 #include <CbTarragonRCM.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
@@ -80,7 +80,7 @@ public:
     std::map<std::string, std::unique_ptr<CbTarragonRelay>> relays;
 
     /// @brief Relay and contactor control
-    std::unique_ptr<CbTarragonContactorControl> contactor_controller;
+    std::unique_ptr<CbContactorControl> contactor_controller;
 
     /// @brief Member variable for holding RCM controller instance
     CbTarragonRCM rcm_controller;

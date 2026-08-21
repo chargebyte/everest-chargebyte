@@ -3,24 +3,26 @@
 #include <chrono>
 #include <iostream>
 #include <string>
-#include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
-#include "CbTarragonContactorControlSerial.hpp"
-#include "CbTarragonContactorControlSimultaneous.hpp"
+#include "CbContactorControl.hpp"
+#include "CbContactorControlSerial.hpp"
+#include "CbContactorControlSimultaneous.hpp"
 
-CbTarragonContactorControlSimultaneous::CbTarragonContactorControlSimultaneous(
-    std::unique_ptr<CbTarragonRelay> primary_relay, const std::string& primary_contactor_feedback_type,
-    std::unique_ptr<CbTarragonRelay> secondary_relay, const std::string& secondary_contactor_feedback_type) :
-    CbTarragonContactorControlSerial(std::move(primary_relay), primary_contactor_feedback_type,
-                                     std::move(secondary_relay), secondary_contactor_feedback_type) {
+CbContactorControlSimultaneous::CbContactorControlSimultaneous(std::unique_ptr<CbRelay> primary_relay,
+                                                               const std::string& primary_contactor_feedback_type,
+                                                               std::unique_ptr<CbRelay> secondary_relay,
+                                                               const std::string& secondary_contactor_feedback_type,
+                                                               const std::string& primary_name,
+                                                               const std::string& secondary_name) :
+    CbContactorControlSerial(std::move(primary_relay), primary_contactor_feedback_type, std::move(secondary_relay),
+                             secondary_contactor_feedback_type, primary_name, secondary_name) {
 }
 
-bool CbTarragonContactorControlSimultaneous::get_state() const {
+bool CbContactorControlSimultaneous::get_state() const {
     // we must combine both states by OR-ing
     return this->primary.get_state() or this->secondary.get_state();
 }
 
-bool CbTarragonContactorControlSimultaneous::switch_state_off() {
+bool CbContactorControlSimultaneous::switch_state_off() {
     bool rv_primary, rv_secondary;
 
     // when opening, we here have to open the secondary first since the call
@@ -45,6 +47,6 @@ bool CbTarragonContactorControlSimultaneous::switch_state_off() {
     return rv_primary and rv_secondary;
 }
 
-std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlSimultaneous& c) {
+std::ostream& operator<<(std::ostream& os, const CbContactorControlSimultaneous& c) {
     return c.dump(os);
 }

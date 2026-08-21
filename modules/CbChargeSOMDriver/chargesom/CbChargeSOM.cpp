@@ -86,6 +86,7 @@ CbChargeSOM::CbChargeSOM() {
         enum cs1_safestate_reason previous_safestate_reason = CS1_SAFESTATE_REASON_MAX;
         enum cs_safestate_active previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
         enum rcm_state previous_rcm_state = RCM_STATE_NOT_CONFIGURED;
+        enum inlet_state previous_inlet_state = INLET_STATE_MAX;
 
         EVLOG_debug << "Notify Thread started";
 
@@ -100,6 +101,7 @@ CbChargeSOM::CbChargeSOM() {
             enum cs1_safestate_reason current_safestate_reason;
             enum cs_safestate_active current_safestate_active;
             enum rcm_state current_rcm_state;
+            enum inlet_state current_inlet_state;
             unsigned int i;
 
             // wait for changes
@@ -135,14 +137,26 @@ CbChargeSOM::CbChargeSOM() {
             current_contactor_error =
                 cb_proto_get_safestate_reason(&tmpctx) == CS1_SAFESTATE_REASON_HV_SWITCH_MALFUNCTION;
             if (current_contactor_error != previous_contactor_error) {
-                std::string name = "Contactor";
+                EVLOG_debug << "HV switch malfunction detected";
 
-                EVLOG_debug << "on_contactor_error()";
-                // FIXME: for now, we only look at the first contactor since we assume a DC use-case
-                this->on_contactor_error(name, cb_proto_contactorN_get_target_state(&this->ctx, 0),
-                                         cb_proto_contactorN_is_closed(&tmpctx, 0)
-                                             ? types::cb_board_support::ContactorState::Closed
-                                             : types::cb_board_support::ContactorState::Open);
+                // we have to check which contactor is not in sync with desired state
+                for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
+                    if (!cb_proto_contactorN_is_enabled(&this->ctx, i))
+                        continue;
+
+                    bool should_be_closed = cb_proto_contactorN_get_target_state(&this->ctx, i);
+                    bool is_closed = cb_proto_contactorN_is_closed(&this->ctx, i);
+
+                    if (should_be_closed != is_closed) {
+                        EVLOG_debug << "on_contactor_error(" << i
+                                    << ", should be: " << (should_be_closed ? "CLOSED" : "OPEN")
+                                    << ", is: " << (is_closed ? "CLOSED" : "OPEN") << ")";
+
+                        this->on_contactor_error(i, should_be_closed,
+                                                 is_closed ? types::cb_board_support::ContactorState::Closed
+                                                           : types::cb_board_support::ContactorState::Open);
+                    }
+                }
                 previous_contactor_error = current_contactor_error;
             }
 
@@ -151,12 +165,10 @@ CbChargeSOM::CbChargeSOM() {
                 current_contactor_state[i] = cb_proto_contactorN_get_actual_state(&tmpctx, i);
 
                 if (current_contactor_state[i] != previous_contactor_state[i]) {
-                    std::string name = "Contactor " + std::to_string(i + 1);
-
                     // we suppress the initial change during boot
                     if (initial_contactor_states_seen) {
                         EVLOG_debug << "on_contactor_change(" << i << ", " << current_contactor_state[i] << ")";
-                        this->on_contactor_change(name, contactor_state_to_ContactorState(current_contactor_state[i]));
+                        this->on_contactor_change(i, contactor_state_to_ContactorState(current_contactor_state[i]));
                     } else {
                         EVLOG_debug << "on_contactor_change(" << i << ", " << current_contactor_state[i] << ")"
                                     << " [suppressed]";
@@ -202,6 +214,22 @@ CbChargeSOM::CbChargeSOM() {
                 EVLOG_debug << "on_rcm_state_change(" << previous_rcm_state << " → " << current_rcm_state << ")";
                 this->on_rcm_state_change(current_rcm_state);
                 previous_rcm_state = current_rcm_state;
+            }
+
+            // handle inlet state changes
+            current_inlet_state = cb_proto_get_inlet_state(&tmpctx);
+            if (current_inlet_state != previous_inlet_state) {
+                EVLOG_debug << "on_inlet_state_change(" << cb_proto_inlet_state_to_str(previous_inlet_state) << " → "
+                            << cb_proto_inlet_state_to_str(current_inlet_state) << ")";
+
+                if (previous_inlet_state == INLET_STATE_MAX && current_inlet_state == INLET_STATE_UNDEFINED) {
+                    EVLOG_debug << "on_inlet_state_change(" << cb_proto_inlet_state_to_str(current_inlet_state) << ")"
+                                << " [suppressed]";
+                } else {
+                    this->on_inlet_state_change(current_inlet_state);
+                }
+
+                previous_inlet_state = current_inlet_state;
             }
 
             // check for PP changes
@@ -252,6 +280,7 @@ CbChargeSOM::CbChargeSOM() {
     // we need a thread to handle all the error message notifications asynchronously
     // to the frame receiving to avoid stalling and to not miss a single one
     this->errmsg_thread = std::thread([&]() {
+        char reason_buffer[256];
         EVLOG_debug << "Error Message Thread started";
 
         while (!this->termination_requested) {
@@ -281,8 +310,10 @@ CbChargeSOM::CbChargeSOM() {
             reason = cb_proto_errmsg_get_reason(&tmpctx);
             additional_data1 = cb_proto_errmsg_get_additional_data_1(&tmpctx);
             additional_data2 = cb_proto_errmsg_get_additional_data_2(&tmpctx);
-            std::string module_str {cb_proto_errmsg_module_to_str(module)};
-            std::string reason_str {cb_proto_errmsg_reason_to_str(module, reason)};
+            std::string_view module_str(cb_proto_errmsg_module_to_str(module));
+            cb_proto_errmsg_to_str(reason_buffer, sizeof(reason_buffer), module, reason, additional_data1,
+                                   additional_data2);
+            std::string reason_str(reason_buffer);
 
             this->on_errmsg(is_active, static_cast<unsigned int>(module), module_str, reason, reason_str,
                             additional_data1, additional_data2);
@@ -604,6 +635,7 @@ void CbChargeSOM::reset() {
     }
 
     this->set_mcu_reset(false);
+    this->on_reset();
 }
 
 void CbChargeSOM::send_charge_control() {
@@ -781,25 +813,44 @@ bool CbChargeSOM::get_cp_short_circuit() {
     return cb_proto_is_cp_short_circuit(&this->ctx);
 }
 
-bool CbChargeSOM::switch_state(bool on) {
+void CbChargeSOM::set_contactorN_state(unsigned int idx, bool on) {
+    // remember (prepared) target state
+    this->prepared_contactor_state[idx] = on;
+}
+
+void CbChargeSOM::set_contactorN_state_commit() {
     // we need to take the lock to change the field
     size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_CONTROL);
     std::unique_lock<std::mutex> cc_lock(this->ctx_mutexes[n]);
     unsigned int i;
 
+    // fetch the prepared states, apply and send out request
     for (i = 0; i < CB_PROTO_MAX_CONTACTORS; ++i) {
         // always remember the target state - without check whether it is configured at all
-        cb_proto_contactorN_set_state(&this->ctx, i, on);
+        cb_proto_contactorN_set_state(&this->ctx, i, this->prepared_contactor_state[i]);
     }
 
     // but release it now so that sending can take the lock again
     cc_lock.unlock();
 
     this->send_charge_control();
+}
 
-    // we must simply report success back here since the actual switching depends
-    // on seeing state C and we do not know exactly when this happens
-    return true;
+/// @brief Return the target state of contactor N
+bool CbChargeSOM::get_contactorN_target_state(unsigned int idx) {
+    return cb_proto_contactorN_get_target_state(&this->ctx, idx);
+}
+
+/// @brief Return the current state of contactor N
+bool CbChargeSOM::get_contactorN_state(unsigned int idx) {
+    size_t n = static_cast<std::size_t>(cb_uart_com::COM_CHARGE_STATE);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    if (cb_proto_contactorN_is_enabled(&this->ctx, idx)) {
+        return cb_proto_contactorN_is_closed(&this->ctx, idx);
+    }
+
+    return cb_proto_contactorN_get_target_state(&this->ctx, idx);
 }
 
 bool CbChargeSOM::get_contactor_state_no_lock() {
@@ -846,6 +897,14 @@ bool CbChargeSOM::is_hv_ready() {
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return cb_proto_get_hv_ready(&this->ctx);
+}
+
+void CbChargeSOM::inlet_lock() {
+    this->send_action_request_and_wait(ACTION_ID_INLET_CLOSE);
+}
+
+void CbChargeSOM::inlet_unlock() {
+    this->send_action_request_and_wait(ACTION_ID_INLET_OPEN);
 }
 
 void CbChargeSOM::start_rcm_selftest() {

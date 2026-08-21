@@ -3,16 +3,17 @@
 #include <chrono>
 #include <iostream>
 #include <string>
-#include "CbTarragonContactor.hpp"
-#include "CbTarragonContactorControl.hpp"
-#include "CbTarragonContactorControlSerial.hpp"
+#include "CbContactorControl.hpp"
+#include "CbContactorControlSerial.hpp"
 #include <everest/logging.hpp>
 
-CbTarragonContactorControlSerial::CbTarragonContactorControlSerial(
-    std::unique_ptr<CbTarragonRelay> primary_relay, const std::string& primary_contactor_feedback_type,
-    std::unique_ptr<CbTarragonRelay> secondary_relay, const std::string& secondary_contactor_feedback_type) :
-    primary("Primary Contactor", std::move(primary_relay), primary_contactor_feedback_type),
-    secondary("Secondary Contactor", std::move(secondary_relay), secondary_contactor_feedback_type) {
+CbContactorControlSerial::CbContactorControlSerial(std::unique_ptr<CbRelay> primary_relay,
+                                                   const std::string& primary_contactor_feedback_type,
+                                                   std::unique_ptr<CbRelay> secondary_relay,
+                                                   const std::string& secondary_contactor_feedback_type,
+                                                   const std::string& primary_name, const std::string& secondary_name) :
+    primary(primary_name, std::move(primary_relay), primary_contactor_feedback_type),
+    secondary(secondary_name, std::move(secondary_relay), secondary_contactor_feedback_type) {
 
     EVLOG_info << this->primary.get_name() << " feedback type: '" << primary_contactor_feedback_type << "'";
     if (primary_contactor_feedback_type == "none")
@@ -23,6 +24,16 @@ CbTarragonContactorControlSerial::CbTarragonContactorControlSerial(
     if (secondary_contactor_feedback_type == "none")
         EVLOG_warning << "The " << this->secondary.get_name()
                       << " has the feedback pin not connected. This is not recommended.";
+
+    this->primary.on_change.connect(
+        [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
+            this->consider_trigger_on_change(seen_contactor_state, this->secondary);
+        });
+
+    this->secondary.on_change.connect(
+        [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
+            this->consider_trigger_on_change(seen_contactor_state, this->primary);
+        });
 
     this->primary.on_unexpected_change.connect(
         [&](const std::string& contactor_name, types::cb_board_support::ContactorState seen_contactor_state) {
@@ -35,7 +46,27 @@ CbTarragonContactorControlSerial::CbTarragonContactorControlSerial(
         });
 }
 
-bool CbTarragonContactorControlSerial::is_inconsistent_state(std::ostringstream& error_hint) const {
+void CbContactorControlSerial::consider_trigger_on_change(
+    const types::cb_board_support::ContactorState seen_contactor_state, CbContactor& other_contactor) {
+    if (this->phase_count == 3) {
+        // when phase count is three, then both contactors should have same state before we publish an event
+        if (seen_contactor_state == other_contactor.get_feedback_state()) {
+            if (this->published_contactor_state.exchange(seen_contactor_state) != seen_contactor_state) {
+                this->on_change(this->primary.get_name(), seen_contactor_state);
+            }
+        }
+    } else {
+        // one phase -> only primary is important;
+        // we can decide this (whether the reporting one is the primary) on whether the 'other' one is the secondary
+        if (&other_contactor == &this->secondary) {
+            if (this->published_contactor_state.exchange(seen_contactor_state) != seen_contactor_state) {
+                this->on_change(this->primary.get_name(), seen_contactor_state);
+            }
+        }
+    }
+}
+
+bool CbContactorControlSerial::is_inconsistent_state(std::ostringstream& error_hint) const {
     if (this->primary.is_state_mismatch()) {
         error_hint << this->primary;
         return true;
@@ -49,7 +80,7 @@ bool CbTarragonContactorControlSerial::is_inconsistent_state(std::ostringstream&
     return false;
 }
 
-bool CbTarragonContactorControlSerial::switch_state_on() {
+bool CbContactorControlSerial::switch_state_on() {
     bool rv_primary, rv_secondary;
 
     // when closing, we have to consider the secondary first
@@ -89,7 +120,7 @@ bool CbTarragonContactorControlSerial::switch_state_on() {
     return rv_primary and rv_secondary;
 }
 
-bool CbTarragonContactorControlSerial::switch_state_off() {
+bool CbContactorControlSerial::switch_state_off() {
     bool rv_primary, rv_secondary;
 
     // when opening, we can always switch both contactors in the correct sequence;
@@ -113,29 +144,29 @@ bool CbTarragonContactorControlSerial::switch_state_off() {
     return rv_primary and rv_secondary;
 }
 
-bool CbTarragonContactorControlSerial::switch_state(bool on) {
+bool CbContactorControlSerial::switch_state(bool on) {
     if (on)
         return this->switch_state_on();
     else
         return this->switch_state_off();
 }
 
-bool CbTarragonContactorControlSerial::get_state() const {
+bool CbContactorControlSerial::get_state() const {
     // it is sufficient to check the primary contactor here
     return this->primary.get_state();
 }
 
-std::chrono::milliseconds CbTarragonContactorControlSerial::get_closing_delay_left() const {
+std::chrono::milliseconds CbContactorControlSerial::get_closing_delay_left() const {
     // since we always switch the primary contactor but sometimes the secondary not,
     // we can just look at the primary -> it covers the secondary completely
     return this->primary.get_closing_delay_left();
 }
 
-std::ostream& CbTarragonContactorControlSerial::dump(std::ostream& os) const {
+std::ostream& CbContactorControlSerial::dump(std::ostream& os) const {
     os << this->primary << ", " << this->secondary;
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControlSerial& c) {
+std::ostream& operator<<(std::ostream& os, const CbContactorControlSerial& c) {
     return c.dump(os);
 }

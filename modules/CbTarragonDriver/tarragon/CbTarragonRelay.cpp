@@ -211,10 +211,10 @@ std::chrono::milliseconds CbTarragonRelay::get_closing_delay_left() const {
     return 0ms;
 }
 
-std::ostream& operator<<(std::ostream& os, const CbTarragonRelay& r) {
-    os << r.relay_name << " (" << (r.get_actuator_state() ? "CLOSED" : "OPEN") << ", ";
-    if (r.feedback) {
-        os << (r.get_feedback_state() ? "CLOSED" : "OPEN");
+std::ostream& CbTarragonRelay::dump(std::ostream& os) const {
+    os << this->relay_name << " (" << (this->get_actuator_state() ? "CLOSED" : "OPEN") << ", ";
+    if (this->feedback) {
+        os << (this->get_feedback_state() ? "CLOSED" : "OPEN");
     } else {
         os << "UNUSED";
     }
