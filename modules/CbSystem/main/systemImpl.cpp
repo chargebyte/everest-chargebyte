@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright Pionix GmbH and Contributors to EVerest
+// Copyright chargebyte GmbH, Pionix GmbH and Contributors to EVerest
 
 #include "systemImpl.hpp"
 
@@ -795,6 +795,14 @@ types::system::BootReason systemImpl::handle_get_boot_reason() {
     }
     this->mod->r_store.at(0)->call_delete(BOOT_REASON_KEY);
     return final_reason;
+}
+
+types::network::ConfigureNetworkResponse
+systemImpl::handle_configure_network(types::network::ConfigureNetworkRequest& request) {
+    (void)request;
+    types::network::ConfigureNetworkResponse response;
+    response.status = types::network::ConfigureNetworkStatusEnum::NotSupported;
+    return response;
 }
 
 } // namespace main
