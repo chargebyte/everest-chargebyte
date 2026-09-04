@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright Pionix GmbH and Contributors to EVerest
+// Copyright chargebyte GmbH, Pionix GmbH and Contributors to EVerest
 
 #include "systemImpl.hpp"
 
@@ -268,7 +268,7 @@ void systemImpl::standard_firmware_update(const types::system::FirmwareUpdateReq
                 EVLOG_info << "Firmware update status: " << output_line;
                 firmware_status.firmware_update_status =
                     types::system::string_to_firmware_update_status_enum(output_line);
-                 this->publish_firmware_update_status(firmware_status);
+                this->publish_firmware_update_status(firmware_status);
                 return CmdControl::Continue;
             });
             if (firmware_status.firmware_update_status == types::system::FirmwareUpdateStatusEnum::DownloadFailed &&
@@ -789,12 +789,20 @@ types::system::BootReason systemImpl::handle_get_boot_reason() {
     }
     auto reason_variant = this->mod->r_store.at(0)->call_load(BOOT_REASON_KEY);
     auto* reason = std::get_if<std::string>(&reason_variant);
-    auto final_reason{this->boot_reason}; // fallback: rauc-based
+    auto final_reason {this->boot_reason}; // fallback: rauc-based
     if (reason != nullptr) {
         final_reason = types::system::string_to_boot_reason(*reason);
     }
     this->mod->r_store.at(0)->call_delete(BOOT_REASON_KEY);
     return final_reason;
+}
+
+types::network::ConfigureNetworkResponse
+systemImpl::handle_configure_network(types::network::ConfigureNetworkRequest& request) {
+    (void)request;
+    types::network::ConfigureNetworkResponse response;
+    response.status = types::network::ConfigureNetworkStatusEnum::NotSupported;
+    return response;
 }
 
 } // namespace main
