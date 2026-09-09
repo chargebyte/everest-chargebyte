@@ -167,7 +167,7 @@ public:
     void start_rcm_selftest();
 
     /// @brief Remember whether the PT1000 State frame was received at least once.
-    bool temperature_data_is_valid {false};
+    std::atomic_bool temperature_data_is_valid {false};
 
     /// @brief Retrieves the number of supported temperature channels.
     /// @return The count of supported channels.
@@ -197,6 +197,15 @@ public:
     const std::string& get_fw_info() const;
 
 private:
+    /// @brief Time after reset before PT1000 State frames contain valid data.
+    static constexpr std::chrono::milliseconds PT1000_DATA_VALID_DELAY {600};
+
+    /// @brief Earliest point in time at which PT1000 State frames may be used.
+    std::chrono::steady_clock::time_point pt1000_data_valid_after {std::chrono::steady_clock::time_point::max()};
+
+    /// @brief Protects the PT1000 validity deadline during resets.
+    std::mutex pt1000_validity_mutex;
+
     /// @brief Remember whether the system is with fixed cable or not.
     bool is_pluggable {false};
 

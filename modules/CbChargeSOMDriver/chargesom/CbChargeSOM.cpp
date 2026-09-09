@@ -401,6 +401,13 @@ CbChargeSOM::CbChargeSOM() {
                 break;
 
             case cb_uart_com::COM_PT1000_STATE:
+                {
+                    std::scoped_lock validity_lock(this->pt1000_validity_mutex);
+                    if (std::chrono::steady_clock::now() < this->pt1000_data_valid_after) {
+                        notify = false;
+                        break;
+                    }
+                }
                 this->ctx.pt1000 = payload;
                 this->temperature_data_is_valid = true;
                 // note: notifying is not strictly needed here since the
@@ -610,9 +617,22 @@ void CbChargeSOM::disable() {
 }
 
 void CbChargeSOM::set_mcu_reset(bool active) {
+    const bool was_active = this->is_mcu_reset_active;
+
+    if (active) {
+        std::scoped_lock lock(this->pt1000_validity_mutex);
+        this->temperature_data_is_valid = false;
+        this->pt1000_data_valid_after = std::chrono::steady_clock::time_point::max();
+    }
+
     this->mcu_reset->set_value(this->mcu_reset->offsets()[0],
                                active ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
     this->is_mcu_reset_active = active;
+
+    if (was_active && !active) {
+        std::scoped_lock lock(this->pt1000_validity_mutex);
+        this->pt1000_data_valid_after = std::chrono::steady_clock::now() + PT1000_DATA_VALID_DELAY;
+    }
 
     // when releasing the reset, wait until safety controller is capable to handle UART frames again
     if (not active) {
