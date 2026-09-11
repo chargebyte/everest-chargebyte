@@ -12,6 +12,7 @@
 
 // headers for provided interface implementations
 #include <generated/interfaces/ac_rcd/Implementation.hpp>
+#include <generated/interfaces/connector_lock/Implementation.hpp>
 #include <generated/interfaces/evse_board_support/Implementation.hpp>
 #include <generated/interfaces/cb_temperatures/Implementation.hpp>
 
@@ -20,6 +21,7 @@
 
 #include <atomic>
 #include <CbChargeSOM.hpp>
+#include <CbContactorControl.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -42,21 +44,28 @@ struct Conf {
     std::string pt1000_4_identification;
     std::string grid_phase_count_gpio_line_name;
     bool grid_phase_count_active_low;
+    std::string contactor_1_feedback_type;
+    std::string contactor_2_feedback_type;
+    std::string switch_3ph1ph_wiring;
+    std::string dc_contactor_wiring;
 };
 
 class CbChargeSOMDriver : public Everest::ModuleBase {
 public:
     CbChargeSOMDriver() = delete;
     CbChargeSOMDriver(const ModuleInfo& info, std::unique_ptr<ac_rcdImplBase> p_ac_rcd,
+                      std::unique_ptr<connector_lockImplBase> p_connector_lock,
                       std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
                       std::unique_ptr<cb_temperaturesImplBase> p_temperatures, Conf& config) :
         ModuleBase(info),
         p_ac_rcd(std::move(p_ac_rcd)),
+        p_connector_lock(std::move(p_connector_lock)),
         p_evse_board_support(std::move(p_evse_board_support)),
         p_temperatures(std::move(p_temperatures)),
         config(config) {};
 
     const std::unique_ptr<ac_rcdImplBase> p_ac_rcd;
+    const std::unique_ptr<connector_lockImplBase> p_connector_lock;
     const std::unique_ptr<evse_board_supportImplBase> p_evse_board_support;
     const std::unique_ptr<cb_temperaturesImplBase> p_temperatures;
     const Conf& config;
@@ -69,6 +78,9 @@ public:
 
     /// @brief Safety controller UART Interface
     CbChargeSOM controller;
+
+    /// @brief Relay and contactor control
+    std::unique_ptr<CbContactorControl> contactor_controller;
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
