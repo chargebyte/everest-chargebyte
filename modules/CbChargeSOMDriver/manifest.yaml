@@ -185,7 +185,7 @@ provides:
     interface: evse_board_support
   temperatures:
     description: Temperature readings as measured by the safety controller
-    interface: cb_temperatures
+    interface: temperature_sensor
 metadata:
   license: https://opensource.org/licenses/Apache-2.0
   authors:
