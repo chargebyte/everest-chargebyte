@@ -8,10 +8,10 @@
 #include <sstream>
 #include <string>
 #include <generated/types/cb_board_support.hpp>
-#include <CbTarragonContactorControl.hpp>
-#include <CbTarragonContactorControlSimple.hpp>
-#include <CbTarragonContactorControlSerial.hpp>
-#include <CbTarragonContactorControlMutual.hpp>
+#include <CbContactorControl.hpp>
+#include <CbContactorControlSimple.hpp>
+#include <CbContactorControlSerial.hpp>
+#include <CbContactorControlMutual.hpp>
 #include <chargebyte/gpiodUtils.hpp>
 
 #include "evse_board_supportImpl.hpp"

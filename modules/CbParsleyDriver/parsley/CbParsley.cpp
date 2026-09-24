@@ -196,6 +196,7 @@ CbParsley::CbParsley() {
     // we need a thread to handle all the error message notifications asynchronously
     // to the frame receiving to avoid stalling and to not miss a single one
     this->errmsg_thread = std::thread([&]() {
+        char reason_buffer[256];
         EVLOG_debug << "Error Message Thread started";
 
         while (!this->termination_requested) {
@@ -225,8 +226,10 @@ CbParsley::CbParsley() {
             reason = cb_proto_errmsg_get_reason(&tmpctx);
             additional_data1 = cb_proto_errmsg_get_additional_data_1(&tmpctx);
             additional_data2 = cb_proto_errmsg_get_additional_data_2(&tmpctx);
-            std::string module_str {cb_proto_errmsg_module_to_str(module)};
-            std::string reason_str {cb_proto_errmsg_reason_to_str(module, reason)};
+            std::string_view module_str(cb_proto_errmsg_module_to_str(module));
+            cb_proto_errmsg_to_str(reason_buffer, sizeof(reason_buffer), module, reason, additional_data1,
+                                   additional_data2);
+            std::string reason_str(reason_buffer);
 
             this->on_errmsg(is_active, static_cast<unsigned int>(module), module_str, reason, reason_str,
                             additional_data1, additional_data2);
@@ -310,6 +313,13 @@ CbParsley::CbParsley() {
                 break;
 
             case cb_uart_com::COM_PT1000_STATE:
+                {
+                    std::scoped_lock validity_lock(this->pt1000_validity_mutex);
+                    if (std::chrono::steady_clock::now() < this->pt1000_data_valid_after) {
+                        notify = false;
+                        break;
+                    }
+                }
                 this->ctx.pt1000 = payload;
                 this->temperature_data_is_valid = true;
                 // note: notifying is not strictly needed here since the
@@ -516,9 +526,22 @@ void CbParsley::disable() {
 }
 
 void CbParsley::set_mcu_reset(bool active) {
+    const bool was_active = this->is_mcu_reset_active;
+
+    if (active) {
+        std::scoped_lock lock(this->pt1000_validity_mutex);
+        this->temperature_data_is_valid = false;
+        this->pt1000_data_valid_after = std::chrono::steady_clock::time_point::max();
+    }
+
     this->mcu_reset->set_value(this->mcu_reset->offsets()[0],
                                active ? gpiod::line::value::ACTIVE : gpiod::line::value::INACTIVE);
     this->is_mcu_reset_active = active;
+
+    if (was_active && !active) {
+        std::scoped_lock lock(this->pt1000_validity_mutex);
+        this->pt1000_data_valid_after = std::chrono::steady_clock::now() + PT1000_DATA_VALID_DELAY;
+    }
 
     // when releasing the reset, wait until safety controller is capable to handle UART frames again
     if (not active) {

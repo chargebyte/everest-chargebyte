@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <gpiod.hpp>
 #include <sigslot/signal.hpp>
@@ -86,7 +87,7 @@ public:
 
     /// @brief Signal emitted whenever an error message is received.
     ///        The parameters are filled with the data from the latest error message.
-    sigslot::signal<bool, unsigned int, const std::string&, unsigned int, const std::string&, unsigned int,
+    sigslot::signal<bool, unsigned int, const std::string_view&, unsigned int, const std::string_view&, unsigned int,
                     unsigned int>
         on_errmsg;
 
@@ -94,7 +95,7 @@ public:
     bool is_emergency();
 
     /// @brief Remember whether the PT1000 State frame was received at least once.
-    bool temperature_data_is_valid {false};
+    std::atomic_bool temperature_data_is_valid {false};
 
     /// @brief Retrieves the number of supported temperature channels.
     /// @return The count of supported channels.
@@ -124,6 +125,15 @@ public:
     const std::string& get_fw_info() const;
 
 private:
+    /// @brief Time after reset before PT1000 State frames contain valid data.
+    static constexpr std::chrono::milliseconds PT1000_DATA_VALID_DELAY {600};
+
+    /// @brief Earliest point in time at which PT1000 State frames may be used.
+    std::chrono::steady_clock::time_point pt1000_data_valid_after {std::chrono::steady_clock::time_point::max()};
+
+    /// @brief Protects the PT1000 validity deadline during resets.
+    std::mutex pt1000_validity_mutex;
+
     /// @brief Remembers the serial port device name
     std::string serial_port;
 

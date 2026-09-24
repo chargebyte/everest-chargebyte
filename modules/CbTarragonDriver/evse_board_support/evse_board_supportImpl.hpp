@@ -25,7 +25,7 @@
 #include <CbTarragonCP.hpp>
 #include <CbTarragonPWM.hpp>
 #include <CbTarragonPP.hpp>
-#include <CbTarragonContactorControl.hpp>
+#include <CbContactorControl.hpp>
 #include <CPUtils.hpp>
 // ev@75ac1216-19eb-4182-a85c-820f1fc2c091:v1
 

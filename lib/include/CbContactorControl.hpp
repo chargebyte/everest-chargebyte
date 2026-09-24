@@ -1,26 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright chargebyte GmbH and Contributors to EVerest
 #pragma once
+#include <atomic>
 #include <chrono>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <sigslot/signal.hpp>
 #include <generated/types/cb_board_support.hpp>
-#include "CbTarragonContactor.hpp"
+#include "CbContactor.hpp"
 
 ///
 /// This is an "abstract" (not in sense of C++ meaning) class for handling contactor control.
 /// It only defines the interface which is used by the upper layer.
 /// Derived classes implement specific contactor handling setups.
 ///
-class CbTarragonContactorControl {
+class CbContactorControl {
 
 public:
     /// @brief Constructor.
-    CbTarragonContactorControl() {};
+    CbContactorControl() {};
 
     /// @brief Destructor.
-    virtual ~CbTarragonContactorControl() = default;
+    virtual ~CbContactorControl() = default;
 
     /// @brief Checks the actual states of actuator and feedback for plausibility.
     ///        This is intended to be called once during startup only, since
@@ -51,6 +53,11 @@ public:
     /// @brief Set the desired count of phases for next contactor closing.
     void switch_phase_count(bool use_3phases);
 
+    /// @brief Signal used to inform when the state changed asynchronously.
+    ///        Note: this event is not fully implemented for all derived classes since it
+    ///        only makes sense in a content when changes can occur from outside.
+    sigslot::signal<const std::string&, types::cb_board_support::ContactorState> on_change;
+
     /// @brief Signal used to inform about errors during switching.
     sigslot::signal<const std::string&, bool, types::cb_board_support::ContactorState> on_error;
 
@@ -62,10 +69,10 @@ public:
     ///        false otherwise.
     std::atomic_bool is_emergency {false};
 
-    /// @brief Feeds a string representation of the given CbTarragonContactorControl
+    /// @brief Feeds a string representation of the given CbContactorControl
     ///        instance into an output stream.
     /// @return A reference to the output stream operated on.
-    friend std::ostream& operator<<(std::ostream& os, const CbTarragonContactorControl& c);
+    friend std::ostream& operator<<(std::ostream& os, const CbContactorControl& c);
 
 protected:
     /// @brief Desired number of phases (1 or 3).
@@ -77,7 +84,7 @@ protected:
     /// @param on The target state (true = on, false = off)
     /// @param wait_for_feedback Tell whether to wait and evaluate the feedback before returning.
     /// @return True on success, false on error.
-    bool switch_contactor(CbTarragonContactor& contactor, bool on, bool wait_for_feedback = true);
+    bool switch_contactor(CbContactor& contactor, bool on, bool wait_for_feedback = true);
 
     /// @brief Helper to feed a string representation into an output stream.
     /// @param os Output stream reference to operate on.
