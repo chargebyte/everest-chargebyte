@@ -56,7 +56,7 @@ provides:
     interface: evse_board_support
   temperatures:
     description: Temperature readings as measured by the safety controller
-    interface: cb_temperatures
+    interface: temperature_sensor
   mcs:
     description: Provide the Megawatt Charging Service related features
     interface: cb_mcs
