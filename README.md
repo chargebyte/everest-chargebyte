@@ -10,16 +10,19 @@ This repository includes the following modules:
 - **CbSystem**: Implements system wide operations for chargebyte's hardware products.
 - **InfypowerDCSupply**: Driver for Infypower's BEC/BEG power modules.
 
+
 ## Compatibility matrix
+
 | Tag    | EVerest release               |
 |--------|-------------------------------|
-| 0.32.0 | 2026.02.0 or newer[^or_newer] |
-| 0.31.0 | 2026.02.0 or newer[^or_newer] |
-| 0.30.0 | 2026.02.0 or newer[^or_newer] |
-| 0.29.0 | 2026.02.0 or newer[^or_newer] |
-| 0.28.0 | 2025.12.0 or newer[^or_newer] |
-| 0.27.0 | 2025.12.0 or newer[^or_newer] |
-| 0.26.0 | 2025.12.0 or newer[^or_newer] |
+| 0.33.0 | 2026.02.0                     |
+| 0.32.0 | 2026.02.0                     |
+| 0.31.0 | 2026.02.0                     |
+| 0.30.0 | 2026.02.0                     |
+| 0.29.0 | 2026.02.0                     |
+| 0.28.0 | 2026.02.0 <br> 2025.12.0      |
+| 0.27.0 | 2026.02.0 <br> 2025.12.0      |
+| 0.26.0 | 2026.02.0 <br> 2025.12.0      |
 | 0.25.0 | 2025.9.0 <br> 2025.1.0        |
 | 0.24.0 | 2025.1.0 or newer[^or_newer]  |
 | 0.23.0 | 2025.1.0 or newer[^or_newer]  |
@@ -43,7 +46,9 @@ This repository includes the following modules:
 [^or_newer]: Newer releases or upstream's `main` branch may already contain incompatible changes.
              The compatibility matrix will be updated with each new tag in this repository.
 
+
 ## Usage
+
 To build and use these modules in EVerest, check out this repository in the same directory as everest-core, i.e., your EVerest workspace.
 
 ```bash
@@ -54,7 +59,9 @@ To build and use these modules in EVerest, check out this repository in the same
 
 Make sure to follow the instructions written [everest-core](https://github.com/EVerest/everest-core).
 
+
 ## Dependencies
+
 Some modules depend on [libgpiod](git://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git). However, this cannot be installed on Ubuntu with a package manager because the modules depend on a newer version of libgpiod which Ubuntu does not provide (2.0.1). Therefore, the libgpiod should be installed manually.
 
 ```bash
@@ -116,7 +123,9 @@ sudo apt install libsystemd-dev
 
 Remember that, when cross-compiling for the target platforms, all libraries must be included in your SYSROOT environment.
 
+
 ## Build and install
+
 If you need to regenerate the modules using the EVerest ev-cli tool, for example, if there is a change in the EVerest interfaces, execute the following command:
 
 ```bash
@@ -134,6 +143,7 @@ cd build
 cmake ..
 make install -j$(nproc)
 ```
+
 
 ## Testing
 
