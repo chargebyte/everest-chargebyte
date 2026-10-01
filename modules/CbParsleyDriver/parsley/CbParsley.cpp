@@ -107,6 +107,8 @@ CbParsley::CbParsley() {
         enum cs2_ce_state previous_ce_state = CS2_CE_STATE_MAX;
         enum cs2_estop_reason previous_estop_reason = CS2_ESTOP_REASON_MAX;
         enum cs_safestate_active previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
+        unsigned int observed_reset_generation = 0;
+        bool reset_snapshot_pending = false;
 
         EVLOG_debug << "Notify Thread started";
 
@@ -127,6 +129,24 @@ CbParsley::CbParsley() {
             if (this->termination_requested)
                 break;
 
+            const unsigned int current_reset_generation = this->reset_generation.load();
+            if (current_reset_generation != observed_reset_generation) {
+                // Discard frames received before the reset. The first frame after
+                // the reset is used as an authoritative state snapshot.
+                while (not this->charge_state_changes.empty())
+                    this->charge_state_changes.pop();
+
+                previous_id_state = CS2_ID_STATE_MAX;
+                previous_ce_state = CS2_CE_STATE_MAX;
+                previous_estop_reason = CS2_ESTOP_REASON_MAX;
+                previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
+                observed_reset_generation = current_reset_generation;
+                reset_snapshot_pending = true;
+
+                if (this->charge_state_changes.empty())
+                    continue;
+            }
+
             // remove from queue
             tmpctx.charge_state = this->charge_state_changes.front();
             this->charge_state_changes.pop();
@@ -134,7 +154,8 @@ CbParsley::CbParsley() {
             // check for changed ESTOP reason
             current_estop_reason = cb_proto_get_estop_reason(&tmpctx);
             if (current_estop_reason != previous_estop_reason) {
-                if (previous_estop_reason == CS2_ESTOP_REASON_MAX && current_estop_reason == CS2_ESTOP_REASON_NO_STOP) {
+                if (not reset_snapshot_pending && previous_estop_reason == CS2_ESTOP_REASON_MAX &&
+                    current_estop_reason == CS2_ESTOP_REASON_NO_STOP) {
                     EVLOG_debug << "on_estop(" << current_estop_reason << ")"
                                 << " [suppressed]";
                 } else {
@@ -149,7 +170,7 @@ CbParsley::CbParsley() {
             if (current_safestate_active != previous_safestate_active) {
                 // we suppress the normal/expected state change during boot into "normal" mode
                 EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")";
-                if (previous_safestate_active == CS_SAFESTATE_ACTIVE_MAX &&
+                if (not reset_snapshot_pending && previous_safestate_active == CS_SAFESTATE_ACTIVE_MAX &&
                     current_safestate_active == CS_SAFESTATE_ACTIVE_NORMAL) {
                     EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")"
                                 << " [suppressed]";
@@ -163,7 +184,8 @@ CbParsley::CbParsley() {
             // check for ID changes
             current_id_state = cb_proto_get_id_state(&tmpctx);
             if (current_id_state != previous_id_state) {
-                if (previous_id_state == CS2_ID_STATE_MAX && current_id_state == CS2_ID_STATE_NOT_CONNECTED) {
+                if (not reset_snapshot_pending && previous_id_state == CS2_ID_STATE_MAX &&
+                    current_id_state == CS2_ID_STATE_NOT_CONNECTED) {
                     EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")"
                                 << " [suppressed]";
                 } else {
@@ -178,7 +200,8 @@ CbParsley::CbParsley() {
             current_ce_state = cb_proto_get_ce_state(&tmpctx);
             if (current_ce_state != previous_ce_state) {
                 // special case: boot into expected default state
-                if (previous_ce_state == CS2_CE_STATE_MAX && current_ce_state == CS2_CE_STATE_A) {
+                if (not reset_snapshot_pending && previous_ce_state == CS2_CE_STATE_MAX &&
+                    current_ce_state == CS2_CE_STATE_A) {
                     EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")"
                                 << " [suppressed]";
                 } else {
@@ -188,6 +211,8 @@ CbParsley::CbParsley() {
                 }
                 previous_ce_state = current_ce_state;
             }
+
+            reset_snapshot_pending = false;
         }
 
         EVLOG_debug << "Notify Thread terminated";
@@ -197,6 +222,7 @@ CbParsley::CbParsley() {
     // to the frame receiving to avoid stalling and to not miss a single one
     this->errmsg_thread = std::thread([&]() {
         char reason_buffer[256];
+        unsigned int observed_reset_generation = 0;
         EVLOG_debug << "Error Message Thread started";
 
         while (!this->termination_requested) {
@@ -216,6 +242,14 @@ CbParsley::CbParsley() {
 
             if (this->termination_requested)
                 break;
+
+            const unsigned int current_reset_generation = this->reset_generation.load();
+            if (current_reset_generation != observed_reset_generation) {
+                while (not this->errmsg_queue.empty())
+                    this->errmsg_queue.pop();
+                observed_reset_generation = current_reset_generation;
+                continue;
+            }
 
             // remove from queue
             tmpctx.error_message = this->errmsg_queue.front();
@@ -498,6 +532,9 @@ void CbParsley::enable() {
 
     // tell RX thread that we will receive frames now
     this->rx_enabled = true;
+
+    this->notify_cv.notify_one();
+    this->errmsg_cv.notify_one();
 }
 
 void CbParsley::disable() {
@@ -510,6 +547,8 @@ void CbParsley::disable() {
     // we can directly return it was already disabled
     if (!this->evse_enabled.exchange(false))
         return;
+
+    this->reset_generation.fetch_add(1);
 
     // stop sending of periodic Charge Control frames
     this->tx_cc_enabled = false;
@@ -565,8 +604,15 @@ void CbParsley::reset() {
 
     this->set_mcu_reset(false);
 
-    // before releasing the TX mutex we need to "release" a potentially force EC mode;
-    // this is why we remembered the CCS ready bit
+    // A reset releases a software-requested safe state. External safety
+    // conditions remain reported by the safety controller after startup.
+    {
+        const size_t n = static_cast<size_t>(cb_uart_com::COM_CHARGE_CONTROL_2);
+        std::scoped_lock cc_lock(this->ctx_mutexes[n]);
+        cb_proto_set_estop(&this->ctx, false);
+    }
+
+    // Restore the remembered CCS ready bit.
     this->set_ccs_ready(this->ccs_ready);
 }
 

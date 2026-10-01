@@ -207,6 +207,9 @@ private:
     /// @brief Helper to signal thread termination wish
     std::atomic_bool termination_requested {false};
 
+    /// @brief Generation counter used to resynchronize notification state after a reset.
+    std::atomic_uint reset_generation {0};
+
     /// @brief Helper to track the current MCU reset state
     ///        Background: using the GPIO line itself is heavy load due to call into kernel etc.
     ///                    and it is available only after the GPIO was requested. But we launch
