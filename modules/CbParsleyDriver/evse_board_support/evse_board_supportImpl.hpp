@@ -78,6 +78,21 @@ private:
     /// @brief Tracks the last seen CE state.
     std::atomic<types::cb_board_support::CEState> ce_current_state {types::cb_board_support::CEState::PowerOn};
 
+    /// @brief Tracks the last seen ID state.
+    std::atomic<types::cb_board_support::IDState> id_current_state {types::cb_board_support::IDState::Invalid};
+
+    /// @brief Tracks the latest safety-controller emergency-stop reason.
+    std::atomic<cs2_estop_reason> estop_reason {CS2_ESTOP_REASON_NO_STOP};
+
+    /// @brief Tracks the latest safety-controller safe-state status.
+    std::atomic<cs_safestate_active> safestate_active {CS_SAFESTATE_ACTIVE_NORMAL};
+
+    /// @brief Protects the automatic safe-state recovery state.
+    std::mutex recovery_mutex;
+
+    /// @brief Prevents repeated automatic resets during one unplug/replug cycle.
+    bool automatic_recovery_attempted {false};
+
     /// @brief Tracks the last published CP state.
     types::cb_board_support::CPState cp_current_state {types::cb_board_support::CPState::PowerOn};
 
@@ -98,6 +113,12 @@ private:
 
     /// @brief Tracks active/reported/logged error frames.
     std::unordered_set<errmsg_hash_key> active_errmsg;
+
+    /// @brief Recover from a safe state after the vehicle has been unplugged.
+    void recover_after_replug();
+
+    /// @brief Clear safety errors after both controller status signals are normal.
+    void clear_recovered_errors_if_normal();
     // ev@3370e4dd-95f4-47a9-aaec-ea76f34a66c9:v1
 };
 
