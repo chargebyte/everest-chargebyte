@@ -1,0 +1,40 @@
+description: Log fixed-size text markers received over CAN
+config:
+  device:
+    description: CAN interface name to use
+    type: string
+    default: can0
+  bitrate:
+    description: CAN bitrate (in bit/s)
+    type: integer
+    minimum: 1000
+    maximum: 1000000
+    default: 125000
+  error_can_id:
+    description: 11-bit CAN ID for messages logged with error severity (default 0x6F0)
+    type: integer
+    minimum: 0
+    maximum: 2047
+    default: 1776
+  warning_can_id:
+    description: 11-bit CAN ID for messages logged with warning severity (default 0x6F1)
+    type: integer
+    minimum: 0
+    maximum: 2047
+    default: 1777
+  info_can_id:
+    description: 11-bit CAN ID for messages logged with info severity (default 0x6F2)
+    type: integer
+    minimum: 0
+    maximum: 2047
+    default: 1778
+  debug_can_id:
+    description: 11-bit CAN ID for messages logged with debug severity (default 0x6F3)
+    type: integer
+    minimum: 0
+    maximum: 2047
+    default: 1779
+metadata:
+  license: https://opensource.org/licenses/Apache-2.0
+  authors:
+    - chargebyte GmbH
