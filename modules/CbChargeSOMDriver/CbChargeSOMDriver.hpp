@@ -20,6 +20,7 @@
 // insert your custom include headers here
 
 #include <atomic>
+#include <string_view>
 #include <CbChargeSOM.hpp>
 #include <CbContactorControl.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
@@ -32,6 +33,7 @@ struct Conf {
     double max_current_A;
     int min_phase_count;
     int max_phase_count;
+    bool check_safety_fw_version;
     std::string serial_port;
     bool serial_debug;
     bool serial_trace;
@@ -52,6 +54,8 @@ struct Conf {
 
 class CbChargeSOMDriver : public Everest::ModuleBase {
 public:
+    static constexpr std::string_view safety_firmware_prefix = "chargesom";
+
     CbChargeSOMDriver() = delete;
     CbChargeSOMDriver(const ModuleInfo& info, std::unique_ptr<ac_rcdImplBase> p_ac_rcd,
                       std::unique_ptr<connector_lockImplBase> p_connector_lock,

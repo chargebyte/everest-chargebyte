@@ -966,3 +966,7 @@ unsigned int CbChargeSOM::get_temperature_errors(unsigned int channel) {
 const std::string& CbChargeSOM::get_fw_info() const {
     return this->fw_info;
 }
+
+const std::string CbChargeSOM::get_fw_version() const {
+    return this->ctx.fw_version_str;
+}

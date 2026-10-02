@@ -4,6 +4,8 @@ add_library(cb-utils SHARED)
 add_library(chargebyte::utils ALIAS cb-utils)
 ev_register_library_target(cb-utils)
 
+find_package(ra-utils REQUIRED)
+
 target_sources(cb-utils
     PRIVATE
         src/CbContactor.cpp
@@ -19,6 +21,7 @@ target_sources(cb-utils
         src/IIOADCUtils.cpp
         src/PWMChip.cpp
         src/PWM.cpp
+        src/safety_firmware.cpp
         src/SysfsDevice.cpp
 )
 
@@ -33,6 +36,7 @@ target_link_libraries(cb-utils
     PUBLIC
         ${LIBGPIOD_LIBRARIES}
         $<BUILD_INTERFACE:nlohmann_json::nlohmann_json>
+        ra-utils
     PRIVATE
         everest::log
 )

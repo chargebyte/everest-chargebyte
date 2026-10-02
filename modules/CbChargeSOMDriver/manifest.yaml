@@ -39,6 +39,10 @@ config:
     minimum: 1
     maximum: 3
     default: 3
+  check_safety_fw_version:
+    description: Verify that the running safety controller firmware matches the shipped firmware image
+    type: boolean
+    default: true
   serial_port:
     description: >-
       Device name of the serial port to use for communication with the

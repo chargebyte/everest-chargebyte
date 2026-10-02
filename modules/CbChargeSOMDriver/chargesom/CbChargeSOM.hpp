@@ -196,6 +196,9 @@ public:
     /// @return A string with the mentioned information.
     const std::string& get_fw_info() const;
 
+    /// @brief Return the firmware version reported by the safety controller.
+    const std::string get_fw_version() const;
+
 private:
     /// @brief Time after reset before PT1000 State frames contain valid data.
     static constexpr std::chrono::milliseconds PT1000_DATA_VALID_DELAY {600};

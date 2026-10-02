@@ -7,12 +7,16 @@
 #include <string_view>
 #include <fmt/core.h>
 #include <ra-utils/cb_protocol.h>
+#include <ra-utils/ra_protocol.h>
 // B0 is defined in terminios.h for UART baudrate, but in CEState for MCS too - so undefine it before the inclusion
 #undef B0
 #include <generated/types/cb_board_support.hpp>
 #include "evse_board_supportImpl.hpp"
+#include "configuration.h"
+#include <chargebyte/safety_firmware.hpp>
 
 const std::string safestate_active_error_subtype = "Safe State";
+const std::string safety_fw_mismatch_error_subtype = "Safety Controller Firmware Mismatch";
 
 using namespace std::chrono_literals;
 
@@ -271,6 +275,20 @@ void evse_board_supportImpl::init() {
 }
 
 void evse_board_supportImpl::ready() {
+    if (this->mod->config.check_safety_fw_version) {
+        const auto firmware_check = chargebyte::safety_firmware::check_version(
+            CbParsleyDriver::safety_firmware_prefix, this->mod->controller.get_fw_version(), SAFETY_FIRMWARE_DIR);
+        if (firmware_check.status == chargebyte::safety_firmware::CheckStatus::Mismatch) {
+            const auto errmsg = fmt::format("Safety controller firmware version mismatch: running {}, expected {}",
+                                            this->mod->controller.get_fw_version(), firmware_check.expected_version);
+            EVLOG_error << errmsg << ", raising VendorError.";
+            const auto error =
+                this->error_factory->create_error("evse_board_support/VendorError", safety_fw_mismatch_error_subtype,
+                                                  errmsg, Everest::error::Severity::High);
+            this->raise_error(error);
+        }
+    }
+
     // the BSP must publish this variable at least once during start up
     this->publish_capabilities(this->hw_capabilities);
 }
