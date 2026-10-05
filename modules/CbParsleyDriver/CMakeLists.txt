@@ -11,7 +11,6 @@ ev_setup_cpp_module()
 # insert your custom targets and additional config variables here
 
 find_package(PalSigslot REQUIRED)
-find_package(ra-utils REQUIRED)
 
 add_subdirectory("parsley")
 
