@@ -170,6 +170,14 @@ void evse_board_supportImpl::init() {
         }
 
         auto new_cp_state = cestate_to_cpstate(new_ce_state);
+
+        // CE transitions can map to the same CP state. Do not publish a
+        // duplicate event in that case (for example A -> A).
+        if (this->cp_current_state == new_cp_state) {
+            EVLOG_debug << "CP state unchanged: " << this->cp_current_state << " → " << new_cp_state;
+            return;
+        }
+
         EVLOG_info << "simulate CP change: " << this->cp_current_state << " → " << new_cp_state;
         this->cp_current_state = new_cp_state;
 
