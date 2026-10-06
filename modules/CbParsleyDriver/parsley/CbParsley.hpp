@@ -81,6 +81,10 @@ public:
     ///        The parameter is the latest reason as reported by the safety controller.
     sigslot::signal<const enum cs2_estop_reason&> on_estop;
 
+    /// @brief Signal used to inform about physical ESTOP input changes.
+    ///        The parameter is true while the physical ESTOP input is tripped.
+    sigslot::signal<bool> on_estop_state;
+
     /// @brief Signal used to inform about changed safe state
     ///        The parameter is the latest state as reported by the safety controller.
     sigslot::signal<const enum cs_safestate_active&> on_safestate_active;
@@ -93,6 +97,13 @@ public:
 
     /// @brief Return whether the safety controller detected an emergency state.
     bool is_emergency();
+
+    /// @brief Return whether the physical ESTOP input of this platform is tripped.
+    ///
+    /// The protocol supports multiple ESTOP inputs. Parsley hardware has exactly
+    /// one physical input, therefore the protocol index is intentionally hidden
+    /// here and is always zero in the implementation.
+    bool is_estop_tripped();
 
     /// @brief Remember whether the PT1000 State frame was received at least once.
     std::atomic_bool temperature_data_is_valid {false};
@@ -179,8 +190,13 @@ private:
     /// @brief Condition variables used to wait for updates on `charge_state_changes`
     std::condition_variable notify_cv;
 
+    struct charge_state_change {
+        unsigned int reset_generation;
+        uint64_t payload;
+    };
+
     /// @brief Queue used to serialize changes of Charge State frame for notifying
-    std::queue<uint64_t> charge_state_changes;
+    std::queue<charge_state_change> charge_state_changes;
 
     /// @brief Thread for pushing received error messages to higher layers.
     std::thread errmsg_thread;
@@ -192,7 +208,12 @@ private:
     std::condition_variable errmsg_cv;
 
     /// @brief Queue used to serialize Error Message frames for notifying
-    std::queue<uint64_t> errmsg_queue;
+    struct error_message {
+        unsigned int reset_generation;
+        uint64_t payload;
+    };
+
+    std::queue<error_message> errmsg_queue;
 
     /// @brief Mutex to ensure that only one inquiry request is in-flight at the same time
     std::mutex inquiry_mutex;

@@ -82,6 +82,11 @@ void evse_board_supportImpl::recover_after_replug() {
         return;
     }
 
+    if (this->mod->controller.is_estop_tripped()) {
+        EVLOG_info << "automatic safe-state recovery suppressed because ESTOP input is active";
+        return;
+    }
+
     if (not this->mod->controller.is_emergency()) {
         return;
     }
@@ -89,11 +94,15 @@ void evse_board_supportImpl::recover_after_replug() {
     this->automatic_recovery_attempted = true;
     EVLOG_info << "recovering after safe state (vehicle unplugged)";
 
-    // disable resets the controller
-    this->mod->controller.disable();
+    try {
+        // disable resets the controller
+        this->mod->controller.disable();
 
-    // enable starts UART frame processing again
-    this->mod->controller.enable();
+        // enable starts UART frame processing again
+        this->mod->controller.enable();
+    } catch (const std::exception& e) {
+        EVLOG_error << "automatic safe-state recovery failed: " << e.what();
+    }
 }
 
 void evse_board_supportImpl::clear_recovered_errors_if_normal() {
@@ -202,6 +211,19 @@ void evse_board_supportImpl::init() {
 
             this->raise_error(this->last_reported_fault);
             this->generic_fault_reported = true;
+        }
+    });
+
+    this->mod->controller.on_estop_state.connect([&](bool tripped) {
+        if (tripped) {
+            EVLOG_debug << "ESTOP input TRIPPED";
+        } else {
+            EVLOG_debug << "ESTOP input was released";
+            // A physical ESTOP can be triggered while no vehicle is connected.
+            // In that case there may be no ID/CE transition to trigger the
+            // existing recovery path, so use the release as an additional
+            // recovery trigger. The helper still enforces all safety gates.
+            this->recover_after_replug();
         }
     });
 
