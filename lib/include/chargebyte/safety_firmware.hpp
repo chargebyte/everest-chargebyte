@@ -18,6 +18,7 @@ enum class CheckStatus
 struct CheckResult {
     CheckStatus status;
     std::string expected_version;
+    std::string error_message;
 };
 
 CheckResult check_version(std::string_view firmware_prefix, std::string_view running_version,

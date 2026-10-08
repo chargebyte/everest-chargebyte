@@ -17,6 +17,7 @@
 
 const std::string safestate_active_error_subtype = "Safe State";
 const std::string safety_fw_mismatch_error_subtype = "Safety Controller Firmware Mismatch";
+const std::string safety_fw_check_failed_error_subtype = "Safety Controller Firmware Check Failed";
 
 using namespace std::chrono_literals;
 
@@ -284,7 +285,14 @@ void evse_board_supportImpl::ready() {
             EVLOG_error << errmsg << ", raising VendorError.";
             const auto error =
                 this->error_factory->create_error("evse_board_support/VendorError", safety_fw_mismatch_error_subtype,
-                                                  errmsg, Everest::error::Severity::High);
+                                                  errmsg, Everest::error::Severity::Low);
+            this->raise_error(error);
+        } else if (firmware_check.status == chargebyte::safety_firmware::CheckStatus::CheckFailed) {
+            const auto& errmsg = firmware_check.error_message;
+            EVLOG_error << errmsg << ", raising VendorError.";
+            const auto error = this->error_factory->create_error("evse_board_support/VendorError",
+                                                                 safety_fw_check_failed_error_subtype, errmsg,
+                                                                 Everest::error::Severity::Low);
             this->raise_error(error);
         }
     }

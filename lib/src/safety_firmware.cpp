@@ -5,7 +5,6 @@
 #include <filesystem>
 #include <string>
 
-#include <everest/logging.hpp>
 #include <ra-utils/fw_file.h>
 
 #include <chargebyte/safety_firmware.hpp>
@@ -27,24 +26,27 @@ CheckResult check_version(const std::string_view firmware_prefix, const std::str
             }
         }
     } catch (const std::filesystem::filesystem_error& e) {
-        EVLOG_error << "Could not inspect the safety controller firmware directory " << firmware_directory << ": "
-                    << e.what();
-        return {CheckStatus::CheckFailed, {}};
+        return {CheckStatus::CheckFailed,
+                {},
+                "Could not inspect the safety controller firmware directory " + firmware_directory.string() + ": " +
+                    e.what()};
     }
 
     if (firmware_file.empty()) {
-        EVLOG_error << "Could not find a safety controller firmware image in " << firmware_directory;
-        return {CheckStatus::CheckFailed, {}};
+        return {CheckStatus::CheckFailed,
+                {},
+                "Could not find a safety controller firmware image in " + firmware_directory.string()};
     }
 
     std::array<char, 128> firmware_version {};
     if (fw_get_version_from_file(firmware_file.c_str(), firmware_version.data(), firmware_version.size()) != 0) {
-        EVLOG_error << "Could not read the safety controller firmware version from " << firmware_file;
-        return {CheckStatus::CheckFailed, {}};
+        return {CheckStatus::CheckFailed,
+                {},
+                "Could not read the safety controller firmware version from " + firmware_file.string()};
     }
 
     const std::string expected_version = firmware_version.data();
-    return {running_version == expected_version ? CheckStatus::Match : CheckStatus::Mismatch, expected_version};
+    return {running_version == expected_version ? CheckStatus::Match : CheckStatus::Mismatch, expected_version, {}};
 }
 
 } // namespace chargebyte::safety_firmware
