@@ -19,12 +19,14 @@
 // insert your custom include headers here
 
 #include <atomic>
+#include <string_view>
 #include <CbParsley.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
 
 struct Conf {
+    bool check_safety_fw_version;
     std::string serial_port;
     bool serial_debug;
     bool serial_trace;
@@ -39,6 +41,8 @@ struct Conf {
 
 class CbParsleyDriver : public Everest::ModuleBase {
 public:
+    static constexpr std::string_view safety_firmware_prefix = "parsley";
+
     CbParsleyDriver() = delete;
     CbParsleyDriver(const ModuleInfo& info, std::unique_ptr<evse_board_supportImplBase> p_evse_board_support,
                     std::unique_ptr<temperature_sensorImplBase> p_temperatures, std::unique_ptr<cb_mcsImplBase> p_mcs,

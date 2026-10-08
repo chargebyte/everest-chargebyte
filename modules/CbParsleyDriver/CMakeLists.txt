@@ -11,7 +11,6 @@ ev_setup_cpp_module()
 # insert your custom targets and additional config variables here
 
 find_package(PalSigslot REQUIRED)
-find_package(ra-utils REQUIRED)
 
 add_subdirectory("parsley")
 
@@ -27,6 +26,7 @@ configure_file(VERSION.in VERSION @ONLY)
 target_link_libraries(${MODULE_NAME}
     PRIVATE
         utils::cp
+        chargebyte::utils
         parsley
         Pal::Sigslot
         nlohmann_json::nlohmann_json

@@ -22,6 +22,13 @@ target_sources(cb-utils
         src/SysfsDevice.cpp
 )
 
+if(everest-chargebyte_WITH_RA_UTILS)
+    target_sources(cb-utils
+        PRIVATE
+            src/safety_firmware.cpp
+    )
+endif()
+
 target_include_directories(cb-utils
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -36,6 +43,13 @@ target_link_libraries(cb-utils
     PRIVATE
         everest::log
 )
+
+if(everest-chargebyte_WITH_RA_UTILS)
+    target_link_libraries(cb-utils
+        PUBLIC
+            ra-utils
+    )
+endif()
 
 set_target_properties(cb-utils
     PROPERTIES

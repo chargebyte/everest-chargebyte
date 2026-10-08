@@ -21,6 +21,7 @@ pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
 
 # options
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy" OFF)
+option(everest-chargebyte_WITH_RA_UTILS "Enable ra-utils and safety controller support" OFF)
 
 # dependencies
 if(NOT DISABLE_EDM)
@@ -31,6 +32,10 @@ if(NOT DISABLE_EDM)
 else()
     find_package(everest-core REQUIRED)
     find_package(everest-everest_system REQUIRED)
+endif()
+
+if(everest-chargebyte_WITH_RA_UTILS)
+    find_package(ra-utils REQUIRED)
 endif()
 
 # library with utils/helpers

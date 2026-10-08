@@ -102,7 +102,8 @@ cd build
 sudo make install
 ```
 
-The module [CbChargeSOMDriver](modules/CbChargeSOMDriver) depends on the library [ra-utils](https://github.com/chargebyte/ra-utils).
+The modules [CbChargeSOMDriver](modules/CbChargeSOMDriver) and [CbParsleyDriver](modules/CbParsleyDriver) depend
+on the library [ra-utils](https://github.com/chargebyte/ra-utils).
 It must be installed manually, for example with the following steps:
 
 ```bash
@@ -143,6 +144,18 @@ cd build
 cmake ..
 make install -j$(nproc)
 ```
+
+Note: As stated above, the modules `CbChargeSOMDriver` and `CbParsleyDriver` depend on the ra-utils library.
+You have to manually specify that you want to build against this library by using the cmake option `everest-chargebyte_WITH_RA_UTILS`,
+e.g.,
+
+```bash
+...
+cmake -Deverest-chargebyte_WITH_RA_UTILS=ON ..
+...
+```
+
+Otherwise, the module won't be built - even if the library is present in your build environment.
 
 
 ## Testing

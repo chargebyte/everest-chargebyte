@@ -2,14 +2,12 @@ add_compile_options(-Wall -Wextra -Werror=switch)
 # generated code has functions often not used
 add_compile_options(-Wno-unused-function)
 
-# CbChargeSOMDriver and CbParsleyDriver depend on ra-utils and should only
-# be built when the package is available in the selected sysroot.
-find_package(ra-utils QUIET CONFIG)
-if(TARGET ra-utils)
+# CbChargeSOMDriver and CbParsleyDriver depend on ra-utils
+if(everest-chargebyte_WITH_RA_UTILS)
     ev_add_cpp_module(CbChargeSOMDriver)
     ev_add_cpp_module(CbParsleyDriver)
 else()
-    message(STATUS "Skipping CbChargeSOMDriver and CbParsleyDriver: ra-utils not found")
+    message(STATUS "Skipping CbChargeSOMDriver and CbParsleyDriver: everest-chargebyte_WITH_RA_UTILS=OFF")
 endif()
 
 ev_add_cpp_module(CbGPIOEnergyLimits)
