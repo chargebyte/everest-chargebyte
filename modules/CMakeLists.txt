@@ -10,6 +10,7 @@ else()
     message(STATUS "Skipping CbChargeSOMDriver and CbParsleyDriver: everest-chargebyte_WITH_RA_UTILS=OFF")
 endif()
 
+ev_add_cpp_module(CbCANLogMark)
 ev_add_cpp_module(CbGPIOEnergyLimits)
 ev_add_cpp_module(CbGPIOSMITH)
 ev_add_cpp_module(CbTarragonDIs)
