@@ -3,7 +3,11 @@
 This repository contains the control logic for chargebyte GmbH's Linux-based hardware products, implemented as modules within [EVerest](https://github.com/EVerest).
 
 This repository includes the following modules:
+- **CbCANLogMark**: Helper module to log fixed-size text markers received over CAN
 - **CbChargeSOMDriver**: Hardware abstraction layer for chargebyte's Charge SOM.
+- **CbGPIOEnergyLimits**: Module for energy limiting based on GPIO lines (DIP switches/rotary encoders...)
+- **CbGPIOSMITH**: Module for a Shoot-Me-In-The-Head functionality on contactor errors
+- **CbParsleyDriver**: Hardware abstraction layer for chargebyte's Parsley board (MCS).
 - **CbTarragonDriver**: Hardware abstraction layer for chargebyte's Tarragon board.
 - **CbTarragonPlugLock**: Driver for plug lock control on chargebyte's Tarragon board.
 - **CbTarragonDIs**: Driver for configuring digital input reference PWM on chargebyte's Tarragon board.
@@ -15,6 +19,7 @@ This repository includes the following modules:
 
 | Tag    | EVerest release               |
 |--------|-------------------------------|
+| 0.34.0 | 2026.02.0                     |
 | 0.33.0 | 2026.02.0                     |
 | 0.32.0 | 2026.02.0                     |
 | 0.31.0 | 2026.02.0                     |
