@@ -68,6 +68,60 @@ errmsg_hash_key make_errmsg_hash_key(unsigned int module, unsigned int reason) {
 namespace module {
 namespace evse_board_support {
 
+void evse_board_supportImpl::recover_after_replug() {
+    std::scoped_lock lock(this->recovery_mutex);
+
+    if (this->id_current_state != types::cb_board_support::IDState::NotConnected or
+        this->ce_current_state != types::cb_board_support::CEState::A) {
+        return;
+    }
+
+    if (this->automatic_recovery_attempted) {
+        return;
+    }
+
+    if (this->estop_reason == cs2_estop_reason::CS2_ESTOP_REASON_INTERNAL_ERROR or
+        this->estop_reason == cs2_estop_reason::CS2_ESTOP_REASON_HVREADY_MALFUNCTION) {
+        EVLOG_info << "automatic safe-state recovery suppressed for emergency-stop reason " << this->estop_reason
+                   << "; use handle_enable(false) followed by handle_enable(true)";
+        return;
+    }
+
+    if (this->mod->controller.is_estop_tripped()) {
+        EVLOG_info << "automatic safe-state recovery suppressed because ESTOP input is active";
+        return;
+    }
+
+    if (not this->mod->controller.is_emergency()) {
+        return;
+    }
+
+    this->automatic_recovery_attempted = true;
+    EVLOG_info << "recovering after safe state (vehicle unplugged)";
+
+    try {
+        // disable resets the controller
+        this->mod->controller.disable();
+
+        // enable starts UART frame processing again
+        this->mod->controller.enable();
+    } catch (const std::exception& e) {
+        EVLOG_error << "automatic safe-state recovery failed: " << e.what();
+    }
+}
+
+void evse_board_supportImpl::clear_recovered_errors_if_normal() {
+    if (this->estop_reason != cs2_estop_reason::CS2_ESTOP_REASON_NO_STOP or
+        this->safestate_active != cs_safestate_active::CS_SAFESTATE_ACTIVE_NORMAL) {
+        return;
+    }
+
+    if (this->generic_fault_reported) {
+        this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
+        this->generic_fault_reported = false;
+    }
+}
+
 void evse_board_supportImpl::init() {
     // configure hardware capabilities: we used hard-coded values here since these values
     // are important for AC charging mostly and Charge Control Y is designed for DC only
@@ -105,6 +159,9 @@ void evse_board_supportImpl::init() {
         if (new_ce_state == types::cb_board_support::CEState::PowerOn)
             return;
 
+        // ID and CE may arrive in either order; the helper checks both states.
+        this->recover_after_replug();
+
         // we need to ignore B0 and not forward it here... usually...
         if (new_ce_state == types::cb_board_support::CEState::B0) {
             // but when our previous state was C or EC, then we have to simulate new state B
@@ -117,20 +174,15 @@ void evse_board_supportImpl::init() {
             new_ce_state = types::cb_board_support::CEState::B;
         }
 
-        // in case safety controller was in emergency state and EV is gone,
-        // we have to reset safety controller with a disable -> enable toggle
-        if (this->mod->controller.is_emergency() and previous_ce_state != types::cb_board_support::CEState::A and
-            new_ce_state == types::cb_board_support::CEState::A) {
-            EVLOG_info << "recovering after safe state (CE triggered)";
+        auto new_cp_state = cestate_to_cpstate(new_ce_state);
 
-            // disable resets the controller
-            this->mod->controller.disable();
-
-            // enable starts UART frame processing again
-            this->mod->controller.enable();
+        // CE transitions can map to the same CP state. Do not publish a
+        // duplicate event in that case (for example A -> A).
+        if (this->cp_current_state == new_cp_state) {
+            EVLOG_debug << "CP state unchanged: " << this->cp_current_state << " → " << new_cp_state;
+            return;
         }
 
-        auto new_cp_state = cestate_to_cpstate(new_ce_state);
         EVLOG_info << "simulate CP change: " << this->cp_current_state << " → " << new_cp_state;
         this->cp_current_state = new_cp_state;
 
@@ -147,12 +199,11 @@ void evse_board_supportImpl::init() {
     });
 
     this->mod->controller.on_estop.connect([&](const enum cs2_estop_reason& reason) {
+        this->estop_reason = reason;
+
         if (reason == CS2_ESTOP_REASON_NO_STOP) {
             EVLOG_info << "Emergency Stop Cause disappeared";
-            if (this->last_reported_fault.sub_type != safestate_active_error_subtype) {
-                this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
-                this->generic_fault_reported = false;
-            }
+            this->clear_recovered_errors_if_normal();
         } else {
             std::string error_subtype = cb_proto_estop_reason_to_str(reason);
             std::ostringstream errmsg;
@@ -176,21 +227,33 @@ void evse_board_supportImpl::init() {
         }
     });
 
+    this->mod->controller.on_estop_state.connect([&](bool tripped) {
+        if (tripped) {
+            EVLOG_debug << "ESTOP input TRIPPED";
+        } else {
+            EVLOG_debug << "ESTOP input was released";
+            // A physical ESTOP can be triggered while no vehicle is connected.
+            // In that case there may be no ID/CE transition to trigger the
+            // existing recovery path, so use the release as an additional
+            // recovery trigger. The helper still enforces all safety gates.
+            this->recover_after_replug();
+        }
+    });
+
     this->mod->controller.on_safestate_active.connect([&](const enum cs_safestate_active& state) {
         // Note: this handler is always called after the estop processing above is already done
 
         switch (state) {
         case cs_safestate_active::CS_SAFESTATE_ACTIVE_NORMAL:
+            this->safestate_active = state;
             EVLOG_info << "Safety Controller back in normal mode";
-            if (this->generic_fault_reported and
-                (this->last_reported_fault.sub_type == safestate_active_error_subtype)) {
-                this->clear_error(this->last_reported_fault.type, this->last_reported_fault.sub_type);
-            }
+            this->clear_recovered_errors_if_normal();
             // reset list of active warnings
             this->clear_error("evse_board_support/VendorWarning");
             this->active_errmsg.clear();
             break;
         case cs_safestate_active::CS_SAFESTATE_ACTIVE_SAFESTATE:
+            this->safestate_active = state;
             EVLOG_error << "Safety Controller entered safe state";
             // usually the estop handling above already raised the error, but in case
             // the safe state is triggered without an estop reason, we ensure here, that
@@ -255,23 +318,16 @@ void evse_board_supportImpl::init() {
     this->mod->controller.on_id_change.connect([&](const types::cb_board_support::IDState& id_state) {
         // general note: logging of state changes is already done in MCS interface, so we don't double it here
 
-        // we use ID changes only to have a trigger to recover from emergency states: usually such a reset
-        // is done when EV is disconnected and we see a CE state change from X to A, but in case of
-        // CE malfunction, we might not see it and thus we would be stuck in this state; using ID here
-        // could help to recover
-        if (this->mod->controller.is_emergency() and
-            ((this->ce_current_state == types::cb_board_support::CEState::Invalid and
-              id_state == types::cb_board_support::IDState::NotConnected) or
-             (this->ce_current_state == types::cb_board_support::CEState::A and
-              id_state == types::cb_board_support::IDState::Connected))) {
-            EVLOG_info << "recovering after safe state (ID triggered)";
+        this->id_current_state = id_state;
 
-            // disable resets the controller
-            this->mod->controller.disable();
-
-            // enable starts UART frame processing again
-            this->mod->controller.enable();
+        // A new unplug/replug cycle starts when the vehicle is connected again.
+        if (id_state == types::cb_board_support::IDState::Connected) {
+            std::scoped_lock lock(this->recovery_mutex);
+            this->automatic_recovery_attempted = false;
         }
+
+        // ID and CE may arrive in either order; the helper checks both states.
+        this->recover_after_replug();
     });
 }
 
@@ -302,18 +358,26 @@ void evse_board_supportImpl::ready() {
 }
 
 void evse_board_supportImpl::handle_enable(bool& value) {
-    if (this->is_enabled.exchange(value) != value) {
-        try {
-            EVLOG_info << "handle_enable: " << std::boolalpha << value;
-
-            // enable UART frame processing
-            if (value)
-                this->mod->controller.enable();
-        } catch (std::exception& e) {
-            EVLOG_error << e.what();
-        }
-    } else {
+    if (this->is_enabled == value) {
         EVLOG_debug << "handle_enable: " << std::boolalpha << value << " (suppressed)";
+        return;
+    }
+
+    try {
+        EVLOG_info << "handle_enable: " << std::boolalpha << value;
+
+        if (value) {
+            // enable UART frame processing
+            this->mod->controller.enable();
+        } else {
+            // disable also resets the safety controller. This is required for
+            // the explicit recovery path of selected persistent faults.
+            this->mod->controller.disable();
+        }
+
+        this->is_enabled = value;
+    } catch (std::exception& e) {
+        EVLOG_error << e.what();
     }
 }
 

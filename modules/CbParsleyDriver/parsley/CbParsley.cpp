@@ -106,7 +106,10 @@ CbParsley::CbParsley() {
         enum cs2_id_state previous_id_state = CS2_ID_STATE_MAX;
         enum cs2_ce_state previous_ce_state = CS2_CE_STATE_MAX;
         enum cs2_estop_reason previous_estop_reason = CS2_ESTOP_REASON_MAX;
+        enum estop_state previous_estop_state = ESTOP_STATE_MAX;
         enum cs_safestate_active previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
+        unsigned int observed_reset_generation = 0;
+        bool reset_snapshot_pending = false;
 
         EVLOG_debug << "Notify Thread started";
 
@@ -116,6 +119,7 @@ CbParsley::CbParsley() {
             enum cs2_id_state current_id_state;
             enum cs2_ce_state current_ce_state;
             enum cs2_estop_reason current_estop_reason;
+            enum estop_state current_estop_state;
             enum cs_safestate_active current_safestate_active;
 
             // wait for changes
@@ -127,14 +131,39 @@ CbParsley::CbParsley() {
             if (this->termination_requested)
                 break;
 
+            const unsigned int current_reset_generation = this->reset_generation.load();
+            if (current_reset_generation != observed_reset_generation) {
+                // Discard frames received before the reset. The first frame after
+                // the reset is used as an authoritative state snapshot.
+                while (not this->charge_state_changes.empty() &&
+                       this->charge_state_changes.front().reset_generation != current_reset_generation)
+                    this->charge_state_changes.pop();
+                previous_id_state = CS2_ID_STATE_MAX;
+                previous_ce_state = CS2_CE_STATE_MAX;
+                previous_estop_reason = CS2_ESTOP_REASON_MAX;
+                previous_estop_state = ESTOP_STATE_MAX;
+                previous_safestate_active = CS_SAFESTATE_ACTIVE_MAX;
+                observed_reset_generation = current_reset_generation;
+                reset_snapshot_pending = true;
+
+                if (this->charge_state_changes.empty())
+                    continue;
+            }
+
             // remove from queue
-            tmpctx.charge_state = this->charge_state_changes.front();
+            if (this->charge_state_changes.front().reset_generation != current_reset_generation) {
+                this->charge_state_changes.pop();
+                continue;
+            }
+
+            tmpctx.charge_state = this->charge_state_changes.front().payload;
             this->charge_state_changes.pop();
 
             // check for changed ESTOP reason
             current_estop_reason = cb_proto_get_estop_reason(&tmpctx);
             if (current_estop_reason != previous_estop_reason) {
-                if (previous_estop_reason == CS2_ESTOP_REASON_MAX && current_estop_reason == CS2_ESTOP_REASON_NO_STOP) {
+                if (not reset_snapshot_pending && previous_estop_reason == CS2_ESTOP_REASON_MAX &&
+                    current_estop_reason == CS2_ESTOP_REASON_NO_STOP) {
                     EVLOG_debug << "on_estop(" << current_estop_reason << ")"
                                 << " [suppressed]";
                 } else {
@@ -144,12 +173,27 @@ CbParsley::CbParsley() {
                 previous_estop_reason = current_estop_reason;
             }
 
+            // check for changed ESTOP input state
+            current_estop_state = cb_proto_estopN_get_state(&tmpctx, 0);
+            if (current_estop_state != previous_estop_state) {
+                const bool estop_tripped = current_estop_state == ESTOP_STATE_TRIPPED;
+
+                if (previous_estop_state == ESTOP_STATE_MAX && not estop_tripped) {
+                    EVLOG_debug << "on_estop_state(" << cb_proto_estop_state_to_str(current_estop_state)
+                                << ") [suppressed]";
+                } else {
+                    EVLOG_debug << "on_estop_state(" << cb_proto_estop_state_to_str(current_estop_state) << ")";
+                    this->on_estop_state(estop_tripped);
+                }
+                previous_estop_state = current_estop_state;
+            }
+
             // check for changed safe state active state
             current_safestate_active = cb_proto_get_safe_state_active(&tmpctx);
             if (current_safestate_active != previous_safestate_active) {
                 // we suppress the normal/expected state change during boot into "normal" mode
                 EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")";
-                if (previous_safestate_active == CS_SAFESTATE_ACTIVE_MAX &&
+                if (not reset_snapshot_pending && previous_safestate_active == CS_SAFESTATE_ACTIVE_MAX &&
                     current_safestate_active == CS_SAFESTATE_ACTIVE_NORMAL) {
                     EVLOG_debug << "on_safestate_active(" << current_safestate_active << ")"
                                 << " [suppressed]";
@@ -163,7 +207,8 @@ CbParsley::CbParsley() {
             // check for ID changes
             current_id_state = cb_proto_get_id_state(&tmpctx);
             if (current_id_state != previous_id_state) {
-                if (previous_id_state == CS2_ID_STATE_MAX && current_id_state == CS2_ID_STATE_NOT_CONNECTED) {
+                if (not reset_snapshot_pending && previous_id_state == CS2_ID_STATE_MAX &&
+                    current_id_state == CS2_ID_STATE_NOT_CONNECTED) {
                     EVLOG_debug << "on_id_change(" << previous_id_state << " → " << current_id_state << ")"
                                 << " [suppressed]";
                 } else {
@@ -178,7 +223,8 @@ CbParsley::CbParsley() {
             current_ce_state = cb_proto_get_ce_state(&tmpctx);
             if (current_ce_state != previous_ce_state) {
                 // special case: boot into expected default state
-                if (previous_ce_state == CS2_CE_STATE_MAX && current_ce_state == CS2_CE_STATE_A) {
+                if (not reset_snapshot_pending && previous_ce_state == CS2_CE_STATE_MAX &&
+                    current_ce_state == CS2_CE_STATE_A) {
                     EVLOG_debug << "on_ce_change(" << previous_ce_state << " → " << current_ce_state << ")"
                                 << " [suppressed]";
                 } else {
@@ -188,6 +234,8 @@ CbParsley::CbParsley() {
                 }
                 previous_ce_state = current_ce_state;
             }
+
+            reset_snapshot_pending = false;
         }
 
         EVLOG_debug << "Notify Thread terminated";
@@ -197,6 +245,7 @@ CbParsley::CbParsley() {
     // to the frame receiving to avoid stalling and to not miss a single one
     this->errmsg_thread = std::thread([&]() {
         char reason_buffer[256];
+        unsigned int observed_reset_generation = 0;
         EVLOG_debug << "Error Message Thread started";
 
         while (!this->termination_requested) {
@@ -217,8 +266,19 @@ CbParsley::CbParsley() {
             if (this->termination_requested)
                 break;
 
+            const unsigned int current_reset_generation = this->reset_generation.load();
+            if (current_reset_generation != observed_reset_generation) {
+                while (not this->errmsg_queue.empty() &&
+                       this->errmsg_queue.front().reset_generation != current_reset_generation)
+                    this->errmsg_queue.pop();
+                observed_reset_generation = current_reset_generation;
+            }
+
+            if (this->errmsg_queue.empty() || this->errmsg_queue.front().reset_generation != current_reset_generation)
+                continue;
+
             // remove from queue
-            tmpctx.error_message = this->errmsg_queue.front();
+            tmpctx.error_message = this->errmsg_queue.front().payload;
             this->errmsg_queue.pop();
 
             is_active = cb_proto_errmsg_is_active(&tmpctx);
@@ -242,6 +302,8 @@ CbParsley::CbParsley() {
     this->rx_thread = std::thread([&]() {
         // used to detect changes
         uint64_t previous_charge_state = std::numeric_limits<uint64_t>::max();
+        unsigned int observed_reset_generation = this->reset_generation.load();
+        bool charge_state_snapshot_pending = true;
 
         EVLOG_debug << "RX Thread started";
 
@@ -298,28 +360,35 @@ CbParsley::CbParsley() {
             n = static_cast<std::size_t>(com);
             std::scoped_lock lock(this->ctx_mutexes[n]);
 
+            const unsigned int current_reset_generation = this->reset_generation.load();
+            if (current_reset_generation != observed_reset_generation) {
+                previous_charge_state = std::numeric_limits<uint64_t>::max();
+                observed_reset_generation = current_reset_generation;
+                charge_state_snapshot_pending = true;
+            }
+
             switch (com) {
             case cb_uart_com::COM_CHARGE_STATE_2:
                 this->ctx.charge_state = payload;
                 // check if the previous value is different
-                notify = previous_charge_state != payload;
+                notify = charge_state_snapshot_pending || previous_charge_state != payload;
                 previous_charge_state = payload;
+                charge_state_snapshot_pending = false;
                 // on change -> put new value into queue for notify thread
                 if (notify) {
                     std::scoped_lock notify_lock(this->notify_mutex);
-                    this->charge_state_changes.push(payload);
+                    this->charge_state_changes.push({current_reset_generation, payload});
                     this->notify_cv.notify_one();
                 }
                 break;
 
-            case cb_uart_com::COM_PT1000_STATE:
-                {
-                    std::scoped_lock validity_lock(this->pt1000_validity_mutex);
-                    if (std::chrono::steady_clock::now() < this->pt1000_data_valid_after) {
-                        notify = false;
-                        break;
-                    }
+            case cb_uart_com::COM_PT1000_STATE: {
+                std::scoped_lock validity_lock(this->pt1000_validity_mutex);
+                if (std::chrono::steady_clock::now() < this->pt1000_data_valid_after) {
+                    notify = false;
+                    break;
                 }
+            }
                 this->ctx.pt1000 = payload;
                 this->temperature_data_is_valid = true;
                 // note: notifying is not strictly needed here since the
@@ -333,7 +402,7 @@ CbParsley::CbParsley() {
                 notify = false;
                 {
                     std::scoped_lock errmsg_lock(this->errmsg_mutex);
-                    this->errmsg_queue.push(payload);
+                    this->errmsg_queue.push({current_reset_generation, payload});
                 }
                 this->errmsg_cv.notify_one();
                 break;
@@ -498,6 +567,9 @@ void CbParsley::enable() {
 
     // tell RX thread that we will receive frames now
     this->rx_enabled = true;
+
+    this->notify_cv.notify_one();
+    this->errmsg_cv.notify_one();
 }
 
 void CbParsley::disable() {
@@ -510,6 +582,8 @@ void CbParsley::disable() {
     // we can directly return it was already disabled
     if (!this->evse_enabled.exchange(false))
         return;
+
+    this->reset_generation.fetch_add(1);
 
     // stop sending of periodic Charge Control frames
     this->tx_cc_enabled = false;
@@ -565,9 +639,14 @@ void CbParsley::reset() {
 
     this->set_mcu_reset(false);
 
-    // before releasing the TX mutex we need to "release" a potentially force EC mode;
-    // this is why we remembered the CCS ready bit
-    this->set_ccs_ready(this->ccs_ready);
+    // A reset releases a software-requested safe state. External safety
+    // conditions remain reported by the safety controller after startup.
+    {
+        const size_t n = static_cast<size_t>(cb_uart_com::COM_CHARGE_CONTROL_2);
+        std::scoped_lock cc_lock(this->ctx_mutexes[n]);
+        cb_proto_set_estop(&this->ctx, false);
+        cb_proto_set_ccs_ready(&this->ctx, this->ccs_ready);
+    }
 }
 
 void CbParsley::set_ccs_ready(bool enable) {
@@ -681,6 +760,15 @@ bool CbParsley::is_emergency() {
     std::scoped_lock lock(this->ctx_mutexes[n]);
 
     return cb_proto_get_safe_state_active(&this->ctx) == CS_SAFESTATE_ACTIVE_SAFESTATE;
+}
+
+bool CbParsley::is_estop_tripped() {
+    const size_t n = static_cast<size_t>(cb_uart_com::COM_CHARGE_STATE_2);
+    std::scoped_lock lock(this->ctx_mutexes[n]);
+
+    // Parsley has one physical ESTOP input. The protocol remains generic and
+    // therefore requires the explicit input index here.
+    return cb_proto_estopN_get_state(&this->ctx, 0) == ESTOP_STATE_TRIPPED;
 }
 
 unsigned int CbParsley::get_temperature_channels() const {
