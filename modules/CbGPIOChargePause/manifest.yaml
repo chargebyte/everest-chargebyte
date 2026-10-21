@@ -3,15 +3,15 @@ description: >-
   higher-level control), by setting an external limit of 0 A on the
   connected energy node.
 config:
-  gpio_line_name:
+  pause_gpio_line_name:
     description: GPIO line name of the release input
     type: string
     default: DIGITAL_INPUT_2
-  active_low:
+  pause_active_low:
     description: Input polarity (true = pause while line is low)
     type: boolean
     default: false
-  release_current_A:
+  pause_release_current_A:
     description: Limit sent while not paused (should be >= the node's fuse limit)
     type: number
     default: 32.0
