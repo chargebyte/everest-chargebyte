@@ -15,6 +15,14 @@ config:
     description: Limit sent while not paused (should be >= the node's fuse limit)
     type: number
     default: 80.0
+  pause_direction:
+    description: Charging direction to be paused (import is charging, export is discharging)
+    type: string
+    enum:
+      - import
+      - export
+      - both
+    default: both
   poll_interval_ms:
     description: Input polling and limit refresh interval, in milliseconds
     type: integer
