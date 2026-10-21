@@ -16,7 +16,7 @@ config:
     type: number
     default: 80.0
   poll_interval_ms:
-    description: Input polling and limit refresh interval
+    description: Input polling and limit refresh interval, in milliseconds
     type: integer
     default: 1000
 requires:
