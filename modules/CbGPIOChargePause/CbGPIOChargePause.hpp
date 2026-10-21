@@ -14,7 +14,10 @@
 #include <generated/interfaces/external_energy_limits/Interface.hpp>
 
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
-// insert your custom include headers here
+#include <atomic>
+#include <mutex>
+#include <optional>
+#include <thread>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -24,7 +27,6 @@ struct Conf {
     bool pause_active_low;
     double pause_release_current_A;
     std::string pause_direction;
-    int poll_interval_ms;
 };
 
 class CbGPIOChargePause : public Everest::ModuleBase {
@@ -37,7 +39,7 @@ public:
     const Conf& config;
 
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
-    // insert your public definitions here
+    ~CbGPIOChargePause() override;
     // ev@1fce4c5e-0ab8-41bb-90f7-14277703d2ac:v1
 
 protected:
@@ -52,7 +54,17 @@ private:
     void shutdown();
 
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
-    // insert your private definitions here
+    friend class CbGPIOChargePauseTestAccess;
+    void monitor_gpio();
+    void apply_limit(bool paused);
+    bool wait_for_activity(int gpio_fd, int timeout_ms);
+    void stop();
+
+    int m_stop_fd {-1};
+    std::atomic<bool> m_stopping {false};
+    std::mutex m_stop_mutex;
+    std::thread m_worker;
+    std::optional<bool> m_last_applied_state;
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
 };
 

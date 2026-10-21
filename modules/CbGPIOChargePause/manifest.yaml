@@ -23,10 +23,6 @@ config:
       - export
       - both
     default: both
-  poll_interval_ms:
-    description: Input polling and limit refresh interval, in milliseconds
-    type: integer
-    default: 1000
 requires:
   energy_sink:
     interface: external_energy_limits

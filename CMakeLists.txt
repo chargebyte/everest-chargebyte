@@ -22,6 +22,7 @@ pkg_search_module(LIBGPIOD REQUIRED libgpiodcxx)
 # options
 option(CMAKE_RUN_CLANG_TIDY "Run clang-tidy" OFF)
 option(everest-chargebyte_WITH_RA_UTILS "Enable ra-utils and safety controller support" OFF)
+option(CBGPIOCHARGEPAUSE_BUILD_TESTING "Build CbGPIOChargePause tests" OFF)
 
 # dependencies
 if(NOT DISABLE_EDM)
@@ -36,6 +37,10 @@ endif()
 
 if(everest-chargebyte_WITH_RA_UTILS)
     find_package(ra-utils REQUIRED)
+endif()
+
+if(CBGPIOCHARGEPAUSE_BUILD_TESTING)
+    enable_testing()
 endif()
 
 # library with utils/helpers
