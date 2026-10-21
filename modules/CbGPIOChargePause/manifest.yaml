@@ -1,0 +1,28 @@
+description: >-
+  Pauses charging while a digital input is active ("missing release" by a
+  higher-level control), by setting an external limit of 0 A on the
+  connected energy node.
+config:
+  gpio_line_name:
+    description: GPIO line name of the release input
+    type: string
+    default: DIGITAL_INPUT_2
+  active_low:
+    description: Input polarity (true = pause while line is low)
+    type: boolean
+    default: false
+  release_current_A:
+    description: Limit sent while not paused (should be >= the node's fuse limit)
+    type: number
+    default: 32.0
+  poll_interval_ms:
+    description: Input polling and limit refresh interval
+    type: integer
+    default: 1000
+requires:
+  energy_sink:
+    interface: external_energy_limits
+metadata:
+  license: https://opensource.org/licenses/Apache-2.0
+  authors:
+    - chargebyte GmbH
