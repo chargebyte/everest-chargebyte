@@ -14,7 +14,7 @@ config:
   pause_release_current_A:
     description: Limit sent while not paused (should be >= the node's fuse limit)
     type: number
-    default: 32.0
+    default: 80.0
   poll_interval_ms:
     description: Input polling and limit refresh interval
     type: integer
