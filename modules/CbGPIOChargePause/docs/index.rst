@@ -30,8 +30,7 @@ Operation and failures
 
 After framework readiness, the module sends the initial GPIO state and then
 blocks waiting for edge events. It sends subsequent limits only when the
-logical state changes. There is no periodic GPIO polling or limit refresh;
-``poll_interval_ms`` is no longer a supported configuration option.
+logical state changes. There is no periodic GPIO polling or limit refresh.
 Schedules remain effective until replaced while the EnergyNode is running.
 Restarting the EnergyNode separately requires restarting this module to
 reapply an unchanged GPIO state.

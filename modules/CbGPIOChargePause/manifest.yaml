@@ -6,7 +6,6 @@ config:
   pause_gpio_line_name:
     description: GPIO line name of the release input
     type: string
-    default: DIGITAL_INPUT_2
   pause_active_low:
     description: Input polarity (true = pause while line is low)
     type: boolean

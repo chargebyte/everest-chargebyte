@@ -86,7 +86,7 @@ bool CbGPIOChargePause::wait_for_activity(int gpio_fd, int timeout_ms) {
 
 void CbGPIOChargePause::monitor_gpio() {
     EVLOG_info << "Watching GPIO '" << config.pause_gpio_line_name << "' (active_low=" << config.pause_active_low
-               << ", direction=" << config.pause_direction << ")";
+               << ", energy direction=" << config.pause_direction << ")";
 
     while (!m_stopping) {
         try {
