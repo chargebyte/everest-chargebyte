@@ -9,9 +9,13 @@ on its required ``energy_sink`` interface. Connect it to a dedicated
 EnergyNode so its limit remains independent of other limit sources.
 
 When the input is logically active, the selected directions receive a 0 A
-limit. When inactive, they receive ``pause_release_current_A``. This release
-value should be at least the node's configured fuse limit; constraints at
-other nodes still apply.
+limit. When inactive, the module sends empty import, export, and setpoint
+schedules to clear the external limits. EnergyNode then restores its
+configured limits, including its fuse limit; constraints at other nodes
+still apply.
+
+Clearing replaces all external schedules at the connected node, rather than
+removing entries by source. Use a dedicated EnergyNode for this module.
 
 Configuration
 -------------
@@ -22,8 +26,9 @@ The line is held exclusively as an input with both-edge detection and
 50 ms debounce, using the repository's libgpiod helper.
 
 ``pause_direction`` selects ``import`` (charging), ``export`` (discharging),
-or ``both`` (the default). Only the selected schedules are populated.
-Setpoints and schedules for unselected directions are empty.
+or ``both`` (the default). While paused, only the selected schedules are
+populated. Setpoints and schedules for unselected directions are empty.
+When released, all three schedules are empty regardless of this setting.
 
 Operation and failures
 ----------------------

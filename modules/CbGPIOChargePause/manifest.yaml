@@ -10,10 +10,6 @@ config:
     description: Input polarity (true = pause while line is low)
     type: boolean
     default: false
-  pause_release_current_A:
-    description: Limit sent while not paused (should be >= the node's fuse limit)
-    type: number
-    default: 80.0
   pause_direction:
     description: Charging direction to be paused (import is charging, export is discharging)
     type: string

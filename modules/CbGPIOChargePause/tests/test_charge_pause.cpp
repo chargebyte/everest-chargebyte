@@ -39,6 +39,9 @@ public:
 class ChargePauseTest : public testing::Test {
 protected:
     void SetUp() override {
+        m_config.pause_gpio_line_name = "__cb_gpio_charge_pause_test_missing_line__";
+        m_config.pause_active_low = false;
+        m_config.pause_direction = "both";
         m_info.name = "CbGPIOChargePause";
         m_info.id = "pause_test";
         m_adapter.get_error_manager_req = [](const auto&) { return nullptr; };
@@ -56,8 +59,14 @@ protected:
         CbGPIOChargePauseTestAccess::init(*m_module);
     }
 
+    static void expect_released(const types::energy::ExternalLimits& limits) {
+        EXPECT_TRUE(limits.schedule_import.empty());
+        EXPECT_TRUE(limits.schedule_export.empty());
+        EXPECT_TRUE(limits.schedule_setpoints.empty());
+    }
+
     ModuleInfo m_info;
-    Conf m_config {"__cb_gpio_charge_pause_test_missing_line__", false, 32., "both"};
+    Conf m_config {};
     Everest::ModuleAdapter m_adapter;
     std::vector<types::energy::ExternalLimits> m_limits;
     bool m_fail_delivery {false};
@@ -71,9 +80,10 @@ TEST_F(ChargePauseTest, SendsInitialStateAndOnlyChangedStates) {
     CbGPIOChargePauseTestAccess::apply(*m_module, true);
     CbGPIOChargePauseTestAccess::apply(*m_module, false);
     ASSERT_EQ(m_limits.size(), 3);
-    EXPECT_FLOAT_EQ(m_limits[0].schedule_import[0].limits_to_root.ac_max_current_A->value, 32.f);
+    expect_released(m_limits[0]);
+    ASSERT_EQ(m_limits[1].schedule_import.size(), 1);
     EXPECT_FLOAT_EQ(m_limits[1].schedule_import[0].limits_to_root.ac_max_current_A->value, 0.f);
-    EXPECT_FLOAT_EQ(m_limits[2].schedule_import[0].limits_to_root.ac_max_current_A->value, 32.f);
+    expect_released(m_limits[2]);
 }
 
 TEST_F(ChargePauseTest, SendsSelectedDirectionsAndEmptySetpoints) {
@@ -82,20 +92,25 @@ TEST_F(ChargePauseTest, SendsSelectedDirectionsAndEmptySetpoints) {
         for (const bool paused : {true, false}) {
             CbGPIOChargePauseTestAccess::apply(*m_module, paused);
             const auto& limits = m_limits.back();
-            EXPECT_EQ(limits.schedule_import.size(), m_config.pause_direction != "export" ? 1 : 0);
-            EXPECT_EQ(limits.schedule_export.size(), m_config.pause_direction != "import" ? 1 : 0);
+            EXPECT_EQ(limits.schedule_import.size(), paused && m_config.pause_direction != "export" ? 1 : 0);
+            EXPECT_EQ(limits.schedule_export.size(), paused && m_config.pause_direction != "import" ? 1 : 0);
             EXPECT_TRUE(limits.schedule_setpoints.empty());
+            if (!paused) {
+                expect_released(limits);
+                continue;
+            }
             for (const auto* schedule : {&limits.schedule_import, &limits.schedule_export}) {
                 for (const auto& entry : *schedule) {
                     EXPECT_FALSE(entry.timestamp.empty());
                     ASSERT_TRUE(entry.limits_to_root.ac_max_current_A);
                     EXPECT_EQ(entry.limits_to_root.ac_max_current_A->source, "CbGPIOChargePause");
-                    EXPECT_FLOAT_EQ(entry.limits_to_root.ac_max_current_A->value, paused ? 0.f : 32.f);
+                    EXPECT_FLOAT_EQ(entry.limits_to_root.ac_max_current_A->value, 0.f);
                     EXPECT_FALSE(entry.limits_to_root.total_power_W);
                     EXPECT_FALSE(entry.limits_to_leaves.ac_max_current_A);
                 }
             }
-            if (m_config.pause_direction == "both") {
+            if (m_config.pause_direction == "both" && limits.schedule_import.size() == 1 &&
+                limits.schedule_export.size() == 1) {
                 EXPECT_EQ(limits.schedule_import[0].timestamp, limits.schedule_export[0].timestamp);
             }
         }
@@ -112,6 +127,16 @@ TEST_F(ChargePauseTest, FailedDeliveryDoesNotReplaceLastAppliedState) {
     EXPECT_FLOAT_EQ(m_limits.back().schedule_import[0].limits_to_root.ac_max_current_A->value, 0.f);
 }
 
+TEST_F(ChargePauseTest, RetriesFailedReleaseCommand) {
+    CbGPIOChargePauseTestAccess::apply(*m_module, true);
+    m_fail_delivery = true;
+    EXPECT_THROW(CbGPIOChargePauseTestAccess::apply(*m_module, false), std::runtime_error);
+    m_fail_delivery = false;
+    CbGPIOChargePauseTestAccess::apply(*m_module, false);
+    ASSERT_EQ(m_limits.size(), 2);
+    expect_released(m_limits.back());
+}
+
 TEST_F(ChargePauseTest, ReassertsCurrentStateAfterAmbiguousDeliveryFailure) {
     CbGPIOChargePauseTestAccess::apply(*m_module, false);
     m_adapter.call = [this](const Requirement&, const std::string&, const Parameters& params) -> Result {
@@ -126,7 +151,25 @@ TEST_F(ChargePauseTest, ReassertsCurrentStateAfterAmbiguousDeliveryFailure) {
     m_fail_delivery = false;
     CbGPIOChargePauseTestAccess::apply(*m_module, false);
     ASSERT_EQ(m_limits.size(), 3);
-    EXPECT_FLOAT_EQ(m_limits.back().schedule_import[0].limits_to_root.ac_max_current_A->value, 32.f);
+    expect_released(m_limits.back());
+}
+
+TEST_F(ChargePauseTest, RetriesReleaseAfterAmbiguousDeliveryFailure) {
+    CbGPIOChargePauseTestAccess::apply(*m_module, true);
+    m_adapter.call = [this](const Requirement&, const std::string&, const Parameters& params) -> Result {
+        m_limits.push_back(params.at("value").get<types::energy::ExternalLimits>());
+        if (m_fail_delivery) {
+            throw std::runtime_error("Reply lost after clearing limit");
+        }
+        return std::nullopt;
+    };
+    m_fail_delivery = true;
+    EXPECT_THROW(CbGPIOChargePauseTestAccess::apply(*m_module, false), std::runtime_error);
+    m_fail_delivery = false;
+    CbGPIOChargePauseTestAccess::apply(*m_module, false);
+    ASSERT_EQ(m_limits.size(), 3);
+    expect_released(m_limits[1]);
+    expect_released(m_limits[2]);
 }
 
 TEST_F(ChargePauseTest, GpioDescriptorWakesIndefiniteWait) {

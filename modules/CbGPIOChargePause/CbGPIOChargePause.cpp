@@ -4,9 +4,7 @@
 
 #include <cerrno>
 #include <chrono>
-#include <cmath>
 #include <cstdint>
-#include <limits>
 #include <poll.h>
 #include <stdexcept>
 #include <sys/eventfd.h>
@@ -29,10 +27,6 @@ CbGPIOChargePause::~CbGPIOChargePause() {
 void CbGPIOChargePause::init() {
     if (config.pause_direction != "import" && config.pause_direction != "export" && config.pause_direction != "both") {
         throw std::invalid_argument("Invalid pause_direction: " + config.pause_direction);
-    }
-    if (!std::isfinite(config.pause_release_current_A) || config.pause_release_current_A < 0 ||
-        config.pause_release_current_A > std::numeric_limits<float>::max()) {
-        throw std::invalid_argument("pause_release_current_A must be non-negative and representable as a finite float");
     }
     m_stop_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (m_stop_fd < 0) {
@@ -132,17 +126,18 @@ void CbGPIOChargePause::apply_limit(bool paused) {
         return;
     }
 
-    types::energy::ScheduleReqEntry entry {};
-    entry.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
-    const auto current = paused ? 0.0f : static_cast<float>(config.pause_release_current_A);
-    entry.limits_to_root.ac_max_current_A = types::energy::NumberWithSource {current, "CbGPIOChargePause"};
-
     types::energy::ExternalLimits limits {};
-    if (config.pause_direction == "import" || config.pause_direction == "both") {
-        limits.schedule_import.push_back(entry);
-    }
-    if (config.pause_direction == "export" || config.pause_direction == "both") {
-        limits.schedule_export.push_back(entry);
+    if (paused) {
+        types::energy::ScheduleReqEntry entry {};
+        entry.timestamp = Everest::Date::to_rfc3339(date::utc_clock::now());
+        entry.limits_to_root.ac_max_current_A = types::energy::NumberWithSource {0.0f, "CbGPIOChargePause"};
+
+        if (config.pause_direction == "import" || config.pause_direction == "both") {
+            limits.schedule_import.push_back(entry);
+        }
+        if (config.pause_direction == "export" || config.pause_direction == "both") {
+            limits.schedule_export.push_back(entry);
+        }
     }
     try {
         r_energy_sink->call_set_external_limits(limits);
@@ -152,8 +147,12 @@ void CbGPIOChargePause::apply_limit(bool paused) {
         throw;
     }
     m_last_applied_state = paused;
-    EVLOG_info << (paused ? "Charging PAUSED (release input active)" : "Charging released") << " ("
-               << config.pause_direction << ": " << current << " A)";
+    if (paused) {
+        EVLOG_info << "Charging PAUSED (release input active, energy direction: " << config.pause_direction
+                   << ", limit: 0 A)";
+    } else {
+        EVLOG_info << "Charging released (external limits cleared)";
+    }
 }
 
 } // namespace module

@@ -25,7 +25,6 @@ namespace module {
 struct Conf {
     std::string pause_gpio_line_name;
     bool pause_active_low;
-    double pause_release_current_A;
     std::string pause_direction;
 };
 
