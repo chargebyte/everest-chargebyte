@@ -30,7 +30,7 @@ void CbGPIOChargePause::init() {
     }
     m_stop_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (m_stop_fd < 0) {
-        throw std::system_error(errno, std::generic_category(), "Cannot create GPIO shutdown event");
+        throw std::system_error(errno, std::generic_category(), "Cannot create eventfd for module shutdown");
     }
 }
 
