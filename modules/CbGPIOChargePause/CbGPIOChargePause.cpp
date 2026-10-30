@@ -28,6 +28,7 @@ void CbGPIOChargePause::init() {
     if (config.pause_direction != "import" && config.pause_direction != "export" && config.pause_direction != "both") {
         throw std::invalid_argument("Invalid pause_direction: " + config.pause_direction);
     }
+    m_gpio_request.emplace(acquire_gpio());
     m_stop_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     if (m_stop_fd < 0) {
         throw std::system_error(errno, std::generic_category(), "Cannot create eventfd for module shutdown");
@@ -58,6 +59,7 @@ void CbGPIOChargePause::stop() {
     if (m_worker.joinable()) {
         m_worker.join();
     }
+    m_gpio_request.reset();
 }
 
 bool CbGPIOChargePause::wait_for_activity(int gpio_fd, int timeout_ms) {
@@ -78,18 +80,29 @@ bool CbGPIOChargePause::wait_for_activity(int gpio_fd, int timeout_ms) {
     return (fds[1].revents & POLLIN) != 0;
 }
 
+gpiod::line_request CbGPIOChargePause::acquire_gpio() const {
+    try {
+        gpiod::line_settings settings;
+        settings.set_direction(gpiod::line::direction::INPUT)
+            .set_active_low(config.pause_active_low)
+            .set_edge_detection(gpiod::line::edge::BOTH)
+            .set_debounce_period(50ms);
+        return get_gpioline_by_name(config.pause_gpio_line_name, "CbGPIOChargePause", settings);
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Cannot acquire GPIO '" + config.pause_gpio_line_name + "': " + e.what());
+    }
+}
+
 void CbGPIOChargePause::monitor_gpio() {
     EVLOG_info << "Watching GPIO '" << config.pause_gpio_line_name << "' (active_low=" << config.pause_active_low
                << ", energy direction=" << config.pause_direction << ")";
 
     while (!m_stopping) {
         try {
-            gpiod::line_settings settings;
-            settings.set_direction(gpiod::line::direction::INPUT)
-                .set_active_low(config.pause_active_low)
-                .set_edge_detection(gpiod::line::edge::BOTH)
-                .set_debounce_period(50ms);
-            auto request = get_gpioline_by_name(config.pause_gpio_line_name, "CbGPIOChargePause", settings);
+            if (!m_gpio_request) {
+                m_gpio_request.emplace(acquire_gpio());
+            }
+            auto& request = *m_gpio_request;
             gpiod::edge_event_buffer events;
 
             while (!m_stopping) {
@@ -109,6 +122,7 @@ void CbGPIOChargePause::monitor_gpio() {
                 }
             }
         } catch (const std::exception& e) {
+            m_gpio_request.reset();
             EVLOG_error << "Cannot monitor GPIO '" << config.pause_gpio_line_name << "': " << e.what()
                         << "; retaining the last limit and retrying";
             try {

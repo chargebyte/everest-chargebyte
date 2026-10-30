@@ -2,11 +2,13 @@
 // Copyright 2026 chargebyte GmbH
 #include "CbGPIOChargePause.hpp"
 
+#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <future>
 #include <stdexcept>
 #include <sys/eventfd.h>
+#include <system_error>
 #include <unistd.h>
 #include <gtest/gtest.h>
 
@@ -16,6 +18,18 @@ namespace module {
 
 class CbGPIOChargePauseTestAccess {
 public:
+    static void prepare_shutdown(CbGPIOChargePause& mod) {
+        mod.m_stop_fd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+        if (mod.m_stop_fd < 0) {
+            throw std::system_error(errno, std::generic_category(), "Cannot prepare shutdown eventfd for test");
+        }
+    }
+    static bool has_worker(const CbGPIOChargePause& mod) {
+        return mod.m_worker.joinable();
+    }
+    static bool has_gpio_request(const CbGPIOChargePause& mod) {
+        return mod.m_gpio_request.has_value();
+    }
     static void init(CbGPIOChargePause& mod) {
         mod.init();
     }
@@ -31,8 +45,14 @@ public:
     static void stop(CbGPIOChargePause& mod) {
         mod.shutdown();
     }
-    static void monitor(CbGPIOChargePause& mod) {
-        mod.monitor_gpio();
+    static std::future<void> monitor(CbGPIOChargePause& mod) {
+        std::promise<void> finished;
+        auto completion = finished.get_future();
+        mod.m_worker = std::thread([&mod, finished = std::move(finished)]() mutable {
+            mod.monitor_gpio();
+            finished.set_value();
+        });
+        return completion;
     }
 };
 
@@ -56,7 +76,7 @@ protected:
         };
         auto sink = std::make_unique<external_energy_limitsIntf>(&m_adapter, Requirement {}, m_info.id, std::nullopt);
         m_module = std::make_unique<CbGPIOChargePause>(m_info, std::move(sink), m_config);
-        CbGPIOChargePauseTestAccess::init(*m_module);
+        CbGPIOChargePauseTestAccess::prepare_shutdown(*m_module);
     }
 
     static void expect_released(const types::energy::ExternalLimits& limits) {
@@ -197,7 +217,7 @@ TEST_F(ChargePauseTest, ShutdownInterruptsRecoveryWait) {
 
 TEST_F(ChargePauseTest, MonitoringFailureRetainsExistingLimit) {
     CbGPIOChargePauseTestAccess::apply(*m_module, true);
-    auto monitoring = std::async(std::launch::async, [&] { CbGPIOChargePauseTestAccess::monitor(*m_module); });
+    auto monitoring = CbGPIOChargePauseTestAccess::monitor(*m_module);
     EXPECT_EQ(monitoring.wait_for(50ms), std::future_status::timeout);
     CbGPIOChargePauseTestAccess::stop(*m_module);
     EXPECT_EQ(monitoring.wait_for(500ms), std::future_status::ready);
@@ -206,11 +226,18 @@ TEST_F(ChargePauseTest, MonitoringFailureRetainsExistingLimit) {
     EXPECT_FLOAT_EQ(m_limits[0].schedule_import[0].limits_to_root.ac_max_current_A->value, 0.f);
 }
 
-TEST_F(ChargePauseTest, UnreadableInitialGpioDoesNotSendLimit) {
-    auto monitoring = std::async(std::launch::async, [&] { CbGPIOChargePauseTestAccess::monitor(*m_module); });
-    EXPECT_EQ(monitoring.wait_for(50ms), std::future_status::timeout);
-    CbGPIOChargePauseTestAccess::stop(*m_module);
-    monitoring.get();
+TEST_F(ChargePauseTest, MissingGpioFailsInitializationWithoutStartingWorker) {
+    try {
+        CbGPIOChargePauseTestAccess::init(*m_module);
+        FAIL() << "Initialization must fail for a nonexistent GPIO";
+    } catch (const std::runtime_error& e) {
+        const std::string message = e.what();
+        const std::string prefix = "Cannot acquire GPIO '" + m_config.pause_gpio_line_name + "': ";
+        EXPECT_EQ(message.compare(0, prefix.size(), prefix), 0);
+        EXPECT_GT(message.size(), prefix.size());
+    }
+    EXPECT_FALSE(CbGPIOChargePauseTestAccess::has_worker(*m_module));
+    EXPECT_FALSE(CbGPIOChargePauseTestAccess::has_gpio_request(*m_module));
     EXPECT_TRUE(m_limits.empty());
 }
 

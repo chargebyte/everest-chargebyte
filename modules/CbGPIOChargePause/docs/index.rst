@@ -33,6 +33,13 @@ When released, all three schedules are empty regardless of this setting.
 Operation and failures
 ----------------------
 
+During initialization, the module acquires and retains the configured GPIO
+with both-edge detection and 50 ms debounce. A missing, inaccessible, busy,
+or unsupported GPIO causes initialization to fail and the module to exit
+with a failure status. Initial acquisition is not retried. The error
+identifies the configured line and includes the underlying failure reason.
+The manager or service may restart the failed module according to its policy.
+
 After framework readiness, the module sends the initial GPIO state and then
 blocks waiting for edge events. It sends subsequent limits only when the
 logical state changes. There is no periodic GPIO polling or limit refresh.
@@ -40,11 +47,12 @@ Schedules remain effective until replaced while the EnergyNode is running.
 Restarting the EnergyNode separately requires restarting this module to
 reapply an unchanged GPIO state.
 
-GPIO acquisition and read failures are logged and retried after one second.
-The last successfully applied limit is retained; before the first valid
-reading no limit is sent. Failed command delivery is retried without marking
-the state as applied. Recovery reads the current input rather than replaying
-obsolete transitions.
+GPIO monitoring failures after successful startup are logged. The request
+is released, and acquisition is retried after one second. The last
+successfully applied limit is retained; before the first valid reading no
+limit is sent. Failed command delivery is retried without marking the state
+as applied. Recovery reads the current input rather than replaying obsolete
+transitions.
 
 Shutdown wakes and joins the monitoring worker, then releases its resources.
 It does not clear or release the last energy limit. The shutdown member and
@@ -62,5 +70,7 @@ On target hardware, verify initial low/high levels with each polarity,
 transitions in both directions, and 50 ms debounce. Capture calls to the
 EnergyNode to check startup delivery, changes, and the absence of periodic
 updates. Verify that stopping the module with an unchanged GPIO exits
-promptly, and that a busy or unavailable GPIO retains the previous limit
-and recovers when access becomes available.
+promptly. Verify that a nonexistent line, a busy line, or insufficient GPIO
+permissions cause startup to fail without a worker or an energy-limit
+command. For failures after successful startup, verify retention of the
+previous limit and recovery when access becomes available.

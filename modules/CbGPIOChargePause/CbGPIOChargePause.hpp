@@ -18,6 +18,7 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <gpiod.hpp>
 // ev@4bf81b14-a215-475c-a1d3-0a484ae48918:v1
 
 namespace module {
@@ -54,12 +55,14 @@ private:
 
     // ev@211cfdbe-f69a-4cd6-a4ec-f8aaa3d1b6c8:v1
     friend class CbGPIOChargePauseTestAccess;
+    gpiod::line_request acquire_gpio() const;
     void monitor_gpio();
     void apply_limit(bool paused);
     bool wait_for_activity(int gpio_fd, int timeout_ms);
     void stop();
 
     int m_stop_fd {-1};
+    std::optional<gpiod::line_request> m_gpio_request;
     std::atomic<bool> m_stopping {false};
     std::mutex m_stop_mutex;
     std::thread m_worker;
