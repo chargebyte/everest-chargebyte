@@ -381,7 +381,7 @@ void evse_board_supportImpl::pp_observation_worker(void) {
 
                 // we received a valid measurement update, so clear any possible error raised before
                 if (this->pp_fault_reported.exchange(false)) {
-                    this->clear_error("evse_board_support/MREC23ProximityFault");
+                    this->clear_all_errors_of_impl("evse_board_support/MREC23ProximityFault");
                 }
 
                 // publish new value
@@ -541,7 +541,7 @@ void evse_board_supportImpl::cp_observation_worker(void) {
 
         // clear a possible ProximityFault error on transition to state A
         if (current_cp_state == types::cb_board_support::CPState::A && this->pp_fault_reported.exchange(false)) {
-            this->clear_error("evse_board_support/MREC23ProximityFault");
+            this->clear_all_errors_of_impl("evse_board_support/MREC23ProximityFault");
         }
     }
 
